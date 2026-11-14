@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { Resolved } from "../ytdlp.ts";
+import type { Resolved } from "../ytdlp/types.ts";
 import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
 import {
   allowPianoVideo,

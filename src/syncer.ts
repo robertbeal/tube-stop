@@ -1,6 +1,6 @@
 import type { Channel, NewVideo } from "./db/store.ts";
 import { Wakeup } from "./wakeup.ts";
-import type { Video } from "./ytdlp.ts";
+import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;

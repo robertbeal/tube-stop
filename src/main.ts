@@ -7,7 +7,8 @@ import { DownloadWorker } from "./download.ts";
 import { ChannelSyncer } from "./syncer.ts";
 import { ThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
-import { downloadToCache, downloadToLibrary, getChannelVideos, resolveUrl } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
+import { getChannelVideos, resolveUrl } from "./ytdlp/resolve.ts";
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   // Other users (such as a Jellyfin container) need to read the media folders.

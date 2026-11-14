@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { type Channel, Store } from "./db/store.ts";
 import { ChannelSyncer, type SyncStore } from "./syncer.ts";
 import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { getChannelVideos, type Video } from "./ytdlp.ts";
+import { getChannelVideos } from "./ytdlp/resolve.ts";
+import type { Video } from "./ytdlp/types.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;

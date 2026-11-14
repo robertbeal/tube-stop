@@ -1,4 +1,4 @@
-const initialSchema = `
+const schema = `
 CREATE TABLE channels (
   id INTEGER PRIMARY KEY,
   youtube_id TEXT NOT NULL UNIQUE,
@@ -41,4 +41,4 @@ CREATE TABLE users (
  * Applied in order; the number applied is kept in PRAGMA user_version. Never edit an existing
  * entry: append a new one instead.
  */
-export const migrations: readonly string[] = [initialSchema];
+export const migrations: readonly string[] = [schema];

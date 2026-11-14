@@ -1,4 +1,4 @@
-import type { Channel, Video } from "./ytdlp.ts";
+import type { Channel, Video } from "./types.ts";
 
 /** What `yt-dlp -J` prints for a video, channel or playlist. Every field may be missing. */
 export interface Info {

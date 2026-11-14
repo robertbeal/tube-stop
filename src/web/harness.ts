@@ -4,7 +4,7 @@ import { type NewVideo, Store, type User } from "../db/store.ts";
 import { PasswordHasher } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { ThumbnailStore } from "../thumbnails.ts";
-import type { Resolved, ResolveUrl } from "../ytdlp.ts";
+import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
 export const adminUsername = "parent";

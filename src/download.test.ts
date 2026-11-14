@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { Store } from "./db/store.ts";
 import { type DownloadConfig, DownloadWorker } from "./download.ts";
 import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { downloadToCache, downloadToLibrary } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;

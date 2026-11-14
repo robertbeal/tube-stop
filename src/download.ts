@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import type { Video } from "./db/store.ts";
 import { removeMedia } from "./storage.ts";
 import { sleep, Wakeup } from "./wakeup.ts";
-import type { Download } from "./ytdlp.ts";
+import type { Download } from "./ytdlp/types.ts";
 
 /** Watch-once copies are always fetched at this height. */
 const cacheHeight = 720;
