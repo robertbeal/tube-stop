@@ -1,5 +1,4 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
-import { all, get, immediately, run } from "./query.ts";
 import { migrations } from "./schema.ts";
 import {
   type Channel,
@@ -125,29 +124,27 @@ function migrate(database: Database): void {
 
 /** Allows a channel, or renames it if it is already allowed. */
 export function insertChannel(store: Store, youtubeId: string, name: string): void {
-  run(
-    store,
+  store.database.run(
     `INSERT INTO channels (youtube_id, name) VALUES (?, ?)
      ON CONFLICT(youtube_id) DO UPDATE SET name = excluded.name`,
-    youtubeId,
-    name,
+    [youtubeId, name],
   );
 }
 
 /** Allowed channels by name, with the number of non-blocked videos known for each. */
 export function getChannels(store: Store): Channel[] {
-  return all<ChannelRow>(
-    store,
-    `SELECT c.id, c.youtube_id, c.name, c.last_synced_at,
+  return store.database
+    .query<ChannelRow, []>(`SELECT c.id, c.youtube_id, c.name, c.last_synced_at,
        (SELECT COUNT(*) FROM videos v WHERE v.channel_yt_id = c.youtube_id AND v.rule != 'block') AS video_count
-     FROM channels c ORDER BY c.name COLLATE NOCASE`,
-  ).map((row) => ({
-    id: row.id,
-    youtubeId: row.youtube_id,
-    name: row.name,
-    lastSyncedAt: row.last_synced_at,
-    videoCount: row.video_count,
-  }));
+     FROM channels c ORDER BY c.name COLLATE NOCASE`)
+    .all()
+    .map((row) => ({
+      id: row.id,
+      youtubeId: row.youtube_id,
+      name: row.name,
+      lastSyncedAt: row.last_synced_at,
+      videoCount: row.video_count,
+    }));
 }
 
 /**
@@ -156,81 +153,92 @@ export function getChannels(store: Store): Channel[] {
  * caller to delete. Pinned files are left alone.
  */
 export function deleteChannel(store: Store, id: number): string[] {
-  return immediately(store, () => {
-    const channel = get<{ youtube_id: string }>(store, "SELECT youtube_id FROM channels WHERE id = ?", id);
-    if (channel === null) {
-      throw new NotFoundError();
-    }
-    const cachePaths = all<{ cache_path: string }>(
-      store,
-      `SELECT cache_path FROM videos WHERE channel_yt_id = ? AND rule = 'inherit' AND cache_path != ''`,
-      channel.youtube_id,
-    ).map((row) => row.cache_path);
-    run(
-      store,
-      `UPDATE videos SET cache_path = '', cache_error = '',
+  return store.database
+    .transaction(() => {
+      const channel = store.database
+        .query<{ youtube_id: string }, [number]>("SELECT youtube_id FROM channels WHERE id = ?")
+        .get(id);
+      if (channel === null) {
+        throw new NotFoundError();
+      }
+      const cachePaths = store.database
+        .query<{ cache_path: string }, [string]>(
+          `SELECT cache_path FROM videos WHERE channel_yt_id = ? AND rule = 'inherit' AND cache_path != ''`,
+        )
+        .all(channel.youtube_id)
+        .map((row) => row.cache_path);
+      store.database.run(
+        `UPDATE videos SET cache_path = '', cache_error = '',
          cache_status = CASE WHEN cache_status = 'downloading' THEN 'downloading' ELSE 'none' END
        WHERE channel_yt_id = ? AND rule = 'inherit'`,
-      channel.youtube_id,
-    );
-    run(store, "DELETE FROM channels WHERE id = ?", id);
-    return cachePaths;
-  });
+        [channel.youtube_id],
+      );
+      store.database.run("DELETE FROM channels WHERE id = ?", [id]);
+      return cachePaths;
+    })
+    .immediate();
 }
 
 export function markChannelSynced(store: Store, youtubeId: string): void {
-  run(store, "UPDATE channels SET last_synced_at = ? WHERE youtube_id = ?", store.now(), youtubeId);
+  store.database.run("UPDATE channels SET last_synced_at = ? WHERE youtube_id = ?", [store.now(), youtubeId]);
 }
 
 /** Channels that have at least one watchable video. */
 export function getWatchableChannels(store: Store): Pick<Channel, "youtubeId" | "name">[] {
-  return all<{ channel_yt_id: string; channel_name: string }>(
-    store,
-    `SELECT DISTINCT v.channel_yt_id, v.channel_name FROM videos v
-     WHERE ${watchableExpression} AND v.channel_yt_id != '' ORDER BY v.channel_name COLLATE NOCASE`,
-  ).map((row) => ({ youtubeId: row.channel_yt_id, name: row.channel_name }));
+  return store.database
+    .query<
+      { channel_yt_id: string; channel_name: string },
+      []
+    >(`SELECT DISTINCT v.channel_yt_id, v.channel_name FROM videos v
+     WHERE ${watchableExpression} AND v.channel_yt_id != '' ORDER BY v.channel_name COLLATE NOCASE`)
+    .all()
+    .map((row) => ({ youtubeId: row.channel_yt_id, name: row.channel_name }));
 }
 
 // ---- videos ----
 
 /** Adds a video found by channel sync. An existing video keeps its rule and details; only a previously unknown publish date is filled in. */
 export function insertVideo(store: Store, video: NewVideo): void {
-  run(
-    store,
+  store.database.run(
     `INSERT INTO videos (youtube_id, channel_yt_id, channel_name, title, duration, published_at, rule)
      VALUES (?, ?, ?, ?, ?, ?, 'inherit')
      ON CONFLICT(youtube_id) DO UPDATE SET published_at = excluded.published_at
        WHERE excluded.published_at > 0`,
-    video.youtubeId,
-    video.channelYoutubeId,
-    video.channelName,
-    video.title,
-    video.duration,
-    video.publishedAt,
+    [
+      video.youtubeId,
+      video.channelYoutubeId,
+      video.channelName,
+      video.title,
+      video.duration,
+      video.publishedAt,
+    ],
   );
 }
 
 /** Explicitly allows a single video, regardless of its channel. */
 export function allowVideo(store: Store, video: NewVideo): void {
-  run(
-    store,
+  store.database.run(
     `INSERT INTO videos (youtube_id, channel_yt_id, channel_name, title, duration, published_at, rule)
      VALUES (?, ?, ?, ?, ?, ?, 'allow')
      ON CONFLICT(youtube_id) DO UPDATE SET rule = 'allow', title = excluded.title,
        channel_yt_id = excluded.channel_yt_id, channel_name = excluded.channel_name, duration = excluded.duration,
        published_at = CASE WHEN excluded.published_at > 0 THEN excluded.published_at ELSE videos.published_at END`,
-    video.youtubeId,
-    video.channelYoutubeId,
-    video.channelName,
-    video.title,
-    video.duration,
-    video.publishedAt,
+    [
+      video.youtubeId,
+      video.channelYoutubeId,
+      video.channelName,
+      video.title,
+      video.duration,
+      video.publishedAt,
+    ],
   );
 }
 
 /** Hides a video from the child, even if its channel is allowed. */
 export function blockVideo(store: Store, youtubeId: string): void {
-  const changes = run(store, "UPDATE videos SET rule = 'block' WHERE youtube_id = ?", youtubeId);
+  const changes = store.database.run("UPDATE videos SET rule = 'block' WHERE youtube_id = ?", [
+    youtubeId,
+  ]).changes;
   if (changes === 0) {
     throw new NotFoundError();
   }
@@ -238,33 +246,30 @@ export function blockVideo(store: Store, youtubeId: string): void {
 
 /** Reverses `block`: back to the channel's rule, or to an explicit allow if its channel is not allowed. */
 export function unblockVideo(store: Store, youtubeId: string): void {
-  run(
-    store,
+  store.database.run(
     `UPDATE videos SET rule = CASE
        WHEN EXISTS (SELECT 1 FROM channels c WHERE c.youtube_id = videos.channel_yt_id) THEN 'inherit' ELSE 'allow' END
      WHERE youtube_id = ? AND rule = 'block'`,
-    youtubeId,
+    [youtubeId],
   );
 }
 
 export function getVideo(store: Store, youtubeId: string): Video | null {
-  const row = get<VideoRow>(store, `SELECT ${videoColumns} FROM videos v WHERE v.youtube_id = ?`, youtubeId);
+  const row = store.database
+    .query<VideoRow, [string]>(`SELECT ${videoColumns} FROM videos v WHERE v.youtube_id = ?`)
+    .get(youtubeId);
   return row === null ? null : toVideo(row);
 }
 
 function queryPage(store: Store, where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
-  const total = get<{ total: number }>(
-    store,
-    `SELECT COUNT(*) AS total FROM videos v WHERE ${where}`,
-    ...parameters,
-  );
-  const rows = all<VideoRow>(
-    store,
-    `SELECT ${videoColumns} FROM videos v WHERE ${where} ${newestFirst} LIMIT ? OFFSET ?`,
-    ...parameters,
-    page.limit,
-    page.offset,
-  );
+  const total = store.database
+    .query<{ total: number }, SQLQueryBindings[]>(`SELECT COUNT(*) AS total FROM videos v WHERE ${where}`)
+    .get(...parameters);
+  const rows = store.database
+    .query<VideoRow, SQLQueryBindings[]>(
+      `SELECT ${videoColumns} FROM videos v WHERE ${where} ${newestFirst} LIMIT ? OFFSET ?`,
+    )
+    .all(...parameters, page.limit, page.offset);
   return { videos: rows.map(toVideo), total: total?.total ?? 0 };
 }
 
@@ -287,11 +292,9 @@ export function getAdminVideos(store: Store, channelYoutubeId: string, page: Pag
 
 /** Counts a play and stamps the last-played time used for cache eviction. */
 export function recordPlay(store: Store, youtubeId: string): void {
-  run(
-    store,
+  store.database.run(
     "UPDATE videos SET play_count = play_count + 1, last_played_at = ? WHERE youtube_id = ?",
-    store.now(),
-    youtubeId,
+    [store.now(), youtubeId],
   );
 }
 
@@ -299,14 +302,13 @@ export function recordPlay(store: Store, youtubeId: string): void {
 
 /** Marks a video to be kept, and queues a download if no file is ready. */
 export function pinVideo(store: Store, youtubeId: string): void {
-  const changes = run(
-    store,
+  const changes = store.database.run(
     `UPDATE videos SET pinned = 1,
        download_status = CASE WHEN download_status = 'ready' THEN 'ready' WHEN download_status = 'downloading' THEN 'downloading' ELSE 'queued' END,
        download_error = ''
      WHERE youtube_id = ?`,
-    youtubeId,
-  );
+    [youtubeId],
+  ).changes;
   if (changes === 0) {
     throw new NotFoundError();
   }
@@ -317,24 +319,23 @@ export function pinVideo(store: Store, youtubeId: string): void {
  * stays 'downloading' so the worker can finish and discard it.
  */
 export function unpinVideo(store: Store, youtubeId: string): string {
-  return immediately(store, () => {
-    const video = get<{ file_path: string }>(
-      store,
-      "SELECT file_path FROM videos WHERE youtube_id = ?",
-      youtubeId,
-    );
-    if (video === null) {
-      throw new NotFoundError();
-    }
-    run(
-      store,
-      `UPDATE videos SET pinned = 0, file_path = '', download_error = '',
+  return store.database
+    .transaction(() => {
+      const video = store.database
+        .query<{ file_path: string }, [string]>("SELECT file_path FROM videos WHERE youtube_id = ?")
+        .get(youtubeId);
+      if (video === null) {
+        throw new NotFoundError();
+      }
+      store.database.run(
+        `UPDATE videos SET pinned = 0, file_path = '', download_error = '',
          download_status = CASE WHEN download_status = 'downloading' THEN 'downloading' ELSE 'none' END
        WHERE youtube_id = ?`,
-      youtubeId,
-    );
-    return video.file_path;
-  });
+        [youtubeId],
+      );
+      return video.file_path;
+    })
+    .immediate();
 }
 
 /**
@@ -343,72 +344,68 @@ export function unpinVideo(store: Store, youtubeId: string): string {
  * outright. A download in flight is discarded by the worker when it finishes.
  */
 export function deleteVideo(store: Store, youtubeId: string): Removal {
-  return immediately(store, () => {
-    const row = get<{ file_path: string; cache_path: string; channel_allowed: number }>(
-      store,
-      `SELECT file_path, cache_path,
+  return store.database
+    .transaction(() => {
+      const row = store.database
+        .query<
+          { file_path: string; cache_path: string; channel_allowed: number },
+          [string]
+        >(`SELECT file_path, cache_path,
          EXISTS (SELECT 1 FROM channels c WHERE c.youtube_id = videos.channel_yt_id) AS channel_allowed
-       FROM videos WHERE youtube_id = ?`,
-      youtubeId,
-    );
-    if (row === null) {
-      throw new NotFoundError();
-    }
-    const blocked = row.channel_allowed === 1;
-    if (blocked) {
-      run(
-        store,
-        `UPDATE videos SET rule = 'block', pinned = 0,
+       FROM videos WHERE youtube_id = ?`)
+        .get(youtubeId);
+      if (row === null) {
+        throw new NotFoundError();
+      }
+      const blocked = row.channel_allowed === 1;
+      if (blocked) {
+        store.database.run(
+          `UPDATE videos SET rule = 'block', pinned = 0,
            file_path = '', download_error = '', cache_path = '', cache_error = '',
            download_status = CASE WHEN download_status = 'downloading' THEN 'downloading' ELSE 'none' END,
            cache_status = CASE WHEN cache_status = 'downloading' THEN 'downloading' ELSE 'none' END
          WHERE youtube_id = ?`,
-        youtubeId,
-      );
-    } else {
-      run(store, "DELETE FROM videos WHERE youtube_id = ?", youtubeId);
-    }
-    return { filePath: row.file_path, cachePath: row.cache_path, blocked };
-  });
+          [youtubeId],
+        );
+      } else {
+        store.database.run("DELETE FROM videos WHERE youtube_id = ?", [youtubeId]);
+      }
+      return { filePath: row.file_path, cachePath: row.cache_path, blocked };
+    })
+    .immediate();
 }
 
 /** Requeues downloads that were interrupted by a restart. */
 export function resetDownloading(store: Store): void {
-  run(store, "UPDATE videos SET download_status = 'queued' WHERE download_status = 'downloading'");
-  run(store, "UPDATE videos SET cache_status = 'queued' WHERE cache_status = 'downloading'");
+  store.database.run("UPDATE videos SET download_status = 'queued' WHERE download_status = 'downloading'");
+  store.database.run("UPDATE videos SET cache_status = 'queued' WHERE cache_status = 'downloading'");
 }
 
 /** Atomically moves the oldest queued pinned video to 'downloading'. Null if none is queued. */
 export function claimDownload(store: Store): string | null {
-  const row = get<{ youtube_id: string }>(
-    store,
-    `UPDATE videos SET download_status = 'downloading'
+  const row = store.database
+    .query<{ youtube_id: string }, []>(`UPDATE videos SET download_status = 'downloading'
      WHERE id = (SELECT id FROM videos WHERE download_status = 'queued' AND pinned = 1 ORDER BY id LIMIT 1)
-     RETURNING youtube_id`,
-  );
+     RETURNING youtube_id`)
+    .get();
   return row?.youtube_id ?? null;
 }
 
 /** Records a completed pin download. False when the video was unpinned or removed meanwhile: the caller must then delete the file. */
 export function finishDownload(store: Store, youtubeId: string, path: string): boolean {
-  const row = get<{ pinned: number }>(
-    store,
-    `UPDATE videos SET
+  const row = store.database
+    .query<{ pinned: number }, [string, string]>(`UPDATE videos SET
        download_status = CASE WHEN pinned = 1 THEN 'ready' ELSE 'none' END,
        file_path = CASE WHEN pinned = 1 THEN ? ELSE '' END, download_error = ''
-     WHERE youtube_id = ? RETURNING pinned`,
-    path,
-    youtubeId,
-  );
+     WHERE youtube_id = ? RETURNING pinned`)
+    .get(path, youtubeId);
   return row?.pinned === 1;
 }
 
 export function failDownload(store: Store, youtubeId: string, message: string): void {
-  run(
-    store,
+  store.database.run(
     "UPDATE videos SET download_status = 'failed', download_error = ? WHERE youtube_id = ?",
-    message,
-    youtubeId,
+    [message, youtubeId],
   );
 }
 
@@ -419,23 +416,20 @@ export function failDownload(store: Store, youtubeId: string, message: string): 
  * video as just used, so a copy that is fetched but not yet played is not evicted as stale.
  */
 export function requestCache(store: Store, youtubeId: string): void {
-  run(
-    store,
+  store.database.run(
     `UPDATE videos SET cache_status = 'queued', cache_error = '', last_played_at = ?
      WHERE youtube_id = ? AND cache_status IN ('none','failed')`,
-    store.now(),
-    youtubeId,
+    [store.now(), youtubeId],
   );
 }
 
 /** Atomically moves the most recently played queued cache request to 'downloading'. Null if none is queued. */
 export function claimCache(store: Store): string | null {
-  const row = get<{ youtube_id: string }>(
-    store,
-    `UPDATE videos SET cache_status = 'downloading'
+  const row = store.database
+    .query<{ youtube_id: string }, []>(`UPDATE videos SET cache_status = 'downloading'
      WHERE id = (SELECT id FROM videos WHERE cache_status = 'queued' ORDER BY last_played_at DESC, id LIMIT 1)
-     RETURNING youtube_id`,
-  );
+     RETURNING youtube_id`)
+    .get();
   return row?.youtube_id ?? null;
 }
 
@@ -445,40 +439,36 @@ export function claimCache(store: Store): string | null {
  */
 export function finishCache(store: Store, youtubeId: string, path: string): boolean {
   const watchable = watchableFor("");
-  const row = get<{ watchable: number }>(
-    store,
-    `UPDATE videos SET
+  const row = store.database
+    .query<{ watchable: number }, [string, string]>(`UPDATE videos SET
        cache_status = CASE WHEN ${watchable} THEN 'ready' ELSE 'none' END,
        cache_path = CASE WHEN ${watchable} THEN ? ELSE '' END, cache_error = ''
-     WHERE youtube_id = ? RETURNING ${watchable} AS watchable`,
-    path,
-    youtubeId,
-  );
+     WHERE youtube_id = ? RETURNING ${watchable} AS watchable`)
+    .get(path, youtubeId);
   return row?.watchable === 1;
 }
 
 export function failCache(store: Store, youtubeId: string, message: string): void {
-  run(
-    store,
-    "UPDATE videos SET cache_status = 'failed', cache_error = ? WHERE youtube_id = ?",
+  store.database.run("UPDATE videos SET cache_status = 'failed', cache_error = ? WHERE youtube_id = ?", [
     message,
     youtubeId,
-  );
+  ]);
 }
 
 /** Forgets a cached file (the caller deletes it from disk). */
 export function clearCache(store: Store, youtubeId: string): void {
-  run(
-    store,
+  store.database.run(
     "UPDATE videos SET cache_status = 'none', cache_path = '', cache_error = '' WHERE youtube_id = ?",
-    youtubeId,
+    [youtubeId],
   );
 }
 
 /** Ready cache files, least recently played first. */
 export function getCacheEntries(store: Store): Video[] {
-  return all<VideoRow>(
-    store,
-    `SELECT ${videoColumns} FROM videos v WHERE v.cache_status = 'ready' ORDER BY v.last_played_at`,
-  ).map(toVideo);
+  return store.database
+    .query<VideoRow, []>(
+      `SELECT ${videoColumns} FROM videos v WHERE v.cache_status = 'ready' ORDER BY v.last_played_at`,
+    )
+    .all()
+    .map(toVideo);
 }
