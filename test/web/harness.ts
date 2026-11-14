@@ -79,10 +79,18 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const app = createApp({
     store,
     resolver,
-    syncer: { trigger: () => void (triggers.sync += 1) },
+    syncer: {
+      trigger: () => {
+        triggers.sync += 1;
+      },
+    },
     downloads: {
-      triggerPins: () => void (triggers.pins += 1),
-      triggerCache: () => void (triggers.cache += 1),
+      triggerPins: () => {
+        triggers.pins += 1;
+      },
+      triggerCache: () => {
+        triggers.cache += 1;
+      },
     },
     thumbnails: new ThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,

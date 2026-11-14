@@ -50,12 +50,21 @@ export class ChannelSyncer {
     if (signal.aborted) {
       return;
     }
-    const channels = this.#store.channels();
+    const channels = this.#listChannels();
     for (const channel of channels) {
       if (signal.aborted) {
         return;
       }
       await this.#syncChannel(channel, signal);
+    }
+  }
+
+  #listChannels(): Channel[] {
+    try {
+      return this.#store.channels();
+    } catch (error) {
+      this.#log(`sync: list channels: ${describe(error)}`);
+      return [];
     }
   }
 

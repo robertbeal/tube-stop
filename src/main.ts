@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { resetAdmin } from "./commands.ts";
 import { loadConfig } from "./config.ts";
 import { Store } from "./db/store.ts";
 import { DownloadWorker } from "./download.ts";
@@ -7,24 +8,6 @@ import { ChannelSyncer } from "./syncer.ts";
 import { ThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
 import { YtDlp } from "./ytdlp.ts";
-
-const shutdownGraceMs = 5000;
-
-function resetAdmin(dataDir: string): void {
-  const path = join(dataDir, "tubestop.db");
-  if (!Bun.file(path).size) {
-    throw new Error(`no database at ${path}: is DATA_DIR set to the same folder the app uses?`);
-  }
-  const store = new Store(path);
-  const removed = store.deleteUsers();
-  store.close();
-  console.log(
-    removed === 0
-      ? "There were no admin accounts to remove. Open /admin to set one up."
-      : `Removed ${removed} admin account(s). Videos, channels and settings were kept.\n` +
-          "Open /admin in the app to create a new account: the setup code is printed in the app's log.",
-  );
-}
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   // Other users (such as a Jellyfin container) need to read the media folders.
@@ -76,7 +59,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     }
   });
   await stopped;
-  await Promise.race([server.stop(), Bun.sleep(shutdownGraceMs)]);
+  await server.stop(true); // close idle keep-alive connections too, or shutdown would wait for them
   await workers; // workers stop before the database closes
   store.close();
 }
@@ -94,7 +77,7 @@ async function main(): Promise<void> {
     return serve(config);
   }
   if (command === "reset-admin") {
-    return resetAdmin(config.dataDir);
+    return resetAdmin(config.dataDir, console.log);
   }
   throw new Error(`unknown command "${command}" (the only command is: reset-admin)`);
 }

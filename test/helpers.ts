@@ -1,5 +1,5 @@
 import { afterAll } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -31,7 +31,8 @@ export async function stubYtDlp(body: string): Promise<Stub> {
   const directory = await temporaryDirectory();
   const binary = join(directory, "yt-dlp");
   const argumentsFile = join(directory, "arguments.txt");
-  await Bun.write(binary, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argumentsFile}'\n${body}\n`, { mode: 0o755 });
+  await Bun.write(binary, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argumentsFile}'\n${body}\n`);
+  await chmod(binary, 0o755);
   return {
     binary,
     arguments: async () => (await Bun.file(argumentsFile).text()).trimEnd().split("\n"),
