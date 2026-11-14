@@ -31,14 +31,14 @@ function collectOutput(): { lines: string[]; output: (line: string) => void } {
 }
 
 describe("resetAdmin", () => {
-  test("removes the accounts and reports what was kept", async () => {
+  test("removes the account and reports what was kept", async () => {
     const dataDir = await dataDirectoryWithOneAdminAndOneVideo();
     const { lines, output } = collectOutput();
 
     resetAdmin(dataDir, output);
 
     const text = lines.join("\n");
-    expect(text).toContain("Removed 1 admin account");
+    expect(text).toContain("Removed the admin account");
     expect(text).toContain("kept");
     expect(text).toContain("setup code");
     const store = openStore(join(dataDir, "tubestop.db"));
@@ -58,14 +58,14 @@ describe("resetAdmin", () => {
     closeStore(store);
   });
 
-  test("says so when there are no accounts left to remove", async () => {
+  test("says so when there is no account left to remove", async () => {
     const dataDir = await dataDirectoryWithOneAdminAndOneVideo();
     resetAdmin(dataDir, () => {});
     const { lines, output } = collectOutput();
 
     resetAdmin(dataDir, output);
 
-    expect(lines.join("\n")).toContain("no admin accounts");
+    expect(lines.join("\n")).toContain("no admin account");
   });
 
   test("explains where it looked when there is no database", async () => {

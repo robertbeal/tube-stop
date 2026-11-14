@@ -1,11 +1,14 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { closeStore, openStore } from "../db/store.ts";
 import { deleteUsers } from "./users.ts";
 
-/** Removes every admin account so a new one can be created from the setup page. */
+/** Removes the admin account so a new one can be created from the setup page. */
 export function resetAdmin(dataDir: string, output: (line: string) => void): void {
   const path = join(dataDir, "tubestop.db");
-  if (!Bun.file(path).size) {
+
+  // openStore would create an empty database here, so a wrong DATA_DIR must be caught first.
+  if (!existsSync(path)) {
     throw new Error(`no database at ${path}: is DATA_DIR set to the same folder the app uses?`);
   }
   const store = openStore(path);
@@ -13,8 +16,8 @@ export function resetAdmin(dataDir: string, output: (line: string) => void): voi
   closeStore(store);
   output(
     removed === 0
-      ? "There were no admin accounts to remove. Open /admin to set one up."
-      : `Removed ${removed} admin account(s). Videos, channels and settings were kept.\n` +
+      ? "There was no admin account to remove. Open /admin to set one up."
+      : "Removed the admin account. Videos, channels and settings were kept.\n" +
           "Open /admin in the app to create a new account: the setup code is printed in the app's log.",
   );
 }

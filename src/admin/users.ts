@@ -50,7 +50,7 @@ export function updatePassword(store: Store, id: number, passwordHash: string): 
   requireRow(run(store, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, id));
 }
 
-/** Removes every admin account (to recover from a forgotten password). Returns how many there were. */
+/** Removes the admin account (to recover from a forgotten password). Returns how many were removed. */
 export function deleteUsers(store: Store): number {
   return run(store, "DELETE FROM users");
 }
