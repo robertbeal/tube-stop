@@ -1,17 +1,11 @@
 import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import type { VideoId } from "./ytdlp/types.ts";
 
 const defaultBaseUrl = "https://i.ytimg.com";
 /** A thumbnail is tens of kilobytes; anything near this is wrong. */
 const maxBytes = 2 * 1024 * 1024;
 const fetchTimeoutMs = 10_000;
-const validId = /^[A-Za-z0-9_-]{11}$/;
-
-export class InvalidVideoIdError extends Error {
-  constructor() {
-    super("not a valid video id");
-  }
-}
 
 /** Fetches each video's thumbnail from YouTube once and keeps it on disk as `<directory>/<video id>.jpg`. */
 export type Thumbnail = {
@@ -32,12 +26,9 @@ export function createThumbnail(
 /** The file holding a video's thumbnail, fetching and saving it first if necessary. */
 export async function thumbnailPath(
   thumbnails: Thumbnail,
-  videoId: string,
+  videoId: VideoId,
   signal: AbortSignal,
 ): Promise<string> {
-  if (!validId.test(videoId)) {
-    throw new InvalidVideoIdError();
-  }
   const path = join(thumbnails.directory, `${videoId}.jpg`);
   const saved = await stat(path).then(
     () => true,
@@ -52,7 +43,7 @@ export async function thumbnailPath(
 /** Downloads the thumbnail and moves it into place atomically, so a half-written file is never served. */
 async function downloadThumbnail(
   thumbnails: Thumbnail,
-  videoId: string,
+  videoId: VideoId,
   destination: string,
   signal: AbortSignal,
 ): Promise<void> {
@@ -82,9 +73,6 @@ async function downloadThumbnail(
 }
 
 /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
-export async function removeThumbnail(thumbnails: Thumbnail, videoId: string): Promise<void> {
-  if (!validId.test(videoId)) {
-    throw new InvalidVideoIdError();
-  }
+export async function removeThumbnail(thumbnails: Thumbnail, videoId: VideoId): Promise<void> {
   await rm(join(thumbnails.directory, `${videoId}.jpg`), { force: true });
 }

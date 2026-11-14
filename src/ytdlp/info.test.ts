@@ -1,11 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { toChannel, toVideo } from "./info.ts";
+import { testVideoId } from "../test-helpers.ts";
+import { type Info, parseVideoId, toChannel, toVideo } from "./info.ts";
+
+const videoId = testVideoId("abcdefghijk");
+
+/** The video for yt-dlp output that has a valid id. */
+function videoFrom(info: Info) {
+  const video = toVideo({ id: videoId, ...info });
+  if (video === undefined) {
+    throw new Error("expected a video");
+  }
+  return video;
+}
 
 describe("toVideo", () => {
   test("copies the video's details", () => {
     expect(
       toVideo({
-        id: "abcdefghijk",
+        id: testVideoId("abcdefghijk"),
         title: "Moonlight Sonata",
         channel: "Piano Guy",
         channel_id: "UC123",
@@ -13,7 +25,7 @@ describe("toVideo", () => {
         timestamp: 1700000000,
       }),
     ).toEqual({
-      id: "abcdefghijk",
+      id: testVideoId("abcdefghijk"),
       title: "Moonlight Sonata",
       channel: { id: "UC123", name: "Piano Guy" },
       duration: 125,
@@ -21,9 +33,9 @@ describe("toVideo", () => {
     });
   });
 
-  test("missing fields become empty or zero", () => {
-    expect(toVideo({})).toEqual({
-      id: "",
+  test("missing fields other than the id become empty or zero", () => {
+    expect(videoFrom({})).toEqual({
+      id: videoId,
       title: "",
       channel: { id: "", name: "" },
       duration: 0,
@@ -31,43 +43,50 @@ describe("toVideo", () => {
     });
   });
 
+  test.each([undefined, "", "short", "abcdefghijkl", "../../etc/passwd", "abcdefghij "])(
+    "an id of %p is not a video",
+    (id) => {
+      expect(toVideo({ id, title: "Anything" })).toBeUndefined();
+    },
+  );
+
   test("the channel name falls back to the uploader", () => {
-    expect(toVideo({ uploader: "Some Uploader" }).channel.name).toBe("Some Uploader");
+    expect(videoFrom({ uploader: "Some Uploader" }).channel.name).toBe("Some Uploader");
   });
 
   test("the channel name wins over the uploader", () => {
-    expect(toVideo({ channel: "Piano Guy", uploader: "Some Uploader" }).channel.name).toBe("Piano Guy");
+    expect(videoFrom({ channel: "Piano Guy", uploader: "Some Uploader" }).channel.name).toBe("Piano Guy");
   });
 
   test("a fractional duration is cut to whole seconds", () => {
-    expect(toVideo({ duration: 125.9 }).duration).toBe(125);
+    expect(videoFrom({ duration: 125.9 }).duration).toBe(125);
   });
 
   describe("published date", () => {
     test("comes from the timestamp, cut to whole seconds", () => {
-      expect(toVideo({ timestamp: 1700000000.7 }).publishedAt).toBe(1700000000);
+      expect(videoFrom({ timestamp: 1700000000.7 }).publishedAt).toBe(1700000000);
     });
 
     test("comes from the upload date, as midnight UTC, when there is no timestamp", () => {
-      expect(toVideo({ upload_date: "20240305" }).publishedAt).toBe(Date.UTC(2024, 2, 5) / 1000);
+      expect(videoFrom({ upload_date: "20240305" }).publishedAt).toBe(Date.UTC(2024, 2, 5) / 1000);
     });
 
     test("the timestamp wins over the upload date", () => {
-      expect(toVideo({ timestamp: 1700000000, upload_date: "20240305" }).publishedAt).toBe(1700000000);
+      expect(videoFrom({ timestamp: 1700000000, upload_date: "20240305" }).publishedAt).toBe(1700000000);
     });
 
     test("a zero timestamp falls back to the upload date", () => {
-      expect(toVideo({ timestamp: 0, upload_date: "20240305" }).publishedAt).toBe(
+      expect(videoFrom({ timestamp: 0, upload_date: "20240305" }).publishedAt).toBe(
         Date.UTC(2024, 2, 5) / 1000,
       );
     });
 
     test.each(["not-a-date", "", "2024030", "20241399"])("%p means unknown", (uploadDate) => {
-      expect(toVideo({ upload_date: uploadDate }).publishedAt).toBe(0);
+      expect(videoFrom({ upload_date: uploadDate }).publishedAt).toBe(0);
     });
 
     test("no date at all means unknown", () => {
-      expect(toVideo({ id: "abcdefghijk" }).publishedAt).toBe(0);
+      expect(videoFrom({}).publishedAt).toBe(0);
     });
   });
 });
@@ -81,9 +100,10 @@ describe("toChannel", () => {
   });
 
   test("falls back to the first entry's channel id", () => {
-    expect(toChannel({ title: "Piano Guy", entries: [{ id: "abcdefghijk", channel_id: "UC999" }] }).id).toBe(
-      "UC999",
-    );
+    expect(
+      toChannel({ title: "Piano Guy", entries: [{ id: testVideoId("abcdefghijk"), channel_id: "UC999" }] })
+        .id,
+    ).toBe("UC999");
   });
 
   test("the channel's own id wins over its entries'", () => {
@@ -110,9 +130,33 @@ describe("toChannel", () => {
 
   test.each([
     ["no channel id and no entries", { title: "Mix", entries: [] }],
-    ["no channel id and an entry without one", { entries: [{ id: "abcdefghijk" }] }],
+    ["no channel id and an entry without one", { entries: [{ id: testVideoId("abcdefghijk") }] }],
     ["nothing at all", {}],
   ])("%s is rejected", (_description, info) => {
     expect(() => toChannel(info)).toThrow("could not determine channel from URL");
+  });
+});
+
+describe("parseVideoId", () => {
+  test.each<string>(["abcdefghijk", "ABCDEFGHIJK", "0123456789_", "-_-_-_-_-_-", "dQw4w9WgXcQ"])(
+    "accepts the YouTube id %p",
+    (value) => {
+      expect(parseVideoId(value)).toBe(value as never);
+    },
+  );
+
+  test.each([
+    ["nothing", undefined],
+    ["an empty string", ""],
+    ["too short", "abcdefghij"],
+    ["too long", "abcdefghijkl"],
+    ["a space", "abcdefghij "],
+    ["a slash", "a/b?c"],
+    ["a path climbing out of a folder", "../../x.jpg"],
+    ["a dot", "abcdefghij."],
+    ["a newline at the end", "abcdefghijk\n"],
+    ["a non-ASCII letter", "abcdefghijé"],
+  ])("rejects %s", (_description, value) => {
+    expect(parseVideoId(value)).toBeUndefined();
   });
 });

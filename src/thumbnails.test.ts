@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { temporaryDirectory } from "./test-helpers.ts";
-import { createThumbnail, InvalidVideoIdError, removeThumbnail, thumbnailPath } from "./thumbnails.ts";
+import { temporaryDirectory, testVideoId } from "./test-helpers.ts";
+import { createThumbnail, removeThumbnail, thumbnailPath } from "./thumbnails.ts";
 
 const neverAborted = new AbortController().signal;
 
-const videoId = "abcdefghijk";
+const videoId = testVideoId("abcdefghijk");
 const baseUrl = "http://images.test";
 
 type Handler = (request: Request) => Response | Promise<Response>;
@@ -48,18 +48,6 @@ describe("thumbnailPath", () => {
     const { store, server } = await storeFor();
     await thumbnailPath(store, videoId, neverAborted);
     expect(server.requested).toEqual([`/vi/${videoId}/mqdefault.jpg`]);
-  });
-
-  test("rejects ids that are not YouTube ids without contacting the server", async () => {
-    const { store, server } = await storeFor();
-    const invalidIds = ["", "short", "../../etc/passwd", "abcdefghijk/../x", "abcdefghij ", "abcdefghijkl"];
-
-    const results = await Promise.all(
-      invalidIds.map((id) => thumbnailPath(store, id, neverAborted).catch((error) => error)),
-    );
-
-    expect(results.every((result) => result instanceof InvalidVideoIdError)).toBe(true);
-    expect(server.requested).toEqual([]);
   });
 
   test("a failure saves nothing and is retried next time", async () => {
@@ -113,10 +101,5 @@ describe("removeThumbnail", () => {
     await removeThumbnail(store, videoId);
     expect(await Bun.file(path).exists()).toBe(false);
     await removeThumbnail(store, videoId);
-  });
-
-  test("rejects an invalid id", async () => {
-    const { store } = await storeFor();
-    await expect(removeThumbnail(store, "../escape")).rejects.toBeInstanceOf(InvalidVideoIdError);
   });
 });

@@ -178,15 +178,6 @@ describe("the player page", () => {
 });
 
 describe("video cards", () => {
-  test("the thumbnail URL points at the local route and escapes the video id", async () => {
-    const environment = await buildEnvironment();
-    allow(environment, { youtubeId: "a/b?c", title: "Odd id" });
-
-    const body = await (await send(environment, "/")).text();
-
-    expect(body).toContain('src="/thumb/a%2Fb%3Fc"');
-  });
-
   test("shows the duration and a star for saved videos", async () => {
     const environment = await buildEnvironment();
     allow(environment, { youtubeId: videoId, title: "Song", duration: 3661 });

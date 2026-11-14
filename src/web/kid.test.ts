@@ -10,6 +10,8 @@ import {
   pinVideo,
   requestCache,
 } from "../db/store.ts";
+import { testVideoId } from "../test-helpers.ts";
+import type { VideoId } from "../ytdlp/types.ts";
 import { allow, buildEnvironment, logIn, send } from "./harness.ts";
 import {
   addPublished,
@@ -36,12 +38,26 @@ async function environmentWithBlockedSong() {
   return environment;
 }
 
+describe("ids that are not YouTube video ids", () => {
+  const notVideoIds = ["short", "abcdefghijkl", "..%2F..%2Fetc%2Fpasswd", "a%2Fb%3Fc", "abcdefghij%20"];
+
+  test.each(notVideoIds)("%s is not found on any video page", async (id) => {
+    const environment = await buildEnvironment();
+    for (const path of [`/watch/${id}`, `/video/${id}`, `/status/${id}`, `/thumb/${id}`]) {
+      expect((await send(environment, path)).status).toBe(404);
+    }
+    for (const path of [`/api/videos/${id}/prepare`, `/api/videos/${id}/played`]) {
+      expect((await send(environment, path, { method: "POST" })).status).toBe(404);
+    }
+  });
+});
+
 describe("browsing", () => {
   test("the index lists allowed videos and hides blocked ones", async () => {
     const environment = await buildEnvironment();
-    allowPianoVideo(environment, "aaaaaaaaaaa", "Twinkle Twinkle");
-    allowPianoVideo(environment, "bbbbbbbbbbb", "Scary Video");
-    blockVideo(environment.store, "bbbbbbbbbbb");
+    allowPianoVideo(environment, testVideoId("aaaaaaaaaaa"), "Twinkle Twinkle");
+    allowPianoVideo(environment, testVideoId("bbbbbbbbbbb"), "Scary Video");
+    blockVideo(environment.store, testVideoId("bbbbbbbbbbb"));
 
     const response = await send(environment, "/");
     const body = await response.text();
@@ -54,13 +70,13 @@ describe("browsing", () => {
   test("the channel filter shows only that channel", async () => {
     const environment = await buildEnvironment();
     allow(environment, {
-      youtubeId: "aaaaaaaaaaa",
+      youtubeId: testVideoId("aaaaaaaaaaa"),
       title: "From A",
       channelYoutubeId: "UCa",
       channelName: "A",
     });
     allow(environment, {
-      youtubeId: "bbbbbbbbbbb",
+      youtubeId: testVideoId("bbbbbbbbbbb"),
       title: "From B",
       channelYoutubeId: "UCb",
       channelName: "B",
@@ -128,8 +144,8 @@ describe("watching", () => {
 });
 
 describe("prepare and played", () => {
-  const prepare = (id: string) => `/api/videos/${id}/prepare`;
-  const played = (id: string) => `/api/videos/${id}/played`;
+  const prepare = (id: VideoId) => `/api/videos/${id}/prepare`;
+  const played = (id: VideoId) => `/api/videos/${id}/played`;
 
   test("prepare queues a watch-once download", async () => {
     const environment = await environmentWithSong();

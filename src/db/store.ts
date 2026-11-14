@@ -1,4 +1,5 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
+import type { VideoId } from "../ytdlp/types.ts";
 import { migrations } from "./schema.ts";
 import {
   type Channel,
@@ -14,7 +15,7 @@ import {
 export * from "./types.ts";
 
 interface VideoRow {
-  youtube_id: string;
+  youtube_id: VideoId;
   channel_yt_id: string;
   channel_name: string;
   title: string;
@@ -235,7 +236,7 @@ export function allowVideo(store: Store, video: NewVideo): void {
 }
 
 /** Hides a video from the child, even if its channel is allowed. */
-export function blockVideo(store: Store, youtubeId: string): void {
+export function blockVideo(store: Store, youtubeId: VideoId): void {
   const changes = store.database.run("UPDATE videos SET rule = 'block' WHERE youtube_id = ?", [
     youtubeId,
   ]).changes;
@@ -245,7 +246,7 @@ export function blockVideo(store: Store, youtubeId: string): void {
 }
 
 /** Reverses `block`: back to the channel's rule, or to an explicit allow if its channel is not allowed. */
-export function unblockVideo(store: Store, youtubeId: string): void {
+export function unblockVideo(store: Store, youtubeId: VideoId): void {
   store.database.run(
     `UPDATE videos SET rule = CASE
        WHEN EXISTS (SELECT 1 FROM channels c WHERE c.youtube_id = videos.channel_yt_id) THEN 'inherit' ELSE 'allow' END
@@ -254,9 +255,9 @@ export function unblockVideo(store: Store, youtubeId: string): void {
   );
 }
 
-export function getVideo(store: Store, youtubeId: string): Video | null {
+export function getVideo(store: Store, youtubeId: VideoId): Video | null {
   const row = store.database
-    .query<VideoRow, [string]>(`SELECT ${videoColumns} FROM videos v WHERE v.youtube_id = ?`)
+    .query<VideoRow, [VideoId]>(`SELECT ${videoColumns} FROM videos v WHERE v.youtube_id = ?`)
     .get(youtubeId);
   return row === null ? null : toVideo(row);
 }
@@ -291,7 +292,7 @@ export function getAdminVideos(store: Store, channelYoutubeId: string, page: Pag
 }
 
 /** Counts a play and stamps the last-played time used for cache eviction. */
-export function recordPlay(store: Store, youtubeId: string): void {
+export function recordPlay(store: Store, youtubeId: VideoId): void {
   store.database.run(
     "UPDATE videos SET play_count = play_count + 1, last_played_at = ? WHERE youtube_id = ?",
     [store.now(), youtubeId],
@@ -301,7 +302,7 @@ export function recordPlay(store: Store, youtubeId: string): void {
 // ---- pinning and downloads ----
 
 /** Marks a video to be kept, and queues a download if no file is ready. */
-export function pinVideo(store: Store, youtubeId: string): void {
+export function pinVideo(store: Store, youtubeId: VideoId): void {
   const changes = store.database.run(
     `UPDATE videos SET pinned = 1,
        download_status = CASE WHEN download_status = 'ready' THEN 'ready' WHEN download_status = 'downloading' THEN 'downloading' ELSE 'queued' END,
@@ -318,7 +319,7 @@ export function pinVideo(store: Store, youtubeId: string): void {
  * Clears the pin and returns the file path to delete. If a download is in flight the status
  * stays 'downloading' so the worker can finish and discard it.
  */
-export function unpinVideo(store: Store, youtubeId: string): string {
+export function unpinVideo(store: Store, youtubeId: VideoId): string {
   return store.database
     .transaction(() => {
       const video = store.database
@@ -343,7 +344,7 @@ export function unpinVideo(store: Store, youtubeId: string): string {
  * its files cleared) so channel sync cannot bring it back; any other video is deleted
  * outright. A download in flight is discarded by the worker when it finishes.
  */
-export function deleteVideo(store: Store, youtubeId: string): Removal {
+export function deleteVideo(store: Store, youtubeId: VideoId): Removal {
   return store.database
     .transaction(() => {
       const row = store.database
@@ -382,9 +383,9 @@ export function resetDownloading(store: Store): void {
 }
 
 /** Atomically moves the oldest queued pinned video to 'downloading'. Null if none is queued. */
-export function claimDownload(store: Store): string | null {
+export function claimDownload(store: Store): VideoId | null {
   const row = store.database
-    .query<{ youtube_id: string }, []>(`UPDATE videos SET download_status = 'downloading'
+    .query<{ youtube_id: VideoId }, []>(`UPDATE videos SET download_status = 'downloading'
      WHERE id = (SELECT id FROM videos WHERE download_status = 'queued' AND pinned = 1 ORDER BY id LIMIT 1)
      RETURNING youtube_id`)
     .get();
@@ -392,7 +393,7 @@ export function claimDownload(store: Store): string | null {
 }
 
 /** Records a completed pin download. False when the video was unpinned or removed meanwhile: the caller must then delete the file. */
-export function finishDownload(store: Store, youtubeId: string, path: string): boolean {
+export function finishDownload(store: Store, youtubeId: VideoId, path: string): boolean {
   const row = store.database
     .query<{ pinned: number }, [string, string]>(`UPDATE videos SET
        download_status = CASE WHEN pinned = 1 THEN 'ready' ELSE 'none' END,
@@ -402,7 +403,7 @@ export function finishDownload(store: Store, youtubeId: string, path: string): b
   return row?.pinned === 1;
 }
 
-export function failDownload(store: Store, youtubeId: string, message: string): void {
+export function failDownload(store: Store, youtubeId: VideoId, message: string): void {
   store.database.run(
     "UPDATE videos SET download_status = 'failed', download_error = ? WHERE youtube_id = ?",
     [message, youtubeId],
@@ -415,7 +416,7 @@ export function failDownload(store: Store, youtubeId: string, message: string): 
  * Queues a cache download unless one is already queued, running or ready. It also stamps the
  * video as just used, so a copy that is fetched but not yet played is not evicted as stale.
  */
-export function requestCache(store: Store, youtubeId: string): void {
+export function requestCache(store: Store, youtubeId: VideoId): void {
   store.database.run(
     `UPDATE videos SET cache_status = 'queued', cache_error = '', last_played_at = ?
      WHERE youtube_id = ? AND cache_status IN ('none','failed')`,
@@ -424,9 +425,9 @@ export function requestCache(store: Store, youtubeId: string): void {
 }
 
 /** Atomically moves the most recently played queued cache request to 'downloading'. Null if none is queued. */
-export function claimCache(store: Store): string | null {
+export function claimCache(store: Store): VideoId | null {
   const row = store.database
-    .query<{ youtube_id: string }, []>(`UPDATE videos SET cache_status = 'downloading'
+    .query<{ youtube_id: VideoId }, []>(`UPDATE videos SET cache_status = 'downloading'
      WHERE id = (SELECT id FROM videos WHERE cache_status = 'queued' ORDER BY last_played_at DESC, id LIMIT 1)
      RETURNING youtube_id`)
     .get();
@@ -437,7 +438,7 @@ export function claimCache(store: Store): string | null {
  * Records a completed cache download. False when the video was removed, blocked, or otherwise
  * stopped being watchable while downloading: the caller must then delete the file.
  */
-export function finishCache(store: Store, youtubeId: string, path: string): boolean {
+export function finishCache(store: Store, youtubeId: VideoId, path: string): boolean {
   const watchable = watchableFor("");
   const row = store.database
     .query<{ watchable: number }, [string, string]>(`UPDATE videos SET
@@ -448,7 +449,7 @@ export function finishCache(store: Store, youtubeId: string, path: string): bool
   return row?.watchable === 1;
 }
 
-export function failCache(store: Store, youtubeId: string, message: string): void {
+export function failCache(store: Store, youtubeId: VideoId, message: string): void {
   store.database.run("UPDATE videos SET cache_status = 'failed', cache_error = ? WHERE youtube_id = ?", [
     message,
     youtubeId,
@@ -456,7 +457,7 @@ export function failCache(store: Store, youtubeId: string, message: string): voi
 }
 
 /** Forgets a cached file (the caller deletes it from disk). */
-export function clearCache(store: Store, youtubeId: string): void {
+export function clearCache(store: Store, youtubeId: VideoId): void {
   store.database.run(
     "UPDATE videos SET cache_status = 'none', cache_path = '', cache_error = '' WHERE youtube_id = ?",
     [youtubeId],

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
 import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
 import { thumbnailPath } from "../thumbnails.ts";
+import { parseVideoId } from "../ytdlp/info.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
 import type { Services } from "./services.ts";
@@ -48,7 +49,8 @@ export function kidRoutes(services: Services): Hono {
 
   /** The video for the `:id` path value, or null if it is unknown or hidden from the child. */
   const watchableVideo = (context: Context): Video | null => {
-    const video = getVideo(store, context.req.param("id") ?? "");
+    const id = parseVideoId(context.req.param("id"));
+    const video = id === undefined ? null : getVideo(store, id);
     return video?.watchable ? video : null;
   };
 

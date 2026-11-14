@@ -2,6 +2,8 @@ import { afterAll } from "bun:test";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseVideoId } from "./ytdlp/info.ts";
+import type { VideoId } from "./ytdlp/types.ts";
 
 const directories: string[] = [];
 
@@ -39,9 +41,20 @@ export async function stubYtDlp(body: string): Promise<Stub> {
   };
 }
 
+/** A video id for a test: a literal that must be a valid YouTube video id. */
+export function testVideoId(value: string): VideoId {
+  const id = parseVideoId(value);
+  if (id === undefined) {
+    throw new Error(`"${value}" is not a valid video id`);
+  }
+  return id;
+}
+
 /** A random 11-character video id, as YouTube uses. */
-export function randomVideoId(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(9)))
-    .toString("base64url")
-    .slice(0, 11);
+export function randomVideoId(): VideoId {
+  return testVideoId(
+    Buffer.from(crypto.getRandomValues(new Uint8Array(9)))
+      .toString("base64url")
+      .slice(0, 11),
+  );
 }

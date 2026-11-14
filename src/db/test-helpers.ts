@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
+import type { VideoId } from "../ytdlp/types.ts";
 import {
   claimCache,
   claimDownload,
@@ -32,7 +33,7 @@ export function newVideo(channelYoutubeId: string, overrides: Partial<NewVideo> 
   };
 }
 
-export function videoOf(store: Store, youtubeId: string): Video {
+export function videoOf(store: Store, youtubeId: VideoId): Video {
   const video = getVideo(store, youtubeId);
   if (video === null) {
     throw new Error(`video ${youtubeId} does not exist`);
@@ -40,11 +41,11 @@ export function videoOf(store: Store, youtubeId: string): Video {
   return video;
 }
 
-export function idsOf(videos: readonly Pick<Video, "youtubeId">[]): string[] {
+export function idsOf(videos: readonly Pick<Video, "youtubeId">[]): VideoId[] {
   return videos.map((video) => video.youtubeId);
 }
 
-export function channelIdOf(store: Store, youtubeId: string): number {
+export function channelIdOf(store: Store, youtubeId: VideoId): number {
   const channel = getChannels(store).find((candidate) => candidate.youtubeId === youtubeId);
   if (channel === undefined) {
     throw new Error(`channel ${youtubeId} does not exist`);
@@ -53,14 +54,14 @@ export function channelIdOf(store: Store, youtubeId: string): number {
 }
 
 /** Pins a video and completes its download. */
-export function keepFile(store: Store, youtubeId: string, path: string): void {
+export function keepFile(store: Store, youtubeId: VideoId, path: string): void {
   pinVideo(store, youtubeId);
   claimDownload(store);
   finishDownload(store, youtubeId, path);
 }
 
 /** Requests a watch-once copy and completes its download. */
-export function cacheFile(store: Store, youtubeId: string, path: string): void {
+export function cacheFile(store: Store, youtubeId: VideoId, path: string): void {
   requestCache(store, youtubeId);
   claimCache(store);
   finishCache(store, youtubeId, path);

@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import type { VideoId } from "../ytdlp/types.ts";
 
 export type Status = "none" | "queued" | "downloading" | "ready" | "failed";
 
@@ -16,7 +17,7 @@ export interface Channel {
 }
 
 export interface Video {
-  youtubeId: string;
+  youtubeId: VideoId;
   channelYoutubeId: string;
   channelName: string;
   title: string;
@@ -43,7 +44,7 @@ export interface Video {
 
 /** What is known about a video when it is first added. */
 export interface NewVideo {
-  youtubeId: string;
+  youtubeId: VideoId;
   channelYoutubeId: string;
   channelName: string;
   title: string;

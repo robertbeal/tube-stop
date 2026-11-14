@@ -5,7 +5,7 @@ import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { createThumbnail } from "../thumbnails.ts";
-import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";
+import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
 export const adminUsername = "parent";
@@ -143,7 +143,7 @@ export async function logIn(environment: Environment): Promise<string> {
 }
 
 /** Adds a video the child may watch. */
-export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: string }): void {
+export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: VideoId }): void {
   allowVideo(environment.store, {
     channelYoutubeId: "",
     channelName: "",

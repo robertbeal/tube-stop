@@ -1,10 +1,11 @@
 import { join } from "node:path";
 import { ytdlp } from "./run.ts";
+import type { VideoId } from "./types.ts";
 
 /** Downloads a video to the path described by an output template and returns the path of the saved file. */
 async function download(
   binary: string,
-  id: string,
+  id: VideoId,
   template: string,
   maxHeight: number,
   signal: AbortSignal,
@@ -47,7 +48,7 @@ async function download(
  */
 export function downloadToLibrary(
   binary: string,
-  id: string,
+  id: VideoId,
   directory: string,
   maxHeight: number,
   signal: AbortSignal,
@@ -64,7 +65,7 @@ export function downloadToLibrary(
  */
 export function downloadToCache(
   binary: string,
-  id: string,
+  id: VideoId,
   directory: string,
   maxHeight: number,
   signal: AbortSignal,

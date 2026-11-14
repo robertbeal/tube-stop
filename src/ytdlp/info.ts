@@ -1,4 +1,4 @@
-import type { Channel, Video } from "./types.ts";
+import type { Channel, Video, VideoId } from "./types.ts";
 
 /** What `yt-dlp -J` prints for a video, channel or playlist. Every field may be missing. */
 export interface Info {
@@ -14,14 +14,26 @@ export interface Info {
   entries?: Info[];
 }
 
+const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+
+/** The one way to make a `VideoId`: anything that is not a YouTube video id gives undefined. */
+export function parseVideoId(value: string | undefined): VideoId | undefined {
+  return value !== undefined && videoIdPattern.test(value) ? (value as VideoId) : undefined;
+}
+
 function publishedAt(info: Info): number {
   const uploadDate = info.upload_date?.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3") ?? "";
   return Math.trunc(info.timestamp || Date.parse(uploadDate) / 1000) || 0;
 }
 
-export function toVideo(info: Info): Video {
+/** The video, or undefined when yt-dlp gave no valid YouTube video id. */
+export function toVideo(info: Info): Video | undefined {
+  const id = parseVideoId(info.id);
+  if (id === undefined) {
+    return undefined;
+  }
   return {
-    id: info.id ?? "",
+    id,
     title: info.title ?? "",
     channel: {
       id: info.channel_id ?? "",

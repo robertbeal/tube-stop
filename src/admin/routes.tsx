@@ -15,6 +15,8 @@ import { directorySize, removeMedia } from "../storage.ts";
 import { removeThumbnail } from "../thumbnails.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import type { Services } from "../web/services.ts";
+import { parseVideoId } from "../ytdlp/info.ts";
+import type { VideoId } from "../ytdlp/types.ts";
 import { isVideo } from "../ytdlp/types.ts";
 import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
 import { AdminPage } from "./views.tsx";
@@ -132,7 +134,10 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
   routes.post("/password", changePassword(services));
 
   routes.post("/videos/:id/:action", async (context) => {
-    const id = context.req.param("id");
+    const id = parseVideoId(context.req.param("id"));
+    if (id === undefined) {
+      return context.notFound();
+    }
     const outcome = await videoAction(services, context.req.param("action"), id);
     return outcome === "unknown-action" ? context.notFound() : redirectWithMessage(context, outcome.message);
   });
@@ -148,7 +153,7 @@ function withFileFailures(message: string, failures: Error[]): string {
     : message;
 }
 
-async function videoAction(services: Services, action: string, id: string): Promise<ActionOutcome> {
+async function videoAction(services: Services, action: string, id: VideoId): Promise<ActionOutcome> {
   const { store, mediaDir, cacheDir } = services;
   switch (action) {
     case "pin":

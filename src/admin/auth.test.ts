@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { getVideo } from "../db/store.ts";
+import { testVideoId } from "../test-helpers.ts";
 import {
   adminPassword,
   adminUsername,
@@ -36,7 +37,7 @@ import { createFirstUser, deleteUsers, getUserByUsername } from "./users.ts";
 
 const minute = 60 * 1000;
 const thirtyDays = 30 * 24 * 60 * minute;
-const videoId = "abcdefghijk";
+const videoId = testVideoId("abcdefghijk");
 
 describe("the login page", () => {
   test("shows a form with username and password", async () => {

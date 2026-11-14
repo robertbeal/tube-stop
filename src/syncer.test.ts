@@ -14,7 +14,7 @@ import {
   type Store,
 } from "./db/store.ts";
 import { createSyncer, runSync, type Syncer, syncAll } from "./syncer.ts";
-import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
+import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "./test-helpers.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
 
@@ -58,7 +58,7 @@ const titlesOf = (store: Store) =>
 
 function listed(overrides: Partial<Video>): Video {
   return {
-    id: "abcdefghijk",
+    id: testVideoId("abcdefghijk"),
     title: "t",
     channel: { id: "", name: "" },
     duration: 0,
@@ -95,7 +95,7 @@ describe("syncAll", () => {
     insertChannel(store, "UC1", "Piano Guy");
     const syncer = syncerFor(store, await ytDlpPrinting(printing(listing)));
     await syncAll(syncer, neverAborted);
-    blockVideo(store, "middlevideo");
+    blockVideo(store, testVideoId("middlevideo"));
 
     await syncAll(syncer, neverAborted);
 
@@ -117,7 +117,7 @@ describe("syncAll", () => {
     const store = await newStore();
     insertChannel(store, "UC1", "Piano Guy");
     insertVideo(store, {
-      youtubeId: "existingvid",
+      youtubeId: testVideoId("existingvid"),
       channelYoutubeId: "UC1",
       channelName: "Piano Guy",
       title: "Existing",
@@ -170,11 +170,11 @@ describe("syncAll", () => {
   test("uses the video id when YouTube gives no title", async () => {
     const store = await newStore();
     insertChannel(store, "UC1", "Piano Guy");
-    const { lister } = fakeLister([listed({ id: "untitledvid", title: "" })]);
+    const { lister } = fakeLister([listed({ id: testVideoId("untitledvid"), title: "" })]);
 
     await syncAll(syncerFor(store, lister), neverAborted);
 
-    expect(getVideo(store, "untitledvid")?.title).toBe("untitledvid");
+    expect(getVideo(store, testVideoId("untitledvid"))?.title).toBe("untitledvid");
   });
 
   test("a database failure is logged and the run ends without calling YouTube", async () => {
@@ -208,18 +208,20 @@ describe("syncAll", () => {
     const store = await newStore();
     insertChannel(store, "UC1", "Piano Guy");
     insertVideo(store, {
-      youtubeId: "oldvideoaaa",
+      youtubeId: testVideoId("oldvideoaaa"),
       channelYoutubeId: "UC1",
       channelName: "Piano Guy",
       title: "Old",
       duration: 0,
       publishedAt: 0,
     });
-    const { lister } = fakeLister([listed({ id: "oldvideoaaa", title: "Old", publishedAt: 4242 })]);
+    const { lister } = fakeLister([
+      listed({ id: testVideoId("oldvideoaaa"), title: "Old", publishedAt: 4242 }),
+    ]);
 
     await syncAll(syncerFor(store, lister), neverAborted);
 
-    expect(getVideo(store, "oldvideoaaa")?.publishedAt).toBe(4242);
+    expect(getVideo(store, testVideoId("oldvideoaaa"))?.publishedAt).toBe(4242);
   });
 });
 

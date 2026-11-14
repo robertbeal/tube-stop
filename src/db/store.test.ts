@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { countUsers } from "../admin/users.ts";
 import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
+import type { VideoId } from "../ytdlp/types.ts";
 import {
   allowVideo,
   blockVideo,
@@ -709,7 +710,7 @@ describe("paging and ordering", () => {
     const videos = addNumberedVideos(store, randomVideoId(), 10);
     const page = getWatchableVideos(store, "", { limit: 4, offset: 4 });
     expect(page.total).toBe(10);
-    expect(idsOf(page.videos)).toEqual([5, 4, 3, 2].map((index) => videos[index]?.youtubeId ?? "missing"));
+    expect(idsOf(page.videos)).toEqual([5, 4, 3, 2].map((index) => videos[index]?.youtubeId) as VideoId[]);
   });
 
   test("a page beyond the end is empty but the total is reported", async () => {
@@ -737,10 +738,10 @@ describe("paging and ordering", () => {
     const [oldest, newest, middle] = synced.map((video) => video.youtubeId);
     expect([oldest, newest, middle]).not.toContain(undefined);
     expect(idsOf(getWatchableVideos(store, "", everything).videos)).toEqual([
-      newest as string,
-      middle as string,
-      oldest as string,
-    ]);
+      newest,
+      middle,
+      oldest,
+    ] as VideoId[]);
   });
 
   test("videos without a date follow dated ones, latest synced first", async () => {

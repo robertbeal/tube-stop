@@ -12,20 +12,22 @@ import {
   pinVideo,
   requestCache,
 } from "../db/store.ts";
+import { testVideoId } from "../test-helpers.ts";
+import type { VideoId } from "../ytdlp/types.ts";
 import { allow, type Environment } from "./harness.ts";
 
-export const videoId = "abcdefghijk";
-export const unknownVideoId = "zzzzzzzzzzz";
+export const videoId = testVideoId("abcdefghijk");
+export const unknownVideoId = testVideoId("zzzzzzzzzzz");
 
 /** Allows a video of the channel "Piano Guy" (UC1). */
-export function allowPianoVideo(environment: Environment, youtubeId: string, title: string): void {
+export function allowPianoVideo(environment: Environment, youtubeId: VideoId, title: string): void {
   allow(environment, { youtubeId, title, channelYoutubeId: "UC1", channelName: "Piano Guy" });
 }
 
 /** Gives a video a playable watch-once copy with known contents, and returns its path. */
 export async function makeCacheReady(
   environment: Environment,
-  youtubeId: string,
+  youtubeId: VideoId,
   contents: string,
 ): Promise<string> {
   const path = join(environment.cacheDir, `${youtubeId}.mp4`);
@@ -39,7 +41,7 @@ export async function makeCacheReady(
 /** Pins a video and records a finished download at `path`, which is created with `contents`. */
 export async function makePinnedFile(
   environment: Environment,
-  youtubeId: string,
+  youtubeId: VideoId,
   path: string,
   contents: string,
 ): Promise<void> {
@@ -54,7 +56,7 @@ export async function writeFileWithFolders(path: string, contents: string | Uint
   await Bun.write(path, contents);
 }
 
-export function loadVideo(environment: Environment, youtubeId: string): Video {
+export function loadVideo(environment: Environment, youtubeId: VideoId): Video {
   const video = getVideo(environment.store, youtubeId);
   if (video === null) {
     throw new Error(`no video ${youtubeId}`);
@@ -72,8 +74,8 @@ export function redirectMessage(response: Response): string {
 }
 
 /** A distinct, valid 11-character video id. */
-export function numberedId(number: number): string {
-  return `video${String(number).padStart(6, "0")}`;
+export function numberedId(number: number): VideoId {
+  return testVideoId(`video${String(number).padStart(6, "0")}`);
 }
 
 /** Adds `count` watchable videos to channel UC1; a higher number is a newer video. */

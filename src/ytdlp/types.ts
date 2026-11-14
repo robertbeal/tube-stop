@@ -1,10 +1,13 @@
+/** A YouTube video id: 11 characters from a URL-safe alphabet. It is safe to put in a file name or a URL. */
+export type VideoId = string & { readonly brand: "VideoId" };
+
 export interface Channel {
   id: string;
   name: string;
 }
 
 export interface Video {
-  id: string;
+  id: VideoId;
   title: string;
   channel: Channel;
   /** Seconds. */
@@ -22,7 +25,7 @@ export const isVideo = (resolved: Resolved): resolved is Video => "channel" in r
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
 export type Download = (
-  id: string,
+  id: VideoId,
   directory: string,
   maxHeight: number,
   signal: AbortSignal,

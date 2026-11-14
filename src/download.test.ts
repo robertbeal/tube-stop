@@ -26,6 +26,7 @@ import {
 } from "./download.ts";
 import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
+import type { VideoId } from "./ytdlp/types.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;
@@ -46,7 +47,7 @@ async function exists(path: string): Promise<boolean> {
 
 interface FetchCall {
   kind: "library" | "cache";
-  id: string;
+  id: VideoId;
   directory: string;
   maxHeight: number;
 }
@@ -57,7 +58,7 @@ type Download = (call: FetchCall, signal: AbortSignal) => Promise<string>;
 function fakeFetcher(download: Download) {
   const calls: FetchCall[] = [];
   const record =
-    (kind: FetchCall["kind"]) => (id: string, directory: string, maxHeight: number, signal: AbortSignal) => {
+    (kind: FetchCall["kind"]) => (id: VideoId, directory: string, maxHeight: number, signal: AbortSignal) => {
       const call = { kind, id, directory, maxHeight };
       calls.push(call);
       return download(call, signal);
@@ -133,7 +134,7 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
   };
 }
 
-function addVideo(store: Store, youtubeId: string): void {
+function addVideo(store: Store, youtubeId: VideoId): void {
   allowVideo(store, {
     youtubeId,
     channelYoutubeId: "",
@@ -161,7 +162,7 @@ async function addCached(fixture: Fixture, size: number, playedAgoMs: number) {
   return { id, path };
 }
 
-const cacheStatus = (fixture: Fixture, id: string) => getVideo(fixture.store, id)?.cacheStatus;
+const cacheStatus = (fixture: Fixture, id: VideoId) => getVideo(fixture.store, id)?.cacheStatus;
 const janitorTime = baseTimeSeconds * 1000;
 
 describe("janitor", () => {
@@ -311,7 +312,7 @@ describe("processCache", () => {
 });
 
 describe("processPin", () => {
-  const pinnedPath = (fixture: Fixture, id: string) =>
+  const pinnedPath = (fixture: Fixture, id: VideoId) =>
     join(fixture.config.mediaDir, "Chan", `video [${id}].mp4`);
 
   test("keeps the downloaded file in the media folder", async () => {

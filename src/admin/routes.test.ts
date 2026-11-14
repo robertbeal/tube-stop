@@ -14,6 +14,7 @@ import {
   markChannelSynced,
   pinVideo,
 } from "../db/store.ts";
+import { testVideoId } from "../test-helpers.ts";
 import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 import {
   allowPianoVideo,
@@ -84,6 +85,15 @@ describe("access control", () => {
 
     expect(response.status).toBe(500);
     expect(await response.text()).toBe("something went wrong");
+  });
+});
+
+describe("video actions on ids that are not YouTube video ids", () => {
+  test.each(["pin", "unpin", "block", "unblock", "remove"])("%s is not found", async (action) => {
+    const environment = await environmentWithSong();
+    for (const id of ["short", "abcdefghijkl", "..%2F..%2Fx", "a%2Fb%3Fc"]) {
+      expect((await adminPost(environment, `/admin/videos/${id}/${action}`)).status).toBe(404);
+    }
   });
 });
 
@@ -232,8 +242,16 @@ describe("the admin page", () => {
   test("the remove button says when the video will stay hidden", async () => {
     const environment = await buildEnvironment();
     insertChannel(environment.store, "UC1", "Piano Guy");
-    allow(environment, { youtubeId: "inchannel01", channelYoutubeId: "UC1", title: "In an allowed channel" });
-    allow(environment, { youtubeId: "standalone1", channelYoutubeId: "UC9", title: "On its own" });
+    allow(environment, {
+      youtubeId: testVideoId("inchannel01"),
+      channelYoutubeId: "UC1",
+      title: "In an allowed channel",
+    });
+    allow(environment, {
+      youtubeId: testVideoId("standalone1"),
+      channelYoutubeId: "UC9",
+      title: "On its own",
+    });
 
     const body = await adminPage(environment);
 
@@ -286,14 +304,18 @@ describe("the admin page", () => {
     const environment = await buildEnvironment();
     insertChannel(environment.store, "UCa", "A");
     insertVideo(environment.store, {
-      youtubeId: "aaaaaaaaaaa",
+      youtubeId: testVideoId("aaaaaaaaaaa"),
       channelYoutubeId: "UCa",
       channelName: "A",
       title: "From A",
       duration: 0,
       publishedAt: 0,
     });
-    allow(environment, { youtubeId: "bbbbbbbbbbb", title: "Standalone B", channelYoutubeId: "UCb" });
+    allow(environment, {
+      youtubeId: testVideoId("bbbbbbbbbbb"),
+      title: "Standalone B",
+      channelYoutubeId: "UCb",
+    });
 
     const body = await adminPage(environment, "?channel=UCa");
 
@@ -381,13 +403,13 @@ describe("channels", () => {
     const environment = await buildEnvironment();
     insertChannel(environment.store, "UC1", "Piano Guy");
     const base = { channelYoutubeId: "UC1", channelName: "Piano Guy", duration: 0, publishedAt: 0 };
-    insertVideo(environment.store, { ...base, youtubeId: "inherited01", title: "Inherited" });
-    allowVideo(environment.store, { ...base, youtubeId: "individual1", title: "Individual" });
-    insertVideo(environment.store, { ...base, youtubeId: "pinnedvid01", title: "Pinned" });
-    const inheritedCache = await makeCacheReady(environment, "inherited01", "x");
-    const individualCache = await makeCacheReady(environment, "individual1", "x");
+    insertVideo(environment.store, { ...base, youtubeId: testVideoId("inherited01"), title: "Inherited" });
+    allowVideo(environment.store, { ...base, youtubeId: testVideoId("individual1"), title: "Individual" });
+    insertVideo(environment.store, { ...base, youtubeId: testVideoId("pinnedvid01"), title: "Pinned" });
+    const inheritedCache = await makeCacheReady(environment, testVideoId("inherited01"), "x");
+    const individualCache = await makeCacheReady(environment, testVideoId("individual1"), "x");
     const pinnedFile = join(environment.mediaDir, "kept.mp4");
-    await makePinnedFile(environment, "pinnedvid01", pinnedFile, "x");
+    await makePinnedFile(environment, testVideoId("pinnedvid01"), pinnedFile, "x");
     const [channel] = getChannels(environment.store);
 
     const message = redirectMessage(await adminPost(environment, `/admin/channels/${channel?.id}/remove`));

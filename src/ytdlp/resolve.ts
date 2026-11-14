@@ -16,11 +16,12 @@ export async function resolveUrl(binary: string, url: string, signal: AbortSigna
     return toChannel(info);
   }
 
-  if (!info.id) {
+  const video = toVideo(info);
+  if (video === undefined) {
     throw new Error("could not determine video from URL");
   }
 
-  return toVideo(info);
+  return video;
 }
 
 export async function getChannelVideos(
@@ -45,7 +46,7 @@ export async function getChannelVideos(
   );
   const response: Info = JSON.parse(output);
   return (response.entries ?? [])
-    .filter((entry) => entry.id)
     .map(toVideo)
+    .filter((video) => video !== undefined)
     .map((video) => ({ ...video, channel: { ...video.channel, id: video.channel.id || channelId } }));
 }

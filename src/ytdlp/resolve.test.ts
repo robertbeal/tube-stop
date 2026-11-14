@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { stubYtDlp } from "../test-helpers.ts";
+import { stubYtDlp, testVideoId } from "../test-helpers.ts";
 import { getChannelVideos, resolveUrl } from "./resolve.ts";
 
 const neverAborted = new AbortController().signal;
@@ -17,7 +17,7 @@ describe("resolve", () => {
     const resolved = await resolveUrl(stub.binary, "https://youtu.be/abcdefghijk", neverAborted);
 
     expect(resolved).toEqual({
-      id: "abcdefghijk",
+      id: testVideoId("abcdefghijk"),
       title: "Moonlight Sonata",
       channel: { id: "UC123", name: "Piano Guy" },
       duration: 125,
@@ -79,7 +79,7 @@ describe("getChannelVideos", () => {
 
     const videos = await getChannelVideos(stub.binary, "UC123", 25, neverAborted);
 
-    expect(videos.map((video) => video.id)).toEqual(["aaaaaaaaaaa", "bbbbbbbbbbb"]);
+    expect(videos.map((video) => video.id)).toEqual([testVideoId("aaaaaaaaaaa"), testVideoId("bbbbbbbbbbb")]);
     expect(videos[0]?.channel.id).toBe("UC123");
     expect(videos[1]?.channel.id).toBe("UCother");
     const joined = (await stub.arguments()).join(" ");
