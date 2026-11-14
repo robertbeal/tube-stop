@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { randomVideoId } from "../test-helpers.ts";
 import { AlreadySetUpError, allowVideo, NotFoundError } from "./store.ts";
-import { fixedNow, newVideo, openTestDatabase, videoOf } from "./support.ts";
+import { fixedNow, newVideo, openTestDatabase, videoOf } from "./test-helpers.ts";
 import {
   countUsers,
   createFirstUser,

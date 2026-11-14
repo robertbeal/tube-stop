@@ -44,7 +44,7 @@ import {
   newVideo,
   openTestDatabase,
   videoOf,
-} from "./support.ts";
+} from "./test-helpers.ts";
 import { countUsers } from "./users.ts";
 
 function userVersion(path: string): number {

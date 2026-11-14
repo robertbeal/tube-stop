@@ -4,7 +4,7 @@ media
 cache
 **/*.test.ts
 src/test-helpers.ts
-src/db/support.ts
+src/db/test-helpers.ts
 src/web/harness.ts
 src/web/auth-helpers.ts
 src/web/kid-helpers.ts
