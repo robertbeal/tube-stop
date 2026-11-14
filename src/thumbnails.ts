@@ -15,7 +15,7 @@ export class InvalidVideoIdError extends Error {
 
 export interface Thumbnails {
   /** The file holding a video's thumbnail, fetching and saving it first if necessary. */
-  path(videoId: string, signal?: AbortSignal): Promise<string>;
+  path(videoId: string, signal: AbortSignal): Promise<string>;
   /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
   remove(videoId: string): Promise<void>;
 }
@@ -41,7 +41,7 @@ export class ThumbnailStore implements Thumbnails {
     return join(this.#directory, `${videoId}.jpg`);
   }
 
-  async path(videoId: string, signal?: AbortSignal): Promise<string> {
+  async path(videoId: string, signal: AbortSignal): Promise<string> {
     if (!validId.test(videoId)) {
       throw new InvalidVideoIdError();
     }
@@ -57,10 +57,10 @@ export class ThumbnailStore implements Thumbnails {
   }
 
   /** Downloads the thumbnail and moves it into place atomically, so a half-written file is never served. */
-  async #download(videoId: string, destination: string, signal?: AbortSignal): Promise<void> {
+  async #download(videoId: string, destination: string, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.timeout(fetchTimeoutMs);
     const response = await this.#fetch(`${this.#baseUrl}/vi/${videoId}/mqdefault.jpg`, {
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: AbortSignal.any([signal, timeout]),
     });
     if (response.status !== 200) {
       throw new Error(`thumbnail server answered ${response.status} ${response.statusText}`.trim());

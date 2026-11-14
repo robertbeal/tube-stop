@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { temporaryDirectory } from "./test-helpers.ts";
 import { InvalidVideoIdError, ThumbnailStore } from "./thumbnails.ts";
 
+const neverAborted = new AbortController().signal;
+
 const videoId = "abcdefghijk";
 const baseUrl = "http://images.test";
 
@@ -34,8 +36,8 @@ describe("ThumbnailStore.path", () => {
   test("fetches the thumbnail once and then serves it from disk", async () => {
     const { store, server } = await storeFor();
 
-    const first = await store.path(videoId);
-    const second = await store.path(videoId);
+    const first = await store.path(videoId, neverAborted);
+    const second = await store.path(videoId, neverAborted);
 
     expect(await Bun.file(first).text()).toBe("JPEG-BYTES");
     expect(second).toBe(first);
@@ -44,7 +46,7 @@ describe("ThumbnailStore.path", () => {
 
   test("asks for the medium quality image of the right video", async () => {
     const { store, server } = await storeFor();
-    await store.path(videoId);
+    await store.path(videoId, neverAborted);
     expect(server.requested).toEqual([`/vi/${videoId}/mqdefault.jpg`]);
   });
 
@@ -52,7 +54,9 @@ describe("ThumbnailStore.path", () => {
     const { store, server } = await storeFor();
     const invalidIds = ["", "short", "../../etc/passwd", "abcdefghijk/../x", "abcdefghij ", "abcdefghijkl"];
 
-    const results = await Promise.all(invalidIds.map((id) => store.path(id).catch((error) => error)));
+    const results = await Promise.all(
+      invalidIds.map((id) => store.path(id, neverAborted).catch((error) => error)),
+    );
 
     expect(results.every((result) => result instanceof InvalidVideoIdError)).toBe(true);
     expect(server.requested).toEqual([]);
@@ -62,9 +66,9 @@ describe("ThumbnailStore.path", () => {
     const outcomes: Handler[] = [() => new Response("nope", { status: 500 }), jpeg];
     const { store, directory } = await storeFor((request) => (outcomes.shift() ?? jpeg)(request));
 
-    await expect(store.path(videoId)).rejects.toThrow();
+    await expect(store.path(videoId, neverAborted)).rejects.toThrow();
     expect(await readdir(directory)).toEqual([]);
-    expect(await Bun.file(await store.path(videoId)).text()).toBe("JPEG-BYTES");
+    expect(await Bun.file(await store.path(videoId, neverAborted)).text()).toBe("JPEG-BYTES");
   });
 
   test("refuses responses that are not images", async () => {
@@ -72,7 +76,7 @@ describe("ThumbnailStore.path", () => {
       () => new Response("<html>captcha</html>", { headers: { "content-type": "text/html" } }),
     );
 
-    await expect(store.path(videoId)).rejects.toThrow();
+    await expect(store.path(videoId, neverAborted)).rejects.toThrow();
     expect(await readdir(directory)).toEqual([]);
   });
 
@@ -80,7 +84,7 @@ describe("ThumbnailStore.path", () => {
     const { store } = await storeFor(
       () => new Response("x".repeat(3 << 20), { headers: { "content-type": "image/jpeg" } }),
     );
-    await expect(store.path(videoId)).rejects.toThrow();
+    await expect(store.path(videoId, neverAborted)).rejects.toThrow();
   });
 
   test("stops when the signal is aborted", async () => {
@@ -95,7 +99,7 @@ describe("ThumbnailStore.path", () => {
     const directory = join(parent, "not", "yet", "there");
     const store = new ThumbnailStore(directory, baseUrl, imageServer().fetchImplementation);
 
-    const path = await store.path(videoId);
+    const path = await store.path(videoId, neverAborted);
 
     expect((await stat(path)).isFile()).toBe(true);
   });
@@ -104,7 +108,7 @@ describe("ThumbnailStore.path", () => {
 describe("ThumbnailStore.remove", () => {
   test("deletes the saved thumbnail and is harmless when there is none", async () => {
     const { store } = await storeFor();
-    const path = await store.path(videoId);
+    const path = await store.path(videoId, neverAborted);
 
     await store.remove(videoId);
     expect(await Bun.file(path).exists()).toBe(false);

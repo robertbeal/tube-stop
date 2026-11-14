@@ -30,13 +30,13 @@ interface FetchCall {
   maxHeight: number;
 }
 
-type Download = (call: FetchCall, signal?: AbortSignal) => Promise<string>;
+type Download = (call: FetchCall, signal: AbortSignal) => Promise<string>;
 
 /** A fetcher that records what it was asked for and delegates the outcome. */
 function fakeFetcher(download: Download) {
   const calls: FetchCall[] = [];
   const record =
-    (kind: FetchCall["kind"]) => (id: string, directory: string, maxHeight: number, signal?: AbortSignal) => {
+    (kind: FetchCall["kind"]) => (id: string, directory: string, maxHeight: number, signal: AbortSignal) => {
       const call = { kind, id, directory, maxHeight };
       calls.push(call);
       return download(call, signal);

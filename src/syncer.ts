@@ -15,14 +15,14 @@ export interface SyncStore {
 /** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
 export class ChannelSyncer {
   readonly #store: SyncStore;
-  readonly #listChannel: (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>;
+  readonly #listChannel: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
   readonly #intervalMs: number;
   readonly #log: (message: string) => void;
   readonly #wakeup = new Wakeup();
 
   constructor(
     store: SyncStore,
-    listChannel: (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>,
+    listChannel: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>,
     intervalMs: number,
     log: (message: string) => void = console.log,
   ) {

@@ -17,13 +17,13 @@ export type Resolved =
   | { kind: "video"; video: Video }
   | { kind: "channel"; channelId: string; channelName: string };
 
-export type ResolveUrl = (url: string, signal?: AbortSignal) => Promise<Resolved>;
+export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
 export type Download = (
   id: string,
   directory: string,
   maxHeight: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ) => Promise<string>;
 
 interface Info {
@@ -77,14 +77,14 @@ function toChannel(response: Info): Resolved {
   return { kind: "channel", channelId, channelName };
 }
 
-async function ytdlp(binary: string, args: string[], signal?: AbortSignal): Promise<string> {
+async function ytdlp(binary: string, args: string[], signal: AbortSignal): Promise<string> {
   const process = Bun.spawn([binary, ...args], { stdout: "pipe", stderr: "pipe", signal });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(process.stdout).text(),
     new Response(process.stderr).text(),
     process.exited,
   ]);
-  if (signal?.aborted) {
+  if (signal.aborted) {
     throw signal.reason instanceof Error ? signal.reason : new Error("yt-dlp: cancelled");
   }
   if (exitCode !== 0) {
@@ -94,7 +94,7 @@ async function ytdlp(binary: string, args: string[], signal?: AbortSignal): Prom
 }
 
 /** Inspects a user-supplied URL: a single video, or a channel or playlist. */
-export async function resolveUrl(binary: string, url: string, signal?: AbortSignal): Promise<Resolved> {
+export async function resolveUrl(binary: string, url: string, signal: AbortSignal): Promise<Resolved> {
   const output = await ytdlp(
     binary,
     ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
@@ -115,7 +115,7 @@ export async function listChannel(
   binary: string,
   channelId: string,
   limit: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<Video[]> {
   const output = await ytdlp(
     binary,
@@ -143,7 +143,7 @@ async function download(
   id: string,
   template: string,
   maxHeight: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<string> {
   const format = `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/b`;
   const output = await ytdlp(
@@ -185,7 +185,7 @@ export function downloadToLibrary(
   id: string,
   directory: string,
   maxHeight: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<string> {
   const template =
     "%(channel,uploader|Unknown)s/%(upload_date>%Y-%m-%d|0000-00-00)s - %(title).150B [%(id)s].%(ext)s";
@@ -202,7 +202,7 @@ export function downloadToCache(
   id: string,
   directory: string,
   maxHeight: number,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<string> {
   const template = "%(id)s.%(ext)s";
 
