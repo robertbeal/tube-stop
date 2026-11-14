@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import type { Video } from "./db/store.ts";
 import { removeMedia } from "./storage.ts";
-import { sleep, Wakeup } from "./wakeup.ts";
+import { createWakeup, sleep, type Wakeup, waitForWakeup, wake } from "./wakeup.ts";
 import type { Download } from "./ytdlp/types.ts";
 
 /** Watch-once copies are always fetched at this height. */
@@ -45,8 +45,8 @@ export class DownloadWorker {
   readonly #downloadToCache: Download;
   readonly #config: DownloadConfig;
   readonly #log: (message: string) => void;
-  readonly #pinWakeup = new Wakeup();
-  readonly #cacheWakeup = new Wakeup();
+  readonly #pinWakeup = createWakeup();
+  readonly #cacheWakeup = createWakeup();
 
   constructor(
     store: DownloadStore,
@@ -64,12 +64,12 @@ export class DownloadWorker {
 
   /** Wakes the pinned-download loop. Never blocks. */
   triggerPins(): void {
-    this.#pinWakeup.wake();
+    wake(this.#pinWakeup);
   }
 
   /** Wakes the cache-download loop. Never blocks. */
   triggerCache(): void {
-    this.#cacheWakeup.wake();
+    wake(this.#cacheWakeup);
   }
 
   /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
@@ -88,7 +88,7 @@ export class DownloadWorker {
       while (await processNext().catch((error) => this.#logFailure(error))) {
         // more work is queued
       }
-      await wakeup.wait(pollIntervalMs, signal);
+      await waitForWakeup(wakeup, pollIntervalMs, signal);
     }
   }
 

@@ -1,5 +1,5 @@
 import type { Channel, NewVideo } from "./db/store.ts";
-import { Wakeup } from "./wakeup.ts";
+import { createWakeup, waitForWakeup, wake } from "./wakeup.ts";
 import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
@@ -18,7 +18,7 @@ export class ChannelSyncer {
   readonly #getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
   readonly #intervalMs: number;
   readonly #log: (message: string) => void;
-  readonly #wakeup = new Wakeup();
+  readonly #wakeup = createWakeup();
 
   constructor(
     store: SyncStore,
@@ -34,14 +34,14 @@ export class ChannelSyncer {
 
   /** Requests an immediate sync of all channels. Never blocks; repeated requests before the sync starts merge into one. */
   trigger(): void {
-    this.#wakeup.wake();
+    wake(this.#wakeup);
   }
 
   /** Syncs once straight away, then on every interval or trigger, until `signal` aborts. */
   async run(signal: AbortSignal): Promise<void> {
     await this.syncAll(signal);
     while (!signal.aborted) {
-      await this.#wakeup.wait(this.#intervalMs, signal);
+      await waitForWakeup(this.#wakeup, this.#intervalMs, signal);
       await this.syncAll(signal);
     }
   }

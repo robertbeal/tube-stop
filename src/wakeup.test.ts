@@ -1,34 +1,34 @@
 import { describe, expect, test } from "bun:test";
-import { sleep, Wakeup } from "./wakeup.ts";
+import { createWakeup, sleep, waitForWakeup, wake } from "./wakeup.ts";
 
 const neverAborted = new AbortController().signal;
 
-describe("Wakeup", () => {
+describe("wake-ups", () => {
   test("a wake-up made before waiting makes the wait return immediately", async () => {
-    const wakeup = new Wakeup();
-    wakeup.wake();
+    const wakeup = createWakeup();
+    wake(wakeup);
     const started = performance.now();
-    await wakeup.wait(5000, neverAborted);
+    await waitForWakeup(wakeup, 5000, neverAborted);
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
   test("repeated wake-ups merge into one", async () => {
-    const wakeup = new Wakeup();
+    const wakeup = createWakeup();
     [1, 2, 3, 4, 5].forEach(() => {
-      wakeup.wake();
+      wake(wakeup);
     });
-    await wakeup.wait(5000, neverAborted);
+    await waitForWakeup(wakeup, 5000, neverAborted);
 
     const started = performance.now();
-    await wakeup.wait(60, neverAborted);
+    await waitForWakeup(wakeup, 60, neverAborted);
     expect(performance.now() - started).toBeGreaterThanOrEqual(50);
   });
 
   test("a wake-up during a wait ends it", async () => {
-    const wakeup = new Wakeup();
+    const wakeup = createWakeup();
     const started = performance.now();
-    const waiting = wakeup.wait(5000, neverAborted);
-    setTimeout(() => wakeup.wake(), 20);
+    const waiting = waitForWakeup(wakeup, 5000, neverAborted);
+    setTimeout(() => wake(wakeup), 20);
     await waiting;
     expect(performance.now() - started).toBeLessThan(1000);
   });
@@ -36,7 +36,7 @@ describe("Wakeup", () => {
   test("aborting the signal ends the wait", async () => {
     const controller = new AbortController();
     const started = performance.now();
-    const waiting = new Wakeup().wait(5000, controller.signal);
+    const waiting = waitForWakeup(createWakeup(), 5000, controller.signal);
     setTimeout(() => controller.abort(), 20);
     await waiting;
     expect(performance.now() - started).toBeLessThan(1000);
@@ -44,13 +44,13 @@ describe("Wakeup", () => {
 
   test("an already aborted signal returns at once", async () => {
     const started = performance.now();
-    await new Wakeup().wait(5000, AbortSignal.abort());
+    await waitForWakeup(createWakeup(), 5000, AbortSignal.abort());
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
   test("the wait returns after the timeout when nothing happens", async () => {
     const started = performance.now();
-    await new Wakeup().wait(50, neverAborted);
+    await waitForWakeup(createWakeup(), 50, neverAborted);
     expect(performance.now() - started).toBeGreaterThanOrEqual(40);
   });
 });
