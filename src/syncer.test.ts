@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type Channel, Store } from "./db/store.ts";
 import { ChannelSyncer, type SyncStore } from "./syncer.ts";
 import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { type ListChannel, listChannel, type Video } from "./ytdlp.ts";
+import { listChannel, type Video } from "./ytdlp.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;
@@ -20,7 +20,7 @@ async function openStore(): Promise<Store> {
   return new Store(join(await temporaryDirectory(), "tubestop.db"));
 }
 
-async function ytDlpPrinting(body: string): Promise<ListChannel> {
+async function ytDlpPrinting(body: string) {
   const stub = await writeStub(body);
   await chmod(stub.binary, 0o755); // Bun.write ignores its mode option on some versions
   return listChannel.bind(null, stub.binary);
@@ -28,13 +28,16 @@ async function ytDlpPrinting(body: string): Promise<ListChannel> {
 
 const printing = (json: string) => `cat <<'EOF'\n${json}\nEOF`;
 
-function syncerFor(store: SyncStore, listChannel: ListChannel): ChannelSyncer {
+function syncerFor(
+  store: SyncStore,
+  listChannel: ConstructorParameters<typeof ChannelSyncer>[1],
+): ChannelSyncer {
   return new ChannelSyncer(store, listChannel, hour, () => undefined);
 }
 
 function fakeLister(videos: Video[] = []) {
   const calls: { channelId: string; limit: number }[] = [];
-  const lister: ListChannel = async (channelId, limit) => {
+  const lister = async (channelId: string, limit: number) => {
     calls.push({ channelId, limit });
     return videos;
   };

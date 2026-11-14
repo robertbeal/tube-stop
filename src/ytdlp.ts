@@ -19,8 +19,6 @@ export type Resolved =
 
 export type ResolveUrl = (url: string, signal?: AbortSignal) => Promise<Resolved>;
 
-export type ListChannel = (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>;
-
 export type Fetcher = {
   downloadToLibrary: (
     id: string,

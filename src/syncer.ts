@@ -1,6 +1,6 @@
 import type { Channel, NewVideo } from "./db/store.ts";
 import { Wakeup } from "./wakeup.ts";
-import type { ListChannel, Video } from "./ytdlp.ts";
+import type { Video } from "./ytdlp.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
@@ -15,14 +15,14 @@ export interface SyncStore {
 /** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
 export class ChannelSyncer {
   readonly #store: SyncStore;
-  readonly #listChannel: ListChannel;
+  readonly #listChannel: (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>;
   readonly #intervalMs: number;
   readonly #log: (message: string) => void;
   readonly #wakeup = new Wakeup();
 
   constructor(
     store: SyncStore,
-    listChannel: ListChannel,
+    listChannel: (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>,
     intervalMs: number,
     log: (message: string) => void = console.log,
   ) {
