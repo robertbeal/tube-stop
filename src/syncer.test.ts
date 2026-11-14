@@ -50,8 +50,7 @@ function listed(overrides: Partial<Video>): Video {
   return {
     id: "abcdefghijk",
     title: "t",
-    channelName: "",
-    channelId: "",
+    channel: { id: "", name: "" },
     duration: 0,
     publishedAt: 0,
     ...overrides,

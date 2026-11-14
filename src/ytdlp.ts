@@ -4,8 +4,10 @@ import { join } from "node:path";
 export interface Video {
   id: string;
   title: string;
-  channelName: string;
-  channelId: string;
+  channel: {
+    id: string;
+    name: string;
+  };
   /** Seconds. */
   duration: number;
   /** Upload time in unix seconds, or 0 if unknown. For channel listings it is approximate (accurate to the day). */
@@ -13,9 +15,7 @@ export interface Video {
 }
 
 /** What a pasted URL points at. */
-export type Resolved =
-  | { kind: "video"; video: Video }
-  | { kind: "channel"; channelId: string; channelName: string };
+export type Resolved = { kind: "video"; video: Video } | { kind: "channel"; id: string; name: string };
 
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
@@ -56,25 +56,28 @@ function publishedAt(response: Info): number {
   return valid ? Math.floor(parsed.getTime() / 1000) : 0;
 }
 
-function toVideo(response: Info): Video {
+function toVideo(info: Info): Video {
   return {
-    id: response.id ?? "",
-    title: response.title ?? "",
-    channelName: response.channel || response.uploader || "",
-    channelId: response.channel_id ?? "",
-    duration: Math.trunc(response.duration ?? 0),
-    publishedAt: publishedAt(response),
+    id: info.id ?? "",
+    title: info.title ?? "",
+    channel: {
+      id: info.channel_id ?? "",
+      name: info.channel || info.uploader || "",
+    },
+    duration: Math.trunc(info.duration ?? 0),
+    publishedAt: publishedAt(info),
   };
 }
 
-function toChannel(response: Info): Resolved {
-  const channelId = response.channel_id || response.entries?.[0]?.channel_id || "";
-  if (channelId === "") {
+function toChannel(info: Info): Resolved {
+  const id = info.channel_id || info.entries?.[0]?.channel_id || "";
+
+  if (id === "") {
     throw new Error("could not determine channel from URL");
   }
-  const channelName =
-    response.channel || response.uploader || (response.title ?? "").replace(/ - Videos$/, "");
-  return { kind: "channel", channelId, channelName };
+
+  const name = info.channel || info.uploader || (info.title ?? "").replace(/ - Videos$/, "");
+  return { kind: "channel", id, name };
 }
 
 async function ytdlp(binary: string, args: string[], signal: AbortSignal): Promise<string> {
@@ -134,7 +137,8 @@ export async function listChannel(
   const response: Info = JSON.parse(output);
   return (response.entries ?? [])
     .filter((entry) => entry.id)
-    .map((entry) => ({ ...toVideo(entry), channelId: entry.channel_id || channelId }));
+    .map(toVideo)
+    .map((video) => ({ ...video, channel: { ...video.channel, id: video.channel.id || channelId } }));
 }
 
 /** Downloads a video to the path described by an output template and returns the path of the saved file. */

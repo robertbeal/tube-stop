@@ -44,8 +44,7 @@ const pianoGuyVideo: Resolved = {
   video: {
     id: videoId,
     title: "Moonlight",
-    channelName: "Piano Guy",
-    channelId: "UC1",
+    channel: { id: "UC1", name: "Piano Guy" },
     duration: 90,
     publishedAt: 0,
   },
@@ -313,7 +312,7 @@ describe("adding by URL", () => {
 
   test("a channel URL allows the channel and starts a sync", async () => {
     const environment = await buildEnvironment({
-      resolve: async () => ({ kind: "channel", channelId: "UC1", channelName: "Piano Guy" }),
+      resolve: async () => ({ kind: "channel", id: "UC1", name: "Piano Guy" }),
     });
 
     const message = redirectMessage(

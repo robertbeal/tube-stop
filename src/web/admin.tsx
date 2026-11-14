@@ -68,20 +68,20 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
       return redirectWithMessage(context, `Could not read that URL: ${resolved.message}`);
     }
     if (resolved.value.kind === "channel") {
-      const { channelId, channelName } = resolved.value;
-      const added = messageFrom(() => store.addChannel(channelId, channelName));
+      const { id, name } = resolved.value;
+      const added = messageFrom(() => store.addChannel(id, name));
       if (!added.ok) {
         return redirectWithMessage(context, added.message);
       }
       services.syncer.trigger();
-      return redirectWithMessage(context, `Allowed channel ${channelName} (syncing videos…)`);
+      return redirectWithMessage(context, `Allowed channel ${name} (syncing videos…)`);
     }
     const { video } = resolved.value;
     const allowed = messageFrom(() =>
       store.allowVideo({
         youtubeId: video.id,
-        channelYoutubeId: video.channelId,
-        channelName: video.channelName,
+        channelYoutubeId: video.channel.id,
+        channelName: video.channel.name,
         title: video.title,
         duration: video.duration,
         publishedAt: video.publishedAt,

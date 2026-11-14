@@ -35,8 +35,7 @@ describe("resolve", () => {
       video: {
         id: "abcdefghijk",
         title: "Moonlight Sonata",
-        channelName: "Piano Guy",
-        channelId: "UC123",
+        channel: { id: "UC123", name: "Piano Guy" },
         duration: 125,
         publishedAt: 0,
       },
@@ -49,8 +48,8 @@ describe("resolve", () => {
     );
     expect(await resolveUrl(binary, "https://www.youtube.com/@pianoguy", neverAborted)).toEqual({
       kind: "channel",
-      channelId: "UC123",
-      channelName: "Piano Guy",
+      id: "UC123",
+      name: "Piano Guy",
     });
   });
 
@@ -60,8 +59,8 @@ describe("resolve", () => {
     );
     expect(await resolveUrl(binary, "https://www.youtube.com/@pianoguy/videos", neverAborted)).toEqual({
       kind: "channel",
-      channelId: "UC999",
-      channelName: "Piano Guy",
+      id: "UC999",
+      name: "Piano Guy",
     });
   });
 
@@ -122,8 +121,8 @@ describe("listChannel", () => {
     const videos = await listChannel(binary, "UC123", 25, neverAborted);
 
     expect(videos.map((video) => video.id)).toEqual(["aaaaaaaaaaa", "bbbbbbbbbbb"]);
-    expect(videos[0]?.channelId).toBe("UC123");
-    expect(videos[1]?.channelId).toBe("UCother");
+    expect(videos[0]?.channel.id).toBe("UC123");
+    expect(videos[1]?.channel.id).toBe("UCother");
     const joined = (await stub.arguments()).join(" ");
     expect(joined).toContain("/channel/UC123/videos");
     expect(joined).toContain("--playlist-end 25");
