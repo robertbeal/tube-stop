@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { allowVideo, closeStore, getChannels, getVideo, insertChannel, openStore } from "../db/store.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
-import { resetAdmin } from "./reset-admin.ts";
+import { resetAdmin } from "./reset.ts";
 import { countUsers, createFirstUser, getUserByUsername } from "./users.ts";
 
 const videoId = "abcdefghijk";
