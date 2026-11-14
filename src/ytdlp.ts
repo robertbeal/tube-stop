@@ -34,7 +34,7 @@ export type Fetcher = {
   ) => Promise<string>;
 };
 
-interface YtDlpResponse {
+interface Info {
   _type?: string;
   id?: string;
   title?: string;
@@ -44,12 +44,12 @@ interface YtDlpResponse {
   duration?: number;
   timestamp?: number;
   upload_date?: string;
-  entries?: YtDlpResponse[];
+  entries?: Info[];
 }
 
 const stderrTail = 500;
 
-function publishedAt(response: YtDlpResponse): number {
+function publishedAt(response: Info): number {
   if (typeof response.timestamp === "number" && response.timestamp > 0) {
     return Math.trunc(response.timestamp);
   }
@@ -64,7 +64,7 @@ function publishedAt(response: YtDlpResponse): number {
   return valid ? Math.floor(parsed.getTime() / 1000) : 0;
 }
 
-function toVideo(response: YtDlpResponse): Video {
+function toVideo(response: Info): Video {
   return {
     id: response.id ?? "",
     title: response.title ?? "",
@@ -75,7 +75,7 @@ function toVideo(response: YtDlpResponse): Video {
   };
 }
 
-function toChannel(response: YtDlpResponse): Resolved {
+function toChannel(response: Info): Resolved {
   const channelId = response.channel_id || response.entries?.[0]?.channel_id || "";
   if (channelId === "") {
     throw new Error("could not determine channel from URL");
@@ -108,7 +108,7 @@ export async function resolveUrl(binary: string, url: string, signal?: AbortSign
     ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
     signal,
   );
-  const response: YtDlpResponse = JSON.parse(output);
+  const response: Info = JSON.parse(output);
   if (response._type === "playlist") {
     return toChannel(response);
   }
@@ -139,7 +139,7 @@ export async function listChannel(
     ],
     signal,
   );
-  const response: YtDlpResponse = JSON.parse(output);
+  const response: Info = JSON.parse(output);
   return (response.entries ?? [])
     .filter((entry) => entry.id)
     .map((entry) => ({ ...toVideo(entry), channelId: entry.channel_id || channelId }));
