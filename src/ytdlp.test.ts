@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
-import { downloadToCache, downloadToLibrary, listChannel, resolveUrl } from "../src/ytdlp.ts";
-import { type Stub, stubYtDlp as writeStub } from "./helpers.ts";
+import { type Stub, stubYtDlp as writeStub } from "./test-helpers.ts";
+import { downloadToCache, downloadToLibrary, listChannel, resolveUrl } from "./ytdlp.ts";
 
 /** Bun.write ignores its mode option on some versions, so make the script executable explicitly. */
 async function stubYtDlp(body: string): Promise<Stub> {

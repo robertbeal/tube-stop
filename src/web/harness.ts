@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import type { Hono } from "hono";
-import { type NewVideo, Store, type User } from "../../src/db/store.ts";
-import { PasswordHasher } from "../../src/passwords.ts";
-import { ThumbnailStore } from "../../src/thumbnails.ts";
-import { createApp } from "../../src/web/app.tsx";
-import type { Resolved, Resolver } from "../../src/ytdlp.ts";
-import { temporaryDirectory } from "../helpers.ts";
+import { type NewVideo, Store, type User } from "../db/store.ts";
+import { PasswordHasher } from "../passwords.ts";
+import { temporaryDirectory } from "../test-helpers.ts";
+import { ThumbnailStore } from "../thumbnails.ts";
+import type { Resolved, Resolver } from "../ytdlp.ts";
+import { createApp } from "./app.tsx";
 
 export const adminUsername = "parent";
 export const adminPassword = "correct horse battery";

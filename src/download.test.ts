@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { Store } from "../src/db/store.ts";
-import { type DownloadConfig, DownloadWorker } from "../src/download.ts";
-import { downloadToCache, downloadToLibrary, type Fetcher } from "../src/ytdlp.ts";
-import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./helpers.ts";
+import { Store } from "./db/store.ts";
+import { type DownloadConfig, DownloadWorker } from "./download.ts";
+import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
+import { downloadToCache, downloadToLibrary, type Fetcher } from "./ytdlp.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;

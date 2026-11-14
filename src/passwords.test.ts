@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PasswordHasher, PasswordRuleError } from "../src/passwords.ts";
+import { PasswordHasher, PasswordRuleError } from "./passwords.ts";
 
 const password = "correct horse battery";
 const cheapest = new PasswordHasher(4);

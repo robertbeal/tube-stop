@@ -129,7 +129,7 @@ describe("the admin navbar", () => {
 
 describe("the player page", () => {
   test("contains every element the player script looks for", async () => {
-    const script = await Bun.file(join(import.meta.dir, "../../src/web/static/player.js")).text();
+    const script = await Bun.file(join(import.meta.dir, "static/player.js")).text();
     const environment = await buildEnvironment();
     allowPianoVideo(environment, videoId, "Song");
     const body = await (await send(environment, `/watch/${videoId}`)).text();

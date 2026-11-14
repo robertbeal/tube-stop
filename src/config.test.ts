@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadConfig, parseDuration } from "../src/config.ts";
+import { loadConfig, parseDuration } from "./config.ts";
 
 const day = 24 * 60 * 60 * 1000;
 

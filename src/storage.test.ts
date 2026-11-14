@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { directorySize, removeMedia } from "../src/storage.ts";
-import { temporaryDirectory } from "./helpers.ts";
+import { directorySize, removeMedia } from "./storage.ts";
+import { temporaryDirectory } from "./test-helpers.ts";
 
 async function writeFile(path: string, size: number): Promise<void> {
   await mkdir(dirname(path), { recursive: true });

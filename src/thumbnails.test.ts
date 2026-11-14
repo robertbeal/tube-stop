@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { InvalidVideoIdError, ThumbnailStore } from "../src/thumbnails.ts";
-import { temporaryDirectory } from "./helpers.ts";
+import { temporaryDirectory } from "./test-helpers.ts";
+import { InvalidVideoIdError, ThumbnailStore } from "./thumbnails.ts";
 
 const videoId = "abcdefghijk";
 const baseUrl = "http://images.test";

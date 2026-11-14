@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { safeNext } from "../../src/web/auth.ts";
+import { safeNext } from "./auth.ts";
 
 const cases: ReadonlyArray<readonly [string, string]> = [
   ["/admin", "/admin"],

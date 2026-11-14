@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Page, VideoPage } from "../../src/db/store.ts";
-import { listLink, loadPage, paginate, requestedPage } from "../../src/web/paging.ts";
+import type { Page, VideoPage } from "../db/store.ts";
+import { listLink, loadPage, paginate, requestedPage } from "./paging.ts";
 
 const pageUrl = (page: number) => `/list?page=${page}`;
 

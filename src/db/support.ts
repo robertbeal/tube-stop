@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
-import { type NewVideo, Store, type Video } from "../../src/db/store.ts";
-import { randomVideoId, temporaryDirectory } from "../helpers.ts";
+import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
+import { type NewVideo, Store, type Video } from "./store.ts";
 
 export const everything = { limit: 1000, offset: 0 };
 

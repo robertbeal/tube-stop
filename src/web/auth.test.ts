@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { PasswordHasher } from "../../src/passwords.ts";
-import { LoginLimiter, normaliseCode, SessionStore, usernameProblem } from "../../src/web/auth.ts";
+import { PasswordHasher } from "../passwords.ts";
+import { LoginLimiter, normaliseCode, SessionStore, usernameProblem } from "./auth.ts";
 import {
   failLogins,
   loginForm,

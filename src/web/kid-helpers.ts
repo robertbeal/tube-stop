@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Video } from "../../src/db/store.ts";
+import type { Video } from "../db/store.ts";
 import { allow, type Environment } from "./harness.ts";
 
 export const videoId = "abcdefghijk";

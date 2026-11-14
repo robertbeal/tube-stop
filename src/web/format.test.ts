@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatDuration, humanBytes, timeAgo } from "../../src/web/format.ts";
+import { formatDuration, humanBytes, timeAgo } from "./format.ts";
 
 describe("humanBytes", () => {
   test.each([

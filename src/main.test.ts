@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { stubYtDlp, temporaryDirectory } from "./helpers.ts";
+import { stubYtDlp, temporaryDirectory } from "./test-helpers.ts";
 
 type Child = Bun.Subprocess<"ignore", "pipe", "pipe">;
 

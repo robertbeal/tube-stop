@@ -1,8 +1,8 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { NotFoundError, Store } from "../../src/db/store.ts";
-import { randomVideoId, temporaryDirectory } from "../helpers.ts";
+import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
+import { NotFoundError, Store } from "./store.ts";
 import {
   cacheFile,
   channelIdOf,

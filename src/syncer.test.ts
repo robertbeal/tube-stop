@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
-import { type Channel, Store } from "../src/db/store.ts";
-import { ChannelSyncer, type SyncStore } from "../src/syncer.ts";
-import { type ChannelLister, type ListedVideo, listChannel } from "../src/ytdlp.ts";
-import { temporaryDirectory, stubYtDlp as writeStub } from "./helpers.ts";
+import { type Channel, Store } from "./db/store.ts";
+import { ChannelSyncer, type SyncStore } from "./syncer.ts";
+import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
+import { type ChannelLister, type ListedVideo, listChannel } from "./ytdlp.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;

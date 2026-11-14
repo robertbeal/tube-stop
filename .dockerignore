@@ -2,7 +2,12 @@ node_modules
 data
 media
 cache
-test
+**/*.test.ts
+src/test-helpers.ts
+src/db/support.ts
+src/web/harness.ts
+src/web/auth-helpers.ts
+src/web/kid-helpers.ts
 .git
 .github
 *.md

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { resetAdmin } from "../src/commands.ts";
-import { Store } from "../src/db/store.ts";
-import { temporaryDirectory } from "./helpers.ts";
+import { resetAdmin } from "./commands.ts";
+import { Store } from "./db/store.ts";
+import { temporaryDirectory } from "./test-helpers.ts";
 
 const videoId = "abcdefghijk";
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { AlreadySetUpError, NotFoundError } from "../../src/db/store.ts";
-import { randomVideoId } from "../helpers.ts";
+import { randomVideoId } from "../test-helpers.ts";
+import { AlreadySetUpError, NotFoundError } from "./store.ts";
 import { fixedNow, newVideo, openTestDatabase, videoOf } from "./support.ts";
 
 describe("admin accounts", () => {

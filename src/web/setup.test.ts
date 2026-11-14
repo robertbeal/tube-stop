@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SetupCode } from "../../src/web/auth.ts";
+import { SetupCode } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
 import { buildEnvironment, send, sessionCookie } from "./harness.ts";
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { sleep, Wakeup } from "../src/wakeup.ts";
+import { sleep, Wakeup } from "./wakeup.ts";
 
 const neverAborted = new AbortController().signal;
 

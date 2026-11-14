@@ -1,6 +1,6 @@
-import type { PasswordHasher } from "../../src/passwords.ts";
-import { ThumbnailStore } from "../../src/thumbnails.ts";
-import { createApp } from "../../src/web/app.tsx";
+import type { PasswordHasher } from "../passwords.ts";
+import { ThumbnailStore } from "../thumbnails.ts";
+import { createApp } from "./app.tsx";
 import { type Environment, send } from "./harness.ts";
 
 export const newUsername = "mum";
