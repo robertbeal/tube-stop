@@ -68,13 +68,6 @@ describe("thumbnailPath", () => {
     expect(await readdir(directory)).toEqual([]);
   });
 
-  test("refuses absurdly large responses", async () => {
-    const { store } = await storeFor(
-      () => new Response("x".repeat(3 << 20), { headers: { "content-type": "image/jpeg" } }),
-    );
-    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow();
-  });
-
   test("stops when the signal is aborted", async () => {
     const abortAware: Handler = (request) =>
       request.signal.aborted ? Promise.reject(request.signal.reason) : jpeg();

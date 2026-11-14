@@ -3,8 +3,6 @@ import { join } from "node:path";
 import type { VideoId } from "./ytdlp/types.ts";
 
 const defaultBaseUrl = "https://i.ytimg.com";
-/** A thumbnail is tens of kilobytes; anything near this is wrong. */
-const maxBytes = 2 * 1024 * 1024;
 const fetchTimeoutMs = 10_000;
 
 /** Fetches each video's thumbnail from YouTube once and keeps it on disk as `<directory>/<video id>.jpg`. */
@@ -47,29 +45,18 @@ async function downloadThumbnail(
   destination: string,
   signal: AbortSignal,
 ): Promise<void> {
-  const timeout = AbortSignal.timeout(fetchTimeoutMs);
   const response = await thumbnails.fetch(`${thumbnails.baseUrl}/vi/${videoId}/mqdefault.jpg`, {
-    signal: AbortSignal.any([signal, timeout]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(fetchTimeoutMs)]),
   });
-  if (response.status !== 200) {
-    throw new Error(`thumbnail server answered ${response.status} ${response.statusText}`.trim());
-  }
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.startsWith("image/")) {
-    throw new Error(`thumbnail server sent "${contentType}", not an image`);
+  if (!response.ok || !contentType.startsWith("image/")) {
+    throw new Error(`thumbnail server sent ${response.status} ${contentType}`);
   }
-  const body = await response.bytes();
-  if (body.length > maxBytes) {
-    throw new Error("thumbnail is unreasonably large");
-  }
+
   await mkdir(thumbnails.directory, { recursive: true, mode: 0o750 });
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
-  try {
-    await Bun.write(temporary, body);
-    await rename(temporary, destination);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await Bun.write(temporary, response);
+  await rename(temporary, destination);
 }
 
 /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
