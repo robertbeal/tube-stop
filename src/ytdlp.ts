@@ -85,16 +85,13 @@ function toChannel(response: YtDlpResponse): Resolved {
   return { kind: "channel", channelId, channelName };
 }
 
-/** Runs the yt-dlp command-line tool. */
-export class YtDlp implements Resolver, ChannelLister, Fetcher {
-  readonly #binary: string;
+/** Everything the app asks of the yt-dlp command-line tool. */
+export type YtDlp = Resolver & ChannelLister & Fetcher;
 
-  constructor(binary: string) {
-    this.#binary = binary;
-  }
-
-  async #run(args: string[], signal?: AbortSignal): Promise<string> {
-    const process = Bun.spawn([this.#binary, ...args], { stdout: "pipe", stderr: "pipe", signal });
+/** Runs yt-dlp at `binary`. */
+export function createYtDlp(binary: string): YtDlp {
+  const run = async (args: string[], signal?: AbortSignal): Promise<string> => {
+    const process = Bun.spawn([binary, ...args], { stdout: "pipe", stderr: "pipe", signal });
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(process.stdout).text(),
       new Response(process.stderr).text(),
@@ -107,64 +104,16 @@ export class YtDlp implements Resolver, ChannelLister, Fetcher {
       throw new Error(`yt-dlp: exited with code ${exitCode}: ${stderr.trim().slice(-stderrTail)}`);
     }
     return stdout;
-  }
+  };
 
-  /** Inspects a user-supplied URL: a single video, or a channel or playlist. */
-  async resolve(url: string, signal?: AbortSignal): Promise<Resolved> {
-    const output = await this.#run(
-      ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
-      signal,
-    );
-    const response: YtDlpResponse = JSON.parse(output);
-    if (response._type === "playlist") {
-      return toChannel(response);
-    }
-    if (!response.id) {
-      throw new Error("could not determine video from URL");
-    }
-    return { kind: "video", video: toVideo(response) };
-  }
-
-  /** Up to `limit` recent videos from a channel, newest first. */
-  async listChannel(channelId: string, limit: number, signal?: AbortSignal): Promise<ListedVideo[]> {
-    const output = await this.#run(
-      [
-        "-J",
-        "--flat-playlist",
-        "--no-warnings",
-        "--extractor-args",
-        "youtubetab:approximate_date",
-        "--playlist-end",
-        String(limit),
-        `https://www.youtube.com/channel/${channelId}/videos`,
-      ],
-      signal,
-    );
-    const response: YtDlpResponse = JSON.parse(output);
-    return (response.entries ?? [])
-      .filter((entry) => entry.id)
-      .map((entry) => ({ ...toVideo(entry), channelId: entry.channel_id || channelId }));
-  }
-
-  /**
-   * Fetches a video into `directory`, organised by channel and date, and returns the path of
-   * the saved file. A .jpg thumbnail is written next to it.
-   */
-  downloadToLibrary(id: string, directory: string, maxHeight: number, signal?: AbortSignal): Promise<string> {
-    return this.#download(id, join(directory, libraryLayout), maxHeight, signal);
-  }
-
-  /**
-   * Fetches a video into `directory`, named by its id, and returns the path of the saved
-   * file. A .jpg thumbnail is written next to it.
-   */
-  downloadToCache(id: string, directory: string, maxHeight: number, signal?: AbortSignal): Promise<string> {
-    return this.#download(id, join(directory, cacheLayout), maxHeight, signal);
-  }
-
-  async #download(id: string, template: string, maxHeight: number, signal?: AbortSignal): Promise<string> {
+  const download = async (
+    id: string,
+    template: string,
+    maxHeight: number,
+    signal?: AbortSignal,
+  ): Promise<string> => {
     const format = `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/b`;
-    const output = await this.#run(
+    const output = await run(
       [
         "--no-warnings",
         "--no-playlist",
@@ -191,5 +140,58 @@ export class YtDlp implements Resolver, ChannelLister, Fetcher {
       throw new Error("yt-dlp did not report an output file");
     }
     return path;
-  }
+  };
+
+  return {
+    /** Inspects a user-supplied URL: a single video, or a channel or playlist. */
+    resolve: async (url, signal) => {
+      const output = await run(
+        ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
+        signal,
+      );
+      const response: YtDlpResponse = JSON.parse(output);
+      if (response._type === "playlist") {
+        return toChannel(response);
+      }
+      if (!response.id) {
+        throw new Error("could not determine video from URL");
+      }
+      return { kind: "video", video: toVideo(response) };
+    },
+
+    /** Up to `limit` recent videos from a channel, newest first. */
+    listChannel: async (channelId, limit, signal) => {
+      const output = await run(
+        [
+          "-J",
+          "--flat-playlist",
+          "--no-warnings",
+          "--extractor-args",
+          "youtubetab:approximate_date",
+          "--playlist-end",
+          String(limit),
+          `https://www.youtube.com/channel/${channelId}/videos`,
+        ],
+        signal,
+      );
+      const response: YtDlpResponse = JSON.parse(output);
+      return (response.entries ?? [])
+        .filter((entry) => entry.id)
+        .map((entry) => ({ ...toVideo(entry), channelId: entry.channel_id || channelId }));
+    },
+
+    /**
+     * Fetches a video into `directory`, organised by channel and date, and returns the path of
+     * the saved file. A .jpg thumbnail is written next to it.
+     */
+    downloadToLibrary: (id, directory, maxHeight, signal) =>
+      download(id, join(directory, libraryLayout), maxHeight, signal),
+
+    /**
+     * Fetches a video into `directory`, named by its id, and returns the path of the saved
+     * file. A .jpg thumbnail is written next to it.
+     */
+    downloadToCache: (id, directory, maxHeight, signal) =>
+      download(id, join(directory, cacheLayout), maxHeight, signal),
+  };
 }

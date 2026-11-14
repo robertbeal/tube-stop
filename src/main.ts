@@ -7,7 +7,7 @@ import { DownloadWorker } from "./download.ts";
 import { ChannelSyncer } from "./syncer.ts";
 import { ThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
-import { YtDlp } from "./ytdlp.ts";
+import { createYtDlp } from "./ytdlp.ts";
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   // Other users (such as a Jellyfin container) need to read the media folders.
@@ -20,7 +20,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   const cacheDir = resolve(config.cacheDir);
 
   const store = new Store(join(config.dataDir, "tubestop.db"));
-  const ytdlp = new YtDlp(config.ytdlpBin);
+  const ytdlp = createYtDlp(config.ytdlpBin);
   const syncer = new ChannelSyncer(store, ytdlp, config.syncIntervalMs);
   const downloads = new DownloadWorker(store, ytdlp, {
     mediaDir,

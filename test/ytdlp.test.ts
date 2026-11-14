@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
-import { YtDlp } from "../src/ytdlp.ts";
+import { createYtDlp } from "../src/ytdlp.ts";
 import { type Stub, stubYtDlp as writeStub } from "./helpers.ts";
 
 /** Bun.write ignores its mode option on some versions, so make the script executable explicitly. */
@@ -12,12 +12,12 @@ async function stubYtDlp(body: string): Promise<Stub> {
 
 async function clientPrinting(json: string) {
   const stub = await stubYtDlp(`cat <<'EOF'\n${json}\nEOF`);
-  return { client: new YtDlp(stub.binary), stub };
+  return { client: createYtDlp(stub.binary), stub };
 }
 
 async function recordingClient() {
   const stub = await stubYtDlp("echo /x.mp4");
-  return { client: new YtDlp(stub.binary), stub };
+  return { client: createYtDlp(stub.binary), stub };
 }
 
 describe("resolve", () => {
@@ -70,14 +70,14 @@ describe("resolve", () => {
 
   test("propagates a yt-dlp failure with its message", async () => {
     const stub = await stubYtDlp('echo "ERROR: Video unavailable" >&2; exit 1');
-    await expect(new YtDlp(stub.binary).resolve("https://youtu.be/gone")).rejects.toThrow(
+    await expect(createYtDlp(stub.binary).resolve("https://youtu.be/gone")).rejects.toThrow(
       "Video unavailable",
     );
   });
 
   test("rejects output that is not JSON", async () => {
     const stub = await stubYtDlp('echo "not json"');
-    await expect(new YtDlp(stub.binary).resolve("x")).rejects.toThrow();
+    await expect(createYtDlp(stub.binary).resolve("x")).rejects.toThrow();
   });
 
   test("passes the URL after the end of options", async () => {
@@ -144,7 +144,7 @@ describe("listChannel", () => {
 describe("downloads", () => {
   test("return the path yt-dlp reports last", async () => {
     const stub = await stubYtDlp('echo "[download] progress noise"; echo "/media/Chan/video.mp4"');
-    const path = await new YtDlp(stub.binary).downloadToLibrary("abcdefghijk", "/media", 1080);
+    const path = await createYtDlp(stub.binary).downloadToLibrary("abcdefghijk", "/media", 1080);
     expect(path).toBe("/media/Chan/video.mp4");
   });
 
@@ -182,14 +182,14 @@ describe("downloads", () => {
 
   test("fail when no output file is reported", async () => {
     const stub = await stubYtDlp("exit 0");
-    await expect(new YtDlp(stub.binary).downloadToCache("abcdefghijk", "/o", 720)).rejects.toThrow();
+    await expect(createYtDlp(stub.binary).downloadToCache("abcdefghijk", "/o", 720)).rejects.toThrow();
   });
 
   test("stop when the signal is aborted", async () => {
     const stub = await stubYtDlp("sleep 30");
     const started = performance.now();
     await expect(
-      new YtDlp(stub.binary).downloadToCache("abcdefghijk", "/o", 720, AbortSignal.abort()),
+      createYtDlp(stub.binary).downloadToCache("abcdefghijk", "/o", 720, AbortSignal.abort()),
     ).rejects.toThrow();
     expect(performance.now() - started).toBeLessThan(5000);
   });
