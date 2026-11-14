@@ -43,10 +43,6 @@ interface YtDlpResponse {
   entries?: YtDlpResponse[];
 }
 
-const libraryLayout =
-  "%(channel,uploader|Unknown)s/%(upload_date>%Y-%m-%d|0000-00-00)s - %(title).150B [%(id)s].%(ext)s";
-const cacheLayout = "%(id)s.%(ext)s";
-
 const stderrTail = 500;
 
 function publishedAt(response: YtDlpResponse): number {
@@ -85,7 +81,7 @@ function toChannel(response: YtDlpResponse): Resolved {
   return { kind: "channel", channelId, channelName };
 }
 
-async function run(binary: string, args: string[], signal?: AbortSignal): Promise<string> {
+async function ytdlp(binary: string, args: string[], signal?: AbortSignal): Promise<string> {
   const process = Bun.spawn([binary, ...args], { stdout: "pipe", stderr: "pipe", signal });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(process.stdout).text(),
@@ -103,7 +99,7 @@ async function run(binary: string, args: string[], signal?: AbortSignal): Promis
 
 /** Inspects a user-supplied URL: a single video, or a channel or playlist. */
 export async function resolveUrl(binary: string, url: string, signal?: AbortSignal): Promise<Resolved> {
-  const output = await run(
+  const output = await ytdlp(
     binary,
     ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
     signal,
@@ -125,7 +121,7 @@ export async function listChannel(
   limit: number,
   signal?: AbortSignal,
 ): Promise<ListedVideo[]> {
-  const output = await run(
+  const output = await ytdlp(
     binary,
     [
       "-J",
@@ -154,7 +150,7 @@ async function download(
   signal?: AbortSignal,
 ): Promise<string> {
   const format = `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/b`;
-  const output = await run(
+  const output = await ytdlp(
     binary,
     [
       "--no-warnings",
@@ -195,7 +191,10 @@ export function downloadToLibrary(
   maxHeight: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  return download(binary, id, join(directory, libraryLayout), maxHeight, signal);
+  const template =
+    "%(channel,uploader|Unknown)s/%(upload_date>%Y-%m-%d|0000-00-00)s - %(title).150B [%(id)s].%(ext)s";
+
+  return download(binary, id, join(directory, template), maxHeight, signal);
 }
 
 /**
@@ -209,5 +208,7 @@ export function downloadToCache(
   maxHeight: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  return download(binary, id, join(directory, cacheLayout), maxHeight, signal);
+  const template = "%(id)s.%(ext)s";
+
+  return download(binary, id, join(directory, template), maxHeight, signal);
 }
