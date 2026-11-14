@@ -48,9 +48,15 @@ async function downloadThumbnail(
   const response = await thumbnails.fetch(`${thumbnails.baseUrl}/vi/${videoId}/mqdefault.jpg`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(fetchTimeoutMs)]),
   });
+
+  if (!response.ok) {
+    throw new Error(`thumbnail server answered ${response.status}`);
+  }
+
   const contentType = response.headers.get("content-type") ?? "";
-  if (!response.ok || !contentType.startsWith("image/")) {
-    throw new Error(`thumbnail server sent ${response.status} ${contentType}`);
+
+  if (!contentType.startsWith("image/")) {
+    throw new Error(`thumbnail server sent "${contentType}", not an image`);
   }
 
   await mkdir(thumbnails.directory, { recursive: true, mode: 0o750 });

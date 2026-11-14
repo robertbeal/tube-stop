@@ -54,7 +54,7 @@ describe("thumbnailPath", () => {
     const outcomes: Handler[] = [() => new Response("nope", { status: 500 }), jpeg];
     const { store, directory } = await storeFor((request) => (outcomes.shift() ?? jpeg)(request));
 
-    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow();
+    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow("answered 500");
     expect(await readdir(directory)).toEqual([]);
     expect(await Bun.file(await thumbnailPath(store, videoId, neverAborted)).text()).toBe("JPEG-BYTES");
   });
@@ -64,7 +64,9 @@ describe("thumbnailPath", () => {
       () => new Response("<html>captcha</html>", { headers: { "content-type": "text/html" } }),
     );
 
-    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow();
+    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow(
+      'sent "text/html", not an image',
+    );
     expect(await readdir(directory)).toEqual([]);
   });
 
