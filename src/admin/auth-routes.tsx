@@ -3,14 +3,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { AlreadySetUpError, type User } from "../db/store.ts";
-import { countUsers, createFirstUser, getUserById, getUserByUsername, updatePassword } from "../db/users.ts";
-import {
-  hashPassword,
-  needsUpgrade,
-  PasswordRuleError,
-  spendTimeVerifying,
-  verifyPassword,
-} from "../passwords.ts";
+import type { Services } from "../web/services.ts";
 import {
   capitalise,
   clearSetupCode,
@@ -28,8 +21,15 @@ import {
   setupPath,
   usernameProblem,
 } from "./auth.ts";
-import type { Services } from "./services.ts";
-import { LoginPage, SetupPage } from "./views.tsx";
+import { LoginPage, SetupPage } from "./auth-views.tsx";
+import {
+  hashPassword,
+  needsUpgrade,
+  PasswordRuleError,
+  spendTimeVerifying,
+  verifyPassword,
+} from "./passwords.ts";
+import { countUsers, createFirstUser, getUserById, getUserByUsername, updatePassword } from "./users.ts";
 
 export type AuthEnv = { Variables: { user: User } };
 

@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { resetAdmin } from "./commands.ts";
+import { resetAdmin } from "./admin/reset-admin.ts";
 import { loadConfig } from "./config.ts";
 import { closeStore, openStore } from "./db/store.ts";
 import { createDownloadWorker, runDownloads } from "./download.ts";

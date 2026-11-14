@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { getUserByUsername } from "../db/users.ts";
-import { changeForm, changePassword, replacementPassword, tryLogIn } from "./auth-helpers.ts";
-import { adminPassword, adminUsername, advanceClock, buildEnvironment, logIn, send } from "./harness.ts";
+import { adminPassword, adminUsername, advanceClock, buildEnvironment, logIn, send } from "../web/harness.ts";
+import { changeForm, changePassword, replacementPassword, tryLogIn } from "./test-helpers.ts";
+import { getUserByUsername } from "./users.ts";
 
 describe("changing the password", () => {
   test("the new password works and the old one stops", async () => {

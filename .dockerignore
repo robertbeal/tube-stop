@@ -6,7 +6,7 @@ cache
 src/test-helpers.ts
 src/db/test-helpers.ts
 src/web/harness.ts
-src/web/auth-helpers.ts
+src/admin/test-helpers.ts
 src/web/kid-helpers.ts
 .git
 .github

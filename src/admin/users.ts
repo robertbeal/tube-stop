@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from "bun:sqlite";
-import { get, immediately, requireRow, run } from "./query.ts";
-import { AlreadySetUpError, type Store, type User } from "./types.ts";
+import { get, immediately, requireRow, run } from "../db/query.ts";
+import { AlreadySetUpError, type Store, type User } from "../db/types.ts";
 
 interface UserRow {
   id: number;

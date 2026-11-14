@@ -14,8 +14,7 @@ import {
   markChannelSynced,
   pinVideo,
 } from "../db/store.ts";
-import type { Resolved } from "../ytdlp/types.ts";
-import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
+import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 import {
   allowPianoVideo,
   countOccurrences,
@@ -27,7 +26,8 @@ import {
   unknownVideoId,
   videoId,
   writeFileWithFolders,
-} from "./kid-helpers.ts";
+} from "../web/kid-helpers.ts";
+import type { Resolved } from "../ytdlp/types.ts";
 
 async function exists(path: string): Promise<boolean> {
   return stat(path).then(

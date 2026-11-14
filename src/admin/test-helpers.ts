@@ -1,7 +1,7 @@
-import type { PasswordHasher } from "../passwords.ts";
 import { createThumbnailStore } from "../thumbnails.ts";
-import { createApp } from "./app.tsx";
-import { type Environment, send } from "./harness.ts";
+import { createApp } from "../web/app.tsx";
+import { type Environment, send } from "../web/harness.ts";
+import type { PasswordHasher } from "./passwords.ts";
 
 export const newUsername = "mum";
 export const newPassword = "a long enough password";

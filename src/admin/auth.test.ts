@@ -1,7 +1,16 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { getVideo } from "../db/store.ts";
-import { createFirstUser, deleteUsers, getUserByUsername } from "../db/users.ts";
-import * as passwords from "../passwords.ts";
+import {
+  adminPassword,
+  adminUsername,
+  advanceClock,
+  allow,
+  buildEnvironment,
+  createFakeClock,
+  logIn,
+  send,
+  sessionCookie,
+} from "../web/harness.ts";
 import {
   createLoginLimiter,
   createSession,
@@ -14,6 +23,7 @@ import {
   removeSession,
   usernameProblem,
 } from "./auth.ts";
+import * as passwords from "./passwords.ts";
 import {
   failLogins,
   loginForm,
@@ -21,18 +31,8 @@ import {
   sessionCookieHeader,
   tryLogIn,
   withHasher,
-} from "./auth-helpers.ts";
-import {
-  adminPassword,
-  adminUsername,
-  advanceClock,
-  allow,
-  buildEnvironment,
-  createFakeClock,
-  logIn,
-  send,
-  sessionCookie,
-} from "./harness.ts";
+} from "./test-helpers.ts";
+import { createFirstUser, deleteUsers, getUserByUsername } from "./users.ts";
 
 const minute = 60 * 1000;
 const thirtyDays = 30 * 24 * 60 * minute;

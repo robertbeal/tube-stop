@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { closeStore, openStore } from "./db/store.ts";
-import { deleteUsers } from "./db/users.ts";
+import { closeStore, openStore } from "../db/store.ts";
+import { deleteUsers } from "./users.ts";
 
 /** Removes every admin account so a new one can be created from the setup page. */
 export function resetAdmin(dataDir: string, output: (line: string) => void): void {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { countUsers, deleteUsers, getUserByUsername } from "../db/users.ts";
+import { advanceClock, buildEnvironment, send, sessionCookie } from "../web/harness.ts";
 import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
-import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
-import { advanceClock, buildEnvironment, send, sessionCookie } from "./harness.ts";
+import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./test-helpers.ts";
+import { countUsers, deleteUsers, getUserByUsername } from "./users.ts";
 
 const unclaimed = () => buildEnvironment({ withAdmin: false });
 

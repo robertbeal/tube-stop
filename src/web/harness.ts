@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import type { Hono } from "hono";
+import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
+import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
-import { createFirstUser } from "../db/users.ts";
-import { createPasswordHasher, hashPassword } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { createThumbnailStore } from "../thumbnails.ts";
 import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";

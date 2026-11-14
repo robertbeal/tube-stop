@@ -13,10 +13,10 @@ import {
 } from "../db/store.ts";
 import { directorySize, removeMedia } from "../storage.ts";
 import { removeThumbnail } from "../thumbnails.ts";
+import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
+import type { Services } from "../web/services.ts";
 import { isVideo } from "../ytdlp/types.ts";
 import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
-import { adminPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
-import type { Services } from "./services.ts";
 import { AdminPage } from "./views.tsx";
 
 const resolveTimeoutMs = 90 * 1000;

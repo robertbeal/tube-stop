@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { countUsers } from "../db/users.ts";
-import { createPasswordHasher } from "../passwords.ts";
-import { adminRoutes } from "./admin.tsx";
-import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "./auth.ts";
-import { authRoutes } from "./auth-routes.tsx";
+import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "../admin/auth.ts";
+import { authRoutes } from "../admin/auth-routes.tsx";
+import { createPasswordHasher } from "../admin/passwords.ts";
+import { adminRoutes } from "../admin/routes.tsx";
+import { countUsers } from "../admin/users.ts";
 import { kidRoutes } from "./kid.tsx";
 import type { Services, WebDependencies } from "./services.ts";
 

@@ -1,8 +1,8 @@
+import type { LoginLimiter, Sessions, SetupCode } from "../admin/auth.ts";
+import type { PasswordHasher } from "../admin/passwords.ts";
 import type { Store } from "../db/store.ts";
-import type { PasswordHasher } from "../passwords.ts";
 import type { ThumbnailStore } from "../thumbnails.ts";
 import type { ResolveUrl } from "../ytdlp/types.ts";
-import type { LoginLimiter, Sessions, SetupCode } from "./auth.ts";
 
 /** Everything the web layer needs from the rest of the app. */
 export interface WebDependencies {

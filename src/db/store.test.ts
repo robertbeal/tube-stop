@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { countUsers } from "../admin/users.ts";
 import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
 import {
   allowVideo,
@@ -45,7 +46,6 @@ import {
   openTestDatabase,
   videoOf,
 } from "./test-helpers.ts";
-import { countUsers } from "./users.ts";
 
 function userVersion(path: string): number {
   const raw = new Database(path, { readonly: true });
