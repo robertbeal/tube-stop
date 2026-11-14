@@ -40,7 +40,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     store,
     resolveUrl: resolveUrl.bind(null, binary),
     syncNow: syncAll.bind(null, syncer, stopping.signal),
-    thumbnails: createThumbnail(join(config.dataDir, "thumbs")),
+    thumbnail: createThumbnail(join(config.dataDir, "thumbs")),
     mediaDir,
     cacheDir,
     sessionLifetimeMs: config.sessionLifetimeMs,

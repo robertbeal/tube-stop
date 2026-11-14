@@ -10,7 +10,7 @@ export interface WebDependencies {
   resolveUrl: ResolveUrl;
   /** Starts a sync of every channel and resolves when it is done. It does not fail. */
   syncNow: () => Promise<void>;
-  thumbnails: Thumbnail;
+  thumbnail: Thumbnail;
   /** Pinned downloads. */
   mediaDir: string;
   /** Watch-once copies. */

@@ -23,29 +23,29 @@ export function createThumbnail(
 
 /** The file holding a video's thumbnail, fetching and saving it first if necessary. */
 export async function thumbnailPath(
-  thumbnails: Thumbnail,
+  thumbnail: Thumbnail,
   videoId: VideoId,
   signal: AbortSignal,
 ): Promise<string> {
-  const path = join(thumbnails.directory, `${videoId}.jpg`);
+  const path = join(thumbnail.directory, `${videoId}.jpg`);
   const saved = await stat(path).then(
     () => true,
     () => false,
   );
   if (!saved) {
-    await downloadThumbnail(thumbnails, videoId, path, signal);
+    await downloadThumbnail(thumbnail, videoId, path, signal);
   }
   return path;
 }
 
 /** Downloads the thumbnail and moves it into place atomically, so a half-written file is never served. */
 async function downloadThumbnail(
-  thumbnails: Thumbnail,
+  thumbnail: Thumbnail,
   videoId: VideoId,
   destination: string,
   signal: AbortSignal,
 ): Promise<void> {
-  const response = await thumbnails.fetch(`${thumbnails.baseUrl}/vi/${videoId}/mqdefault.jpg`, {
+  const response = await thumbnail.fetch(`${thumbnail.baseUrl}/vi/${videoId}/mqdefault.jpg`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(fetchTimeoutMs)]),
   });
 
@@ -57,13 +57,13 @@ async function downloadThumbnail(
     throw new Error("thumbnail server did not send an image");
   }
 
-  await mkdir(thumbnails.directory, { recursive: true, mode: 0o750 });
+  await mkdir(thumbnail.directory, { recursive: true, mode: 0o750 });
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
   await Bun.write(temporary, response);
   await rename(temporary, destination);
 }
 
 /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
-export async function removeThumbnail(thumbnails: Thumbnail, videoId: VideoId): Promise<void> {
-  await rm(join(thumbnails.directory, `${videoId}.jpg`), { force: true });
+export async function removeThumbnail(thumbnail: Thumbnail, videoId: VideoId): Promise<void> {
+  await rm(join(thumbnail.directory, `${videoId}.jpg`), { force: true });
 }

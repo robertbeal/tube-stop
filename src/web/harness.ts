@@ -83,7 +83,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     syncNow: async () => {
       triggers.sync += 1;
     },
-    thumbnails: createThumbnail(thumbDir, "http://images.test", fakeImageFetch),
+    thumbnail: createThumbnail(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,
     cacheDir,
     hasher,

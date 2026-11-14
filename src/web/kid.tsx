@@ -128,7 +128,7 @@ export function kidRoutes(services: Services): Hono {
     try {
       const path =
         (await pinnedThumbnail(video)) ||
-        (await thumbnailPath(services.thumbnails, video.youtubeId, context.req.raw.signal));
+        (await thumbnailPath(services.thumbnail, video.youtubeId, context.req.raw.signal));
       return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
     } catch (error) {
       services.log(`web: thumbnail of ${video.youtubeId}: ${error instanceof Error ? error.message : error}`);

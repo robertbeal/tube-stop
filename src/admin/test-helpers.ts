@@ -90,7 +90,7 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
     store: environment.store,
     resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
     syncNow: async () => undefined,
-    thumbnails: createThumbnail(environment.thumbDir, "http://images.test", fetch),
+    thumbnail: createThumbnail(environment.thumbDir, "http://images.test", fetch),
     mediaDir: environment.mediaDir,
     cacheDir: environment.cacheDir,
     hasher,
