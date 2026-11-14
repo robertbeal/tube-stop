@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 /** A video as described by yt-dlp. */
-export interface ListedVideo {
+export interface Video {
   id: string;
   title: string;
   channelName: string;
@@ -14,7 +14,7 @@ export interface ListedVideo {
 
 /** What a pasted URL points at. */
 export type Resolved =
-  | { kind: "video"; video: ListedVideo }
+  | { kind: "video"; video: Video }
   | { kind: "channel"; channelId: string; channelName: string };
 
 export interface Resolver {
@@ -22,7 +22,7 @@ export interface Resolver {
 }
 
 export interface ChannelLister {
-  listChannel(channelId: string, limit: number, signal?: AbortSignal): Promise<ListedVideo[]>;
+  listChannel(channelId: string, limit: number, signal?: AbortSignal): Promise<Video[]>;
 }
 
 export interface Fetcher {
@@ -60,7 +60,7 @@ function publishedAt(response: YtDlpResponse): number {
   return valid ? Math.floor(parsed.getTime() / 1000) : 0;
 }
 
-function toVideo(response: YtDlpResponse): ListedVideo {
+function toVideo(response: YtDlpResponse): Video {
   return {
     id: response.id ?? "",
     title: response.title ?? "",
@@ -120,7 +120,7 @@ export async function listChannel(
   channelId: string,
   limit: number,
   signal?: AbortSignal,
-): Promise<ListedVideo[]> {
+): Promise<Video[]> {
   const output = await ytdlp(
     binary,
     [

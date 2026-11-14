@@ -1,6 +1,6 @@
 import type { Channel, NewVideo } from "./db/store.ts";
 import { Wakeup } from "./wakeup.ts";
-import type { ChannelLister, ListedVideo } from "./ytdlp.ts";
+import type { ChannelLister, Video } from "./ytdlp.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
@@ -83,7 +83,7 @@ export class ChannelSyncer {
     }
   }
 
-  #insert(channel: Channel, video: ListedVideo): void {
+  #insert(channel: Channel, video: Video): void {
     try {
       this.#store.insertSynced({
         youtubeId: video.id,

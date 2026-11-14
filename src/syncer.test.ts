@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type Channel, Store } from "./db/store.ts";
 import { ChannelSyncer, type SyncStore } from "./syncer.ts";
 import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { type ChannelLister, type ListedVideo, listChannel } from "./ytdlp.ts";
+import { type ChannelLister, listChannel, type Video } from "./ytdlp.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;
@@ -32,7 +32,7 @@ function syncerFor(store: SyncStore, lister: ChannelLister): ChannelSyncer {
   return new ChannelSyncer(store, lister, hour, () => undefined);
 }
 
-function fakeLister(videos: ListedVideo[] = []) {
+function fakeLister(videos: Video[] = []) {
   const calls: { channelId: string; limit: number }[] = [];
   const lister: ChannelLister = {
     listChannel: async (channelId, limit) => {
@@ -45,7 +45,7 @@ function fakeLister(videos: ListedVideo[] = []) {
 
 const titlesOf = (store: Store) => store.watchable("", everything).videos.map((video) => video.title);
 
-function listed(overrides: Partial<ListedVideo>): ListedVideo {
+function listed(overrides: Partial<Video>): Video {
   return {
     id: "abcdefghijk",
     title: "t",
