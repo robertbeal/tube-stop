@@ -131,14 +131,13 @@ describe("prepare and played", () => {
   const prepare = (id: string) => `/api/videos/${id}/prepare`;
   const played = (id: string) => `/api/videos/${id}/played`;
 
-  test("prepare queues a watch-once download and wakes the cache worker", async () => {
+  test("prepare queues a watch-once download", async () => {
     const environment = await environmentWithSong();
 
     const response = await send(environment, prepare(videoId), { method: "POST" });
 
     expect(response.status).toBe(202);
     expect(loadVideo(environment, videoId).cacheStatus).toBe("queued");
-    expect(environment.triggers.cache).toBe(1);
   });
 
   test("prepare does nothing when a file is already ready", async () => {
@@ -149,7 +148,6 @@ describe("prepare and played", () => {
 
     expect(response.status).toBe(202);
     expect(loadVideo(environment, videoId).cacheStatus).toBe("ready");
-    expect(environment.triggers.cache).toBe(0);
   });
 
   test("prepare retries a failed download", async () => {

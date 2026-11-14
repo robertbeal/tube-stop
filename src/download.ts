@@ -12,13 +12,14 @@ import {
   type Store,
   type Video,
 } from "./db/store.ts";
+import { sleep } from "./sleep.ts";
 import { removeMedia } from "./storage.ts";
-import { createWakeup, sleep, type Wakeup, waitForWakeup, wake } from "./wakeup.ts";
 import type { Download } from "./ytdlp/types.ts";
 
 /** Watch-once copies are always fetched at this height. */
 const cacheHeight = 720;
-const pollIntervalMs = 30 * 1000;
+/** How often the download loops look for queued work. Looking costs one small query. */
+const pollIntervalMs = 1000;
 const janitorIntervalMs = 60 * 60 * 1000;
 
 export interface DownloadConfig {
@@ -45,8 +46,6 @@ export interface DownloadWorker {
   downloadToCache: Download;
   config: DownloadConfig;
   log: (message: string) => void;
-  pinWakeup: Wakeup;
-  cacheWakeup: Wakeup;
 }
 
 export const createDownloadWorker = (
@@ -61,34 +60,21 @@ export const createDownloadWorker = (
   downloadToCache,
   config,
   log,
-  pinWakeup: createWakeup(),
-  cacheWakeup: createWakeup(),
 });
-
-/** Wakes the pinned-download loop. Never blocks. */
-export function triggerPins(worker: DownloadWorker): void {
-  wake(worker.pinWakeup);
-}
-
-/** Wakes the cache-download loop. Never blocks. */
-export function triggerCache(worker: DownloadWorker): void {
-  wake(worker.cacheWakeup);
-}
 
 /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
 export async function runDownloads(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
   resetDownloading(worker.store);
   await Promise.all([
-    loop(worker, worker.pinWakeup, signal, () => processPin(worker, signal)),
-    loop(worker, worker.cacheWakeup, signal, () => processCache(worker, signal)),
+    loop(worker, signal, () => processPin(worker, signal)),
+    loop(worker, signal, () => processCache(worker, signal)),
     janitorLoop(worker, signal),
   ]);
 }
 
-/** Keeps processing while there is work, then waits for the poll interval or a wake-up. */
+/** Keeps processing while there is work, then waits a moment before looking again. */
 async function loop(
   worker: DownloadWorker,
-  wakeup: Wakeup,
   signal: AbortSignal,
   processNext: () => Promise<boolean>,
 ): Promise<void> {
@@ -96,7 +82,7 @@ async function loop(
     while (await processNext().catch((error) => logFailure(worker, error))) {
       // more work is queued
     }
-    await waitForWakeup(wakeup, pollIntervalMs, signal);
+    await sleep(pollIntervalMs, signal);
   }
 }
 

@@ -32,7 +32,7 @@ export interface Environment {
   /** Messages the app logged. */
   logs: string[];
   /** How many times each worker was woken. */
-  triggers: { sync: number; pins: number; cache: number };
+  triggers: { sync: number };
   /** The images the fake thumbnail server was asked for, and whether it should fail. */
   imageServer: { requests: string[]; failing: boolean };
   /** The URLs the resolver was asked about. */
@@ -63,7 +63,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
       : createFirstUser(store, adminUsername, await hashPassword(hasher, adminPassword));
 
   const logs: string[] = [];
-  const triggers = { sync: 0, pins: 0, cache: 0 };
+  const triggers = { sync: 0 };
   const imageServer = { requests: [] as string[], failing: false };
   const resolved: string[] = [];
   const resolveUrl: ResolveUrl = (url) => {
@@ -80,14 +80,8 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const app = createApp({
     store,
     resolveUrl,
-    triggerSync: () => {
+    syncNow: async () => {
       triggers.sync += 1;
-    },
-    triggerPins: () => {
-      triggers.pins += 1;
-    },
-    triggerCache: () => {
-      triggers.cache += 1;
     },
     thumbnails: createThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,

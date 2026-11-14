@@ -13,7 +13,7 @@ import {
   openStore,
   type Store,
 } from "./db/store.ts";
-import { createSyncer, runSync, type Syncer, syncAll, triggerSync } from "./syncer.ts";
+import { createSyncer, runSync, type Syncer, syncAll } from "./syncer.ts";
 import { temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
@@ -223,18 +223,29 @@ describe("syncAll", () => {
   });
 });
 
-describe("run and trigger", () => {
-  test("trigger requests an immediate sync without blocking, and run stops on abort", async () => {
+describe("run", () => {
+  test("syncs straight away and stops when aborted", async () => {
     const store = await newStore();
     insertChannel(store, "UC1", "Piano Guy");
     const syncer = syncerFor(store, await ytDlpPrinting(printing(listing)));
-    [1, 2, 3, 4, 5].forEach(() => {
-      triggerSync(syncer);
-    });
 
     const controller = new AbortController();
     const running = runSync(syncer, controller.signal);
     await waitFor("run to sync the channel", () => titlesOf(store).length === 3);
+    controller.abort();
+
+    await running;
+  });
+
+  test("syncs again on every interval", async () => {
+    const store = await newStore();
+    insertChannel(store, "UC1", "Piano Guy");
+    const { lister, calls } = fakeLister();
+    const syncer = createSyncer(store, lister, 20, () => undefined);
+
+    const controller = new AbortController();
+    const running = runSync(syncer, controller.signal);
+    await waitFor("a third sync", () => calls.length >= 3);
     controller.abort();
 
     await running;

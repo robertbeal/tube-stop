@@ -88,7 +88,6 @@ export function kidRoutes(services: Services): Hono {
     }
     if ((await playablePath(video)) === "") {
       requestCache(store, video.youtubeId);
-      services.triggerCache();
     }
     return context.body(null, 202);
   });

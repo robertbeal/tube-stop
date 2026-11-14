@@ -89,9 +89,7 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
   const app = createApp({
     store: environment.store,
     resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
-    triggerSync: () => undefined,
-    triggerPins: () => undefined,
-    triggerCache: () => undefined,
+    syncNow: async () => undefined,
     thumbnails: createThumbnailStore(environment.thumbDir, "http://images.test", fetch),
     mediaDir: environment.mediaDir,
     cacheDir: environment.cacheDir,

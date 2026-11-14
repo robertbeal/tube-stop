@@ -87,7 +87,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
       if (!added.ok) {
         return redirectWithMessage(context, added.message);
       }
-      services.triggerSync();
+      void services.syncNow();
       return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
     }
     const video = value;
@@ -125,7 +125,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
   });
 
   routes.post("/sync", (context) => {
-    services.triggerSync();
+    void services.syncNow();
     return redirectWithMessage(context, "Sync started");
   });
 
@@ -154,9 +154,6 @@ async function videoAction(services: Services, action: string, id: string): Prom
     case "pin":
     case "retry": {
       const pinned = messageFrom(() => pinVideo(store, id));
-      if (pinned.ok) {
-        services.triggerPins();
-      }
       return { message: pinned.ok ? "Done" : pinned.message };
     }
     case "unpin": {

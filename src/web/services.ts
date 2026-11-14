@@ -8,9 +8,8 @@ import type { LoginLimiter, Sessions, SetupCode } from "./auth.ts";
 export interface WebDependencies {
   store: Store;
   resolveUrl: ResolveUrl;
-  triggerSync: () => void;
-  triggerPins: () => void;
-  triggerCache: () => void;
+  /** Starts a sync of every channel and resolves when it is done. It does not fail. */
+  syncNow: () => Promise<void>;
   thumbnails: ThumbnailStore;
   /** Pinned downloads. */
   mediaDir: string;

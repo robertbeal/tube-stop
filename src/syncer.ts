@@ -1,18 +1,17 @@
 import { type Channel, getChannels, insertVideo, markChannelSynced, type Store } from "./db/store.ts";
-import { createWakeup, type Wakeup, waitForWakeup, wake } from "./wakeup.ts";
+import { sleep } from "./sleep.ts";
 import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
 const perChannelTimeoutMs = 3 * 60 * 1000;
 
-/** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
+/** Copies the recent videos of each allowed channel into the database, on a schedule. */
 export interface Syncer {
   store: Store;
   getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
   intervalMs: number;
   log: (message: string) => void;
-  wakeup: Wakeup;
 }
 
 export const createSyncer = (
@@ -20,18 +19,13 @@ export const createSyncer = (
   getChannelVideos: Syncer["getChannelVideos"],
   intervalMs: number,
   log: (message: string) => void = console.log,
-): Syncer => ({ store, getChannelVideos, intervalMs, log, wakeup: createWakeup() });
+): Syncer => ({ store, getChannelVideos, intervalMs, log });
 
-/** Requests an immediate sync of all channels. Never blocks; repeated requests before the sync starts merge into one. */
-export function triggerSync(syncer: Syncer): void {
-  wake(syncer.wakeup);
-}
-
-/** Syncs once straight away, then on every interval or trigger, until `signal` aborts. */
+/** Syncs once straight away, then on every interval, until `signal` aborts. */
 export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
   await syncAll(syncer, signal);
   while (!signal.aborted) {
-    await waitForWakeup(syncer.wakeup, syncer.intervalMs, signal);
+    await sleep(syncer.intervalMs, signal);
     await syncAll(syncer, signal);
   }
 }

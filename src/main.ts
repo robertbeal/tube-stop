@@ -3,8 +3,8 @@ import { join, resolve } from "node:path";
 import { resetAdmin } from "./commands.ts";
 import { loadConfig } from "./config.ts";
 import { closeStore, openStore } from "./db/store.ts";
-import { createDownloadWorker, runDownloads, triggerCache, triggerPins } from "./download.ts";
-import { createSyncer, runSync, triggerSync } from "./syncer.ts";
+import { createDownloadWorker, runDownloads } from "./download.ts";
+import { createSyncer, runSync, syncAll } from "./syncer.ts";
 import { createThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
@@ -35,19 +35,17 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
       cacheMaxBytes: config.cacheMaxBytes,
     },
   );
+  const stopping = new AbortController();
   const app = createApp({
     store,
     resolveUrl: resolveUrl.bind(null, binary),
-    triggerSync: triggerSync.bind(null, syncer),
-    triggerPins: triggerPins.bind(null, downloads),
-    triggerCache: triggerCache.bind(null, downloads),
+    syncNow: syncAll.bind(null, syncer, stopping.signal),
     thumbnails: createThumbnailStore(join(config.dataDir, "thumbs")),
     mediaDir,
     cacheDir,
     sessionLifetimeMs: config.sessionLifetimeMs,
   });
 
-  const stopping = new AbortController();
   const workers = Promise.all([runSync(syncer, stopping.signal), runDownloads(downloads, stopping.signal)]);
   const server = Bun.serve({
     hostname: config.host,

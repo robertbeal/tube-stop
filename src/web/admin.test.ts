@@ -88,7 +88,7 @@ describe("access control", () => {
 });
 
 describe("video actions", () => {
-  test("pin queues a download and wakes the download worker", async () => {
+  test("pin queues a download", async () => {
     const environment = await environmentWithSong();
 
     const response = await adminPost(environment, `/admin/videos/${videoId}/pin`);
@@ -97,7 +97,6 @@ describe("video actions", () => {
     expect(redirectMessage(response)).toBe("Done");
     expect(video.pinned).toBe(true);
     expect(video.downloadStatus).toBe("queued");
-    expect(environment.triggers.pins).toBe(1);
   });
 
   test("unpin deletes the file and its folder", async () => {
@@ -134,7 +133,6 @@ describe("video actions", () => {
     const video = loadVideo(environment, videoId);
     expect(video.downloadStatus).toBe("queued");
     expect(video.downloadError).toBe("");
-    expect(environment.triggers.pins).toBe(1);
   });
 
   test("block hides the video from the child and unblock restores it", async () => {
@@ -411,7 +409,7 @@ describe("channels", () => {
     expect((await adminPost(environment, "/admin/channels/abc/remove")).status).toBe(404);
   });
 
-  test("sync all now wakes the syncer", async () => {
+  test("sync all now starts a sync", async () => {
     const environment = await buildEnvironment();
 
     const message = redirectMessage(await adminPost(environment, "/admin/sync"));
