@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
 import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
-import { thumbnailPath } from "../thumbnails.ts";
+import { downloadThumbnail, thumbnailPath } from "../thumbnails.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
@@ -119,16 +119,17 @@ export function kidRoutes(services: Services): Hono {
     return path === "" ? context.text("not ready", 503) : serveFile(context.req.raw, path);
   });
 
-  // The pinned download's own picture if it has one, otherwise a copy fetched from YouTube once and kept.
+  // The pinned download's own picture if it has one, otherwise a copy that is fetched from YouTube the first time it is wanted.
   routes.get("/thumb/:id", async (context) => {
     const video = watchableVideo(context);
     if (video === null) {
       return context.notFound();
     }
     try {
-      const path =
-        (await pinnedThumbnail(video)) ||
-        (await thumbnailPath(services.thumbnail, video.youtubeId, context.req.raw.signal));
+      const path = (await pinnedThumbnail(video)) || thumbnailPath(services.thumbnail, video.youtubeId);
+      if (!(await exists(path))) {
+        await downloadThumbnail(services.thumbnail, video.youtubeId, context.req.raw.signal);
+      }
       return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
     } catch (error) {
       services.log(`web: thumbnail of ${video.youtubeId}: ${error instanceof Error ? error.message : error}`);

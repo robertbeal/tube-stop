@@ -1,11 +1,11 @@
-import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { VideoId } from "./ytdlp/types.ts";
 
 const defaultBaseUrl = "https://i.ytimg.com";
 const fetchTimeoutMs = 10_000;
 
-/** Fetches each video's thumbnail from YouTube once and keeps it on disk as `<directory>/<video id>.jpg`. */
+/** Where video thumbnails are kept on disk, as `<directory>/<video id>.jpg`, and the image server they come from. */
 export type Thumbnail = {
   directory: string;
   baseUrl: string;
@@ -21,30 +21,19 @@ export function createThumbnail(
   return { directory, baseUrl: baseUrl.replace(/\/$/, ""), fetch: fetchImplementation };
 }
 
-/** The file holding a video's thumbnail, fetching and saving it first if necessary. */
-export async function thumbnailPath(
+/** Where a video's thumbnail is saved, whether or not it has been downloaded yet. */
+export const thumbnailPath = (thumbnail: Thumbnail, videoId: VideoId): string =>
+  join(thumbnail.directory, `${videoId}.jpg`);
+
+/**
+ * Always fetches a video's thumbnail from the image server and saves it at `thumbnailPath`,
+ * moving it into place atomically so a half-written file is never served. Returns that path.
+ */
+export async function downloadThumbnail(
   thumbnail: Thumbnail,
   videoId: VideoId,
   signal: AbortSignal,
 ): Promise<string> {
-  const path = join(thumbnail.directory, `${videoId}.jpg`);
-  const saved = await stat(path).then(
-    () => true,
-    () => false,
-  );
-  if (!saved) {
-    await downloadThumbnail(thumbnail, videoId, path, signal);
-  }
-  return path;
-}
-
-/** Downloads the thumbnail and moves it into place atomically, so a half-written file is never served. */
-async function downloadThumbnail(
-  thumbnail: Thumbnail,
-  videoId: VideoId,
-  destination: string,
-  signal: AbortSignal,
-): Promise<void> {
   const response = await thumbnail.fetch(`${thumbnail.baseUrl}/vi/${videoId}/mqdefault.jpg`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(fetchTimeoutMs)]),
   });
@@ -57,13 +46,15 @@ async function downloadThumbnail(
     throw new Error("thumbnail server did not send an image");
   }
 
+  const path = thumbnailPath(thumbnail, videoId);
   await mkdir(thumbnail.directory, { recursive: true, mode: 0o750 });
-  const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+  const temporary = `${path}.${crypto.randomUUID()}.tmp`;
   await Bun.write(temporary, response);
-  await rename(temporary, destination);
+  await rename(temporary, path);
+  return path;
 }
 
 /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
 export async function removeThumbnail(thumbnail: Thumbnail, videoId: VideoId): Promise<void> {
-  await rm(join(thumbnail.directory, `${videoId}.jpg`), { force: true });
+  await rm(thumbnailPath(thumbnail, videoId), { force: true });
 }
