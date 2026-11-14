@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { Store } from "./db/store.ts";
 import { type DownloadConfig, DownloadWorker } from "./download.ts";
 import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { downloadToCache, downloadToLibrary, type Fetcher } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary } from "./ytdlp.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;
@@ -41,7 +41,7 @@ function fakeFetcher(download: Download) {
       calls.push(call);
       return download(call, signal);
     };
-  const fetcher: Fetcher = { downloadToLibrary: record("library"), downloadToCache: record("cache") };
+  const fetcher = { downloadToLibrary: record("library"), downloadToCache: record("cache") };
   return { fetcher, calls };
 }
 
@@ -72,6 +72,8 @@ function gatedFetcher(pathFor: (call: FetchCall) => string) {
   return { fetcher, calls, started: started.promise, release: () => gate.resolve() };
 }
 
+type Fetcher = ReturnType<typeof fakeFetcher>["fetcher"];
+
 interface Fixture {
   store: Store;
   config: DownloadConfig;
@@ -97,7 +99,13 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
     config,
     logs,
     workerWith: (fetcher, overrides = {}) =>
-      new DownloadWorker(store, fetcher, { ...config, ...overrides }, (message) => logs.push(message)),
+      new DownloadWorker(
+        store,
+        fetcher.downloadToLibrary,
+        fetcher.downloadToCache,
+        { ...config, ...overrides },
+        (message) => logs.push(message),
+      ),
     setTime: (unixSeconds) => {
       clock.now = unixSeconds;
     },

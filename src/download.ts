@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import type { Video } from "./db/store.ts";
 import { removeMedia } from "./storage.ts";
 import { sleep, Wakeup } from "./wakeup.ts";
-import type { Fetcher } from "./ytdlp.ts";
+import type { Download } from "./ytdlp.ts";
 
 /** Watch-once copies are always fetched at this height. */
 const cacheHeight = 720;
@@ -41,7 +41,8 @@ function describe(error: unknown): string {
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
 export class DownloadWorker {
   readonly #store: DownloadStore;
-  readonly #fetcher: Fetcher;
+  readonly #downloadToLibrary: Download;
+  readonly #downloadToCache: Download;
   readonly #config: DownloadConfig;
   readonly #log: (message: string) => void;
   readonly #pinWakeup = new Wakeup();
@@ -49,12 +50,14 @@ export class DownloadWorker {
 
   constructor(
     store: DownloadStore,
-    fetcher: Fetcher,
+    downloadToLibrary: Download,
+    downloadToCache: Download,
     config: DownloadConfig,
     log: (message: string) => void = console.log,
   ) {
     this.#store = store;
-    this.#fetcher = fetcher;
+    this.#downloadToLibrary = downloadToLibrary;
+    this.#downloadToCache = downloadToCache;
     this.#config = config;
     this.#log = log;
   }
@@ -112,7 +115,7 @@ export class DownloadWorker {
     }
     this.#log(`download: pinning ${id}`);
     try {
-      const path = await this.#fetcher.downloadToLibrary(
+      const path = await this.#downloadToLibrary(
         id,
         this.#config.mediaDir,
         this.#config.keepMaxHeight,
@@ -145,7 +148,7 @@ export class DownloadWorker {
     }
     this.#log(`cache: fetching ${id}`);
     try {
-      const path = await this.#fetcher.downloadToCache(id, this.#config.cacheDir, cacheHeight, signal);
+      const path = await this.#downloadToCache(id, this.#config.cacheDir, cacheHeight, signal);
       const stored = this.#store.finishCache(id, path);
       if (!stored) {
         await this.#discard(this.#config.cacheDir, path); // removed while downloading

@@ -24,10 +24,8 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   const syncer = new ChannelSyncer(store, listChannel.bind(null, binary), config.syncIntervalMs);
   const downloads = new DownloadWorker(
     store,
-    {
-      downloadToLibrary: downloadToLibrary.bind(null, binary),
-      downloadToCache: downloadToCache.bind(null, binary),
-    },
+    downloadToLibrary.bind(null, binary),
+    downloadToCache.bind(null, binary),
     {
       mediaDir,
       cacheDir,

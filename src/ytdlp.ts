@@ -19,20 +19,12 @@ export type Resolved =
 
 export type ResolveUrl = (url: string, signal?: AbortSignal) => Promise<Resolved>;
 
-export type Fetcher = {
-  downloadToLibrary: (
-    id: string,
-    directory: string,
-    maxHeight: number,
-    signal?: AbortSignal,
-  ) => Promise<string>;
-  downloadToCache: (
-    id: string,
-    directory: string,
-    maxHeight: number,
-    signal?: AbortSignal,
-  ) => Promise<string>;
-};
+export type Download = (
+  id: string,
+  directory: string,
+  maxHeight: number,
+  signal?: AbortSignal,
+) => Promise<string>;
 
 interface Info {
   _type?: string;
