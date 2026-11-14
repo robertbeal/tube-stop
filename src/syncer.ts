@@ -15,19 +15,19 @@ export interface SyncStore {
 /** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
 export class ChannelSyncer {
   readonly #store: SyncStore;
-  readonly #listChannel: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
+  readonly #getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
   readonly #intervalMs: number;
   readonly #log: (message: string) => void;
   readonly #wakeup = new Wakeup();
 
   constructor(
     store: SyncStore,
-    listChannel: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>,
+    getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>,
     intervalMs: number,
     log: (message: string) => void = console.log,
   ) {
     this.#store = store;
-    this.#listChannel = listChannel;
+    this.#getChannelVideos = getChannelVideos;
     this.#intervalMs = intervalMs;
     this.#log = log;
   }
@@ -71,7 +71,7 @@ export class ChannelSyncer {
   async #syncChannel(channel: Channel, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
     try {
-      const listed = await this.#listChannel(channel.youtubeId, recentVideos, timeout);
+      const listed = await this.#getChannelVideos(channel.youtubeId, recentVideos, timeout);
       // Insert oldest first so newer videos get higher ids, and are shown first.
       for (const video of listed.toReversed()) {
         this.#insert(channel, video);

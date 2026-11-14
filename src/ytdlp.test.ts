@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { type Stub, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { downloadToCache, downloadToLibrary, isVideo, listChannel, resolveUrl } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary, getChannelVideos, isVideo, resolveUrl } from "./ytdlp.ts";
 
 const neverAborted = new AbortController().signal;
 
@@ -105,7 +105,7 @@ describe("resolve", () => {
   });
 });
 
-describe("listChannel", () => {
+describe("getChannelVideos", () => {
   test("returns videos in order and skips entries without an id", async () => {
     const { binary, stub } = await printing(`{"_type":"playlist","entries":[
  {"id":"aaaaaaaaaaa","title":"One","duration":60},
@@ -113,7 +113,7 @@ describe("listChannel", () => {
  {"id":"bbbbbbbbbbb","title":"Two","channel_id":"UCother"}
 ]}`);
 
-    const videos = await listChannel(binary, "UC123", 25, neverAborted);
+    const videos = await getChannelVideos(binary, "UC123", 25, neverAborted);
 
     expect(videos.map((video) => video.id)).toEqual(["aaaaaaaaaaa", "bbbbbbbbbbb"]);
     expect(videos[0]?.channel.id).toBe("UC123");
@@ -128,7 +128,7 @@ describe("listChannel", () => {
  {"id":"aaaaaaaaaaa","title":"New","timestamp":1794528000},
  {"id":"bbbbbbbbbbb","title":"No date"}]}`);
 
-    const videos = await listChannel(binary, "UC123", 10, neverAborted);
+    const videos = await getChannelVideos(binary, "UC123", 10, neverAborted);
 
     expect(videos.map((video) => video.publishedAt)).toEqual([1794528000, 0]);
     expect((await stub.arguments()).join(" ")).toContain("youtubetab:approximate_date");

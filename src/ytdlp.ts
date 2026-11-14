@@ -118,7 +118,7 @@ export async function resolveUrl(binary: string, url: string, signal: AbortSigna
 }
 
 /** Up to `limit` recent videos from a channel, newest first. */
-export async function listChannel(
+export async function getChannelVideos(
   binary: string,
   channelId: string,
   limit: number,
