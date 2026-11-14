@@ -29,9 +29,6 @@ export function createThumbnail(
   return { directory, baseUrl: baseUrl.replace(/\/$/, ""), fetch: fetchImplementation };
 }
 
-const pathFor = (thumbnails: Thumbnail, videoId: string): string =>
-  join(thumbnails.directory, `${videoId}.jpg`);
-
 /** The file holding a video's thumbnail, fetching and saving it first if necessary. */
 export async function thumbnailPath(
   thumbnails: Thumbnail,
@@ -41,7 +38,7 @@ export async function thumbnailPath(
   if (!validId.test(videoId)) {
     throw new InvalidVideoIdError();
   }
-  const path = pathFor(thumbnails, videoId);
+  const path = join(thumbnails.directory, `${videoId}.jpg`);
   const saved = await stat(path).then(
     () => true,
     () => false,
@@ -89,5 +86,5 @@ export async function removeThumbnail(thumbnails: Thumbnail, videoId: string): P
   if (!validId.test(videoId)) {
     throw new InvalidVideoIdError();
   }
-  await rm(pathFor(thumbnails, videoId), { force: true });
+  await rm(join(thumbnails.directory, `${videoId}.jpg`), { force: true });
 }
