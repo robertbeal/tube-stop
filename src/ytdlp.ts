@@ -45,19 +45,9 @@ interface Info {
 
 const stderrTail = 500;
 
-function publishedAt(response: Info): number {
-  if (typeof response.timestamp === "number" && response.timestamp > 0) {
-    return Math.trunc(response.timestamp);
-  }
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(response.upload_date ?? "");
-  if (date === null) {
-    return 0;
-  }
-  const [year, month, day] = [Number(date[1]), Number(date[2]), Number(date[3])];
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  const valid =
-    parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
-  return valid ? Math.floor(parsed.getTime() / 1000) : 0;
+function publishedAt(info: Info): number {
+  const uploadDate = info.upload_date?.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3") ?? "";
+  return Math.trunc(info.timestamp || Date.parse(uploadDate) / 1000) || 0;
 }
 
 function toVideo(info: Info): Video {
@@ -91,12 +81,15 @@ async function ytdlp(binary: string, args: string[], signal: AbortSignal): Promi
     new Response(process.stderr).text(),
     process.exited,
   ]);
+
   if (signal.aborted) {
     throw signal.reason instanceof Error ? signal.reason : new Error("yt-dlp: cancelled");
   }
+
   if (exitCode !== 0) {
     throw new Error(`yt-dlp: exited with code ${exitCode}: ${stderr.trim().slice(-stderrTail)}`);
   }
+
   return stdout;
 }
 
@@ -107,17 +100,20 @@ export async function resolveUrl(binary: string, url: string, signal: AbortSigna
     ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
     signal,
   );
-  const response: Info = JSON.parse(output);
-  if (response._type === "playlist") {
-    return toChannel(response);
+
+  const info: Info = JSON.parse(output);
+
+  if (info._type === "playlist") {
+    return toChannel(info);
   }
-  if (!response.id) {
+
+  if (!info.id) {
     throw new Error("could not determine video from URL");
   }
-  return toVideo(response);
+
+  return toVideo(info);
 }
 
-/** Up to `limit` recent videos from a channel, newest first. */
 export async function getChannelVideos(
   binary: string,
   channelId: string,
@@ -177,6 +173,7 @@ async function download(
     ],
     signal,
   );
+
   const path = output.trim().split("\n").at(-1)?.trim() ?? "";
   if (path === "") {
     throw new Error("yt-dlp did not report an output file");
