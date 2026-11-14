@@ -53,10 +53,8 @@ async function downloadThumbnail(
     throw new Error(`thumbnail server answered ${response.status}`);
   }
 
-  const contentType = response.headers.get("content-type") ?? "";
-
-  if (!contentType.startsWith("image/")) {
-    throw new Error(`thumbnail server sent "${contentType}", not an image`);
+  if (!response.headers.get("content-type")?.startsWith("image/")) {
+    throw new Error("thumbnail server did not send an image");
   }
 
   await mkdir(thumbnails.directory, { recursive: true, mode: 0o750 });
