@@ -14,11 +14,11 @@ export class InvalidVideoIdError extends Error {
 }
 
 /** Fetches each video's thumbnail from YouTube once and keeps it on disk as `<directory>/<video id>.jpg`. */
-export interface Thumbnail {
+export type Thumbnail = {
   directory: string;
   baseUrl: string;
   fetch: typeof fetch;
-}
+};
 
 /** @param baseUrl the image server to fetch from, YouTube's by default. */
 export function createThumbnail(
