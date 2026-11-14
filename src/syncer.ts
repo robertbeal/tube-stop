@@ -1,101 +1,89 @@
-import type { Channel, NewVideo } from "./db/store.ts";
-import { createWakeup, waitForWakeup, wake } from "./wakeup.ts";
+import { type Channel, getChannels, insertVideo, markChannelSynced, type Store } from "./db/store.ts";
+import { createWakeup, type Wakeup, waitForWakeup, wake } from "./wakeup.ts";
 import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
 const perChannelTimeoutMs = 3 * 60 * 1000;
 
-export interface SyncStore {
-  channels(): Channel[];
-  insertSynced(video: NewVideo): void;
-  markSynced(youtubeId: string): void;
+/** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
+export interface Syncer {
+  store: Store;
+  getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
+  intervalMs: number;
+  log: (message: string) => void;
+  wakeup: Wakeup;
 }
 
-/** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
-export class ChannelSyncer {
-  readonly #store: SyncStore;
-  readonly #getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
-  readonly #intervalMs: number;
-  readonly #log: (message: string) => void;
-  readonly #wakeup = createWakeup();
+export const createSyncer = (
+  store: Store,
+  getChannelVideos: Syncer["getChannelVideos"],
+  intervalMs: number,
+  log: (message: string) => void = console.log,
+): Syncer => ({ store, getChannelVideos, intervalMs, log, wakeup: createWakeup() });
 
-  constructor(
-    store: SyncStore,
-    getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>,
-    intervalMs: number,
-    log: (message: string) => void = console.log,
-  ) {
-    this.#store = store;
-    this.#getChannelVideos = getChannelVideos;
-    this.#intervalMs = intervalMs;
-    this.#log = log;
+/** Requests an immediate sync of all channels. Never blocks; repeated requests before the sync starts merge into one. */
+export function triggerSync(syncer: Syncer): void {
+  wake(syncer.wakeup);
+}
+
+/** Syncs once straight away, then on every interval or trigger, until `signal` aborts. */
+export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
+  await syncAll(syncer, signal);
+  while (!signal.aborted) {
+    await waitForWakeup(syncer.wakeup, syncer.intervalMs, signal);
+    await syncAll(syncer, signal);
   }
+}
 
-  /** Requests an immediate sync of all channels. Never blocks; repeated requests before the sync starts merge into one. */
-  trigger(): void {
-    wake(this.#wakeup);
+export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    return;
   }
-
-  /** Syncs once straight away, then on every interval or trigger, until `signal` aborts. */
-  async run(signal: AbortSignal): Promise<void> {
-    await this.syncAll(signal);
-    while (!signal.aborted) {
-      await waitForWakeup(this.#wakeup, this.#intervalMs, signal);
-      await this.syncAll(signal);
-    }
-  }
-
-  async syncAll(signal: AbortSignal): Promise<void> {
+  for (const channel of listChannels(syncer)) {
     if (signal.aborted) {
       return;
     }
-    const channels = this.#listChannels();
-    for (const channel of channels) {
-      if (signal.aborted) {
-        return;
-      }
-      await this.#syncChannel(channel, signal);
-    }
+    await syncChannel(syncer, channel, signal);
   }
+}
 
-  #listChannels(): Channel[] {
-    try {
-      return this.#store.channels();
-    } catch (error) {
-      this.#log(`sync: list channels: ${describe(error)}`);
-      return [];
-    }
+function listChannels(syncer: Syncer): Channel[] {
+  try {
+    return getChannels(syncer.store);
+  } catch (error) {
+    syncer.log(`sync: list channels: ${describe(error)}`);
+    return [];
   }
+}
 
-  async #syncChannel(channel: Channel, signal: AbortSignal): Promise<void> {
-    const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
-    try {
-      const listed = await this.#getChannelVideos(channel.youtubeId, recentVideos, timeout);
-      // Insert oldest first so newer videos get higher ids, and are shown first.
-      for (const video of listed.toReversed()) {
-        this.#insert(channel, video);
-      }
-      this.#store.markSynced(channel.youtubeId);
-      this.#log(`sync: ${channel.name}: ${listed.length} videos`);
-    } catch (error) {
-      this.#log(`sync: ${channel.name}: ${describe(error)}`);
+async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal): Promise<void> {
+  const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
+  try {
+    const listed = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
+    // Insert oldest first so newer videos get higher ids, and are shown first.
+    for (const video of listed.toReversed()) {
+      insertSyncedVideo(syncer, channel, video);
     }
+    markChannelSynced(syncer.store, channel.youtubeId);
+    syncer.log(`sync: ${channel.name}: ${listed.length} videos`);
+  } catch (error) {
+    syncer.log(`sync: ${channel.name}: ${describe(error)}`);
   }
+}
 
-  #insert(channel: Channel, video: Video): void {
-    try {
-      this.#store.insertSynced({
-        youtubeId: video.id,
-        channelYoutubeId: channel.youtubeId,
-        channelName: channel.name,
-        title: video.title || video.id,
-        duration: video.duration,
-        publishedAt: video.publishedAt,
-      });
-    } catch (error) {
-      this.#log(`sync: insert ${video.id}: ${describe(error)}`);
-    }
+function insertSyncedVideo(syncer: Syncer, channel: Channel, video: Video): void {
+  try {
+    insertVideo(syncer.store, {
+      youtubeId: video.id,
+      channelYoutubeId: channel.youtubeId,
+      channelName: channel.name,
+      title: video.title || video.id,
+      duration: video.duration,
+      publishedAt: video.publishedAt,
+    });
+  } catch (error) {
+    syncer.log(`sync: insert ${video.id}: ${describe(error)}`);
   }
 }
 

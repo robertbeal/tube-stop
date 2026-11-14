@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
+import { countUsers } from "../db/store.ts";
 import { createPasswordHasher } from "../passwords.ts";
 import { adminRoutes } from "./admin.tsx";
 import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "./auth.ts";
@@ -62,7 +63,7 @@ export function createApp(dependencies: WebDependencies): Hono {
   admin.route("/", adminRoutes(services));
   app.route("/admin", admin);
 
-  if (services.store.userCount() === 0) {
+  if (countUsers(services.store) === 0) {
     currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
   }
   return app;

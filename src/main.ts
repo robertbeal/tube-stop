@@ -2,9 +2,9 @@ import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { resetAdmin } from "./commands.ts";
 import { loadConfig } from "./config.ts";
-import { Store } from "./db/store.ts";
-import { DownloadWorker } from "./download.ts";
-import { ChannelSyncer } from "./syncer.ts";
+import { closeStore, openStore } from "./db/store.ts";
+import { createDownloadWorker, runDownloads, triggerCache, triggerPins } from "./download.ts";
+import { createSyncer, runSync, triggerSync } from "./syncer.ts";
 import { createThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
@@ -20,10 +20,10 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   const mediaDir = resolve(config.mediaDir);
   const cacheDir = resolve(config.cacheDir);
 
-  const store = new Store(join(config.dataDir, "tubestop.db"));
+  const store = openStore(join(config.dataDir, "tubestop.db"));
   const binary = config.ytdlpBin;
-  const syncer = new ChannelSyncer(store, getChannelVideos.bind(null, binary), config.syncIntervalMs);
-  const downloads = new DownloadWorker(
+  const syncer = createSyncer(store, getChannelVideos.bind(null, binary), config.syncIntervalMs);
+  const downloads = createDownloadWorker(
     store,
     downloadToLibrary.bind(null, binary),
     downloadToCache.bind(null, binary),
@@ -38,8 +38,9 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   const app = createApp({
     store,
     resolveUrl: resolveUrl.bind(null, binary),
-    syncer,
-    downloads,
+    triggerSync: triggerSync.bind(null, syncer),
+    triggerPins: triggerPins.bind(null, downloads),
+    triggerCache: triggerCache.bind(null, downloads),
     thumbnails: createThumbnailStore(join(config.dataDir, "thumbs")),
     mediaDir,
     cacheDir,
@@ -47,7 +48,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   });
 
   const stopping = new AbortController();
-  const workers = Promise.all([syncer.run(stopping.signal), downloads.run(stopping.signal)]);
+  const workers = Promise.all([runSync(syncer, stopping.signal), runDownloads(downloads, stopping.signal)]);
   const server = Bun.serve({
     hostname: config.host,
     port: config.port,
@@ -67,7 +68,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   await stopped;
   await server.stop(true); // close idle keep-alive connections too, or shutdown would wait for them
   await workers; // workers stop before the database closes
-  store.close();
+  closeStore(store);
 }
 
 async function main(): Promise<void> {

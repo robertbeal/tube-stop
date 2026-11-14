@@ -2,17 +2,27 @@ import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { resetAdmin } from "./commands.ts";
-import { Store } from "./db/store.ts";
+import {
+  allowVideo,
+  closeStore,
+  countUsers,
+  createFirstUser,
+  getChannels,
+  getUserByUsername,
+  getVideo,
+  insertChannel,
+  openStore,
+} from "./db/store.ts";
 import { temporaryDirectory } from "./test-helpers.ts";
 
 const videoId = "abcdefghijk";
 
 async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
   const dataDir = await temporaryDirectory();
-  const store = new Store(join(dataDir, "tubestop.db"));
-  store.createFirstUser("parent", "some-hash");
-  store.addChannel("UCchannelchannelchannelaa", "Music");
-  store.allowVideo({
+  const store = openStore(join(dataDir, "tubestop.db"));
+  createFirstUser(store, "parent", "some-hash");
+  insertChannel(store, "UCchannelchannelchannelaa", "Music");
+  allowVideo(store, {
     youtubeId: videoId,
     channelYoutubeId: "UCchannelchannelchannelaa",
     channelName: "Music",
@@ -20,7 +30,7 @@ async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
     duration: 60,
     publishedAt: 0,
   });
-  store.close();
+  closeStore(store);
   return dataDir;
 }
 
@@ -40,10 +50,10 @@ describe("resetAdmin", () => {
     expect(text).toContain("Removed 1 admin account");
     expect(text).toContain("kept");
     expect(text).toContain("setup code");
-    const store = new Store(join(dataDir, "tubestop.db"));
-    expect(store.userCount()).toBe(0);
-    expect(store.userByUsername("parent")).toBeNull();
-    store.close();
+    const store = openStore(join(dataDir, "tubestop.db"));
+    expect(countUsers(store)).toBe(0);
+    expect(getUserByUsername(store, "parent")).toBeNull();
+    closeStore(store);
   });
 
   test("keeps videos and channels", async () => {
@@ -51,10 +61,10 @@ describe("resetAdmin", () => {
 
     resetAdmin(dataDir, () => {});
 
-    const store = new Store(join(dataDir, "tubestop.db"));
-    expect(store.video(videoId)?.title).toBe("Song");
-    expect(store.channels().map((channel) => channel.name)).toEqual(["Music"]);
-    store.close();
+    const store = openStore(join(dataDir, "tubestop.db"));
+    expect(getVideo(store, videoId)?.title).toBe("Song");
+    expect(getChannels(store).map((channel) => channel.name)).toEqual(["Music"]);
+    closeStore(store);
   });
 
   test("says so when there are no accounts left to remove", async () => {

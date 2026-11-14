@@ -8,8 +8,9 @@ import type { LoginLimiter, Sessions, SetupCode } from "./auth.ts";
 export interface WebDependencies {
   store: Store;
   resolveUrl: ResolveUrl;
-  syncer: { trigger(): void };
-  downloads: { triggerPins(): void; triggerCache(): void };
+  triggerSync: () => void;
+  triggerPins: () => void;
+  triggerCache: () => void;
   thumbnails: ThumbnailStore;
   /** Pinned downloads. */
   mediaDir: string;

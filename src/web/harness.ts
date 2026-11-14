@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Hono } from "hono";
-import { type NewVideo, Store, type User } from "../db/store.ts";
+import { allowVideo, createFirstUser, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
 import { createPasswordHasher, hashPassword } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { createThumbnailStore } from "../thumbnails.ts";
@@ -54,12 +54,12 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const cacheDir = join(directory, "cache");
   const thumbDir = join(directory, "thumbs");
   const clock = createFakeClock();
-  const store = new Store(join(directory, "tubestop.db"), () => Math.floor(clock.milliseconds / 1000));
+  const store = openStore(join(directory, "tubestop.db"), () => Math.floor(clock.milliseconds / 1000));
   const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
   const admin =
     options.withAdmin === false
       ? null
-      : store.createFirstUser(adminUsername, await hashPassword(hasher, adminPassword));
+      : createFirstUser(store, adminUsername, await hashPassword(hasher, adminPassword));
 
   const logs: string[] = [];
   const triggers = { sync: 0, pins: 0, cache: 0 };
@@ -79,18 +79,14 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const app = createApp({
     store,
     resolveUrl,
-    syncer: {
-      trigger: () => {
-        triggers.sync += 1;
-      },
+    triggerSync: () => {
+      triggers.sync += 1;
     },
-    downloads: {
-      triggerPins: () => {
-        triggers.pins += 1;
-      },
-      triggerCache: () => {
-        triggers.cache += 1;
-      },
+    triggerPins: () => {
+      triggers.pins += 1;
+    },
+    triggerCache: () => {
+      triggers.cache += 1;
     },
     thumbnails: createThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,
@@ -153,7 +149,7 @@ export async function logIn(environment: Environment): Promise<string> {
 
 /** Adds a video the child may watch. */
 export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: string }): void {
-  environment.store.allowVideo({
+  allowVideo(environment.store, {
     channelYoutubeId: "",
     channelName: "",
     title: "A video",

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { Store } from "./db/store.ts";
+import { closeStore, deleteUsers, openStore } from "./db/store.ts";
 
 /** Removes every admin account so a new one can be created from the setup page. */
 export function resetAdmin(dataDir: string, output: (line: string) => void): void {
@@ -7,9 +7,9 @@ export function resetAdmin(dataDir: string, output: (line: string) => void): voi
   if (!Bun.file(path).size) {
     throw new Error(`no database at ${path}: is DATA_DIR set to the same folder the app uses?`);
   }
-  const store = new Store(path);
-  const removed = store.deleteUsers();
-  store.close();
+  const store = openStore(path);
+  const removed = deleteUsers(store);
+  closeStore(store);
   output(
     removed === 0
       ? "There were no admin accounts to remove. Open /admin to set one up."

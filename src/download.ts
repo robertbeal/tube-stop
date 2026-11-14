@@ -1,5 +1,17 @@
 import { stat } from "node:fs/promises";
-import type { Video } from "./db/store.ts";
+import {
+  claimCache,
+  claimDownload,
+  clearCache,
+  failCache,
+  failDownload,
+  finishCache,
+  finishDownload,
+  getCacheEntries,
+  resetDownloading,
+  type Store,
+  type Video,
+} from "./db/store.ts";
 import { removeMedia } from "./storage.ts";
 import { createWakeup, sleep, type Wakeup, waitForWakeup, wake } from "./wakeup.ts";
 import type { Download } from "./ytdlp/types.ts";
@@ -8,18 +20,6 @@ import type { Download } from "./ytdlp/types.ts";
 const cacheHeight = 720;
 const pollIntervalMs = 30 * 1000;
 const janitorIntervalMs = 60 * 60 * 1000;
-
-export interface DownloadStore {
-  resetDownloading(): void;
-  claimDownload(): string | null;
-  finishDownload(youtubeId: string, path: string): boolean;
-  failDownload(youtubeId: string, message: string): void;
-  claimCache(): string | null;
-  finishCache(youtubeId: string, path: string): boolean;
-  failCache(youtubeId: string, message: string): void;
-  clearCache(youtubeId: string): void;
-  cacheEntries(): Video[];
-}
 
 export interface DownloadConfig {
   /** Pinned downloads, one folder per channel. */
@@ -39,170 +39,174 @@ function describe(error: unknown): string {
 }
 
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
-export class DownloadWorker {
-  readonly #store: DownloadStore;
-  readonly #downloadToLibrary: Download;
-  readonly #downloadToCache: Download;
-  readonly #config: DownloadConfig;
-  readonly #log: (message: string) => void;
-  readonly #pinWakeup = createWakeup();
-  readonly #cacheWakeup = createWakeup();
+export interface DownloadWorker {
+  store: Store;
+  downloadToLibrary: Download;
+  downloadToCache: Download;
+  config: DownloadConfig;
+  log: (message: string) => void;
+  pinWakeup: Wakeup;
+  cacheWakeup: Wakeup;
+}
 
-  constructor(
-    store: DownloadStore,
-    downloadToLibrary: Download,
-    downloadToCache: Download,
-    config: DownloadConfig,
-    log: (message: string) => void = console.log,
-  ) {
-    this.#store = store;
-    this.#downloadToLibrary = downloadToLibrary;
-    this.#downloadToCache = downloadToCache;
-    this.#config = config;
-    this.#log = log;
-  }
+export const createDownloadWorker = (
+  store: Store,
+  downloadToLibrary: Download,
+  downloadToCache: Download,
+  config: DownloadConfig,
+  log: (message: string) => void = console.log,
+): DownloadWorker => ({
+  store,
+  downloadToLibrary,
+  downloadToCache,
+  config,
+  log,
+  pinWakeup: createWakeup(),
+  cacheWakeup: createWakeup(),
+});
 
-  /** Wakes the pinned-download loop. Never blocks. */
-  triggerPins(): void {
-    wake(this.#pinWakeup);
-  }
+/** Wakes the pinned-download loop. Never blocks. */
+export function triggerPins(worker: DownloadWorker): void {
+  wake(worker.pinWakeup);
+}
 
-  /** Wakes the cache-download loop. Never blocks. */
-  triggerCache(): void {
-    wake(this.#cacheWakeup);
-  }
+/** Wakes the cache-download loop. Never blocks. */
+export function triggerCache(worker: DownloadWorker): void {
+  wake(worker.cacheWakeup);
+}
 
-  /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
-  async run(signal: AbortSignal): Promise<void> {
-    this.#store.resetDownloading();
-    await Promise.all([
-      this.#loop(this.#pinWakeup, signal, () => this.processPin(signal)),
-      this.#loop(this.#cacheWakeup, signal, () => this.processCache(signal)),
-      this.#janitorLoop(signal),
-    ]);
-  }
+/** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
+export async function runDownloads(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
+  resetDownloading(worker.store);
+  await Promise.all([
+    loop(worker, worker.pinWakeup, signal, () => processPin(worker, signal)),
+    loop(worker, worker.cacheWakeup, signal, () => processCache(worker, signal)),
+    janitorLoop(worker, signal),
+  ]);
+}
 
-  /** Keeps processing while there is work, then waits for the poll interval or a wake-up. */
-  async #loop(wakeup: Wakeup, signal: AbortSignal, processNext: () => Promise<boolean>): Promise<void> {
-    while (!signal.aborted) {
-      while (await processNext().catch((error) => this.#logFailure(error))) {
-        // more work is queued
-      }
-      await waitForWakeup(wakeup, pollIntervalMs, signal);
+/** Keeps processing while there is work, then waits for the poll interval or a wake-up. */
+async function loop(
+  worker: DownloadWorker,
+  wakeup: Wakeup,
+  signal: AbortSignal,
+  processNext: () => Promise<boolean>,
+): Promise<void> {
+  while (!signal.aborted) {
+    while (await processNext().catch((error) => logFailure(worker, error))) {
+      // more work is queued
     }
+    await waitForWakeup(wakeup, pollIntervalMs, signal);
   }
+}
 
-  #logFailure(error: unknown): false {
-    this.#log(`download: ${describe(error)}`);
+function logFailure(worker: DownloadWorker, error: unknown): false {
+  worker.log(`download: ${describe(error)}`);
+  return false;
+}
+
+async function janitorLoop(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
+  while (!signal.aborted) {
+    await janitor(worker);
+    await sleep(janitorIntervalMs, signal);
+  }
+}
+
+/** Downloads the next queued pinned video. False when there was nothing to do or the loop should pause. */
+export async function processPin(worker: DownloadWorker, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) {
     return false;
   }
-
-  async #janitorLoop(signal: AbortSignal): Promise<void> {
-    while (!signal.aborted) {
-      await this.janitor();
-      await sleep(janitorIntervalMs, signal);
-    }
+  const id = claimDownload(worker.store);
+  if (id === null) {
+    return false;
   }
-
-  /** Downloads the next queued pinned video. False when there was nothing to do or the loop should pause. */
-  async processPin(signal: AbortSignal): Promise<boolean> {
-    if (signal.aborted) {
-      return false;
-    }
-    const id = this.#store.claimDownload();
-    if (id === null) {
-      return false;
-    }
-    this.#log(`download: pinning ${id}`);
-    try {
-      const path = await this.#downloadToLibrary(
-        id,
-        this.#config.mediaDir,
-        this.#config.keepMaxHeight,
-        signal,
-      );
-      const kept = this.#store.finishDownload(id, path);
-      if (!kept) {
-        await this.#discard(this.#config.mediaDir, path); // unpinned or removed while downloading
-      } else {
-        this.#log(`download: pinned ${id} -> ${path}`);
-      }
-    } catch (error) {
-      this.#log(`download: ${id} failed: ${describe(error)}`);
-      if (signal.aborted) {
-        return false;
-      }
-      this.#store.failDownload(id, describe(error));
-    }
-    return true;
-  }
-
-  /** Downloads the next queued watch-once copy. False when there was nothing to do or the loop should pause. */
-  async processCache(signal: AbortSignal): Promise<boolean> {
-    if (signal.aborted) {
-      return false;
-    }
-    const id = this.#store.claimCache();
-    if (id === null) {
-      return false;
-    }
-    this.#log(`cache: fetching ${id}`);
-    try {
-      const path = await this.#downloadToCache(id, this.#config.cacheDir, cacheHeight, signal);
-      const stored = this.#store.finishCache(id, path);
-      if (!stored) {
-        await this.#discard(this.#config.cacheDir, path); // removed while downloading
-      }
-    } catch (error) {
-      this.#log(`cache: ${id} failed: ${describe(error)}`);
-      if (signal.aborted) {
-        return false;
-      }
-      this.#store.failCache(id, describe(error));
-    }
-    return true;
-  }
-
-  async #discard(root: string, path: string): Promise<void> {
-    const failures = await removeMedia(root, path);
-    for (const failure of failures) {
-      this.#log(`download: delete ${path}: ${failure.message}`);
-    }
-  }
-
-  /**
-   * Evicts cached copies that are redundant (the video is pinned and downloaded), stale (not
-   * played within the TTL), or over the size budget (least recently played first).
-   */
-  async janitor(now: number = Date.now()): Promise<void> {
-    const inspected = await Promise.all(
-      this.#store.cacheEntries().map(async (video) => ({ video, size: await fileSize(video.cachePath) })),
+  worker.log(`download: pinning ${id}`);
+  try {
+    const path = await worker.downloadToLibrary(
+      id,
+      worker.config.mediaDir,
+      worker.config.keepMaxHeight,
+      signal,
     );
-    const vanished = inspected.filter(({ size }) => size === undefined);
-    const present = inspected.flatMap(({ video, size }) => (size === undefined ? [] : [{ video, size }]));
-    const expired = present.filter(({ video }) => this.#isRedundant(video) || this.#isStale(video, now));
-    const survivors = present.filter((entry) => !expired.includes(entry));
-
-    for (const { video } of vanished) {
-      this.#store.clearCache(video.youtubeId); // the file vanished: fetch again on the next play
+    const kept = finishDownload(worker.store, id, path);
+    if (!kept) {
+      await discard(worker, worker.config.mediaDir, path); // unpinned or removed while downloading
+    } else {
+      worker.log(`download: pinned ${id} -> ${path}`);
     }
-    const toEvict = [...expired, ...overBudget(survivors, this.#config.cacheMaxBytes)];
-    await Promise.all(toEvict.map(({ video }) => this.#evict(video)));
+  } catch (error) {
+    worker.log(`download: ${id} failed: ${describe(error)}`);
+    if (signal.aborted) {
+      return false;
+    }
+    failDownload(worker.store, id, describe(error));
   }
+  return true;
+}
 
-  #isRedundant(video: Video): boolean {
-    return video.pinned && video.downloadStatus === "ready";
+/** Downloads the next queued watch-once copy. False when there was nothing to do or the loop should pause. */
+export async function processCache(worker: DownloadWorker, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) {
+    return false;
   }
+  const id = claimCache(worker.store);
+  if (id === null) {
+    return false;
+  }
+  worker.log(`cache: fetching ${id}`);
+  try {
+    const path = await worker.downloadToCache(id, worker.config.cacheDir, cacheHeight, signal);
+    const stored = finishCache(worker.store, id, path);
+    if (!stored) {
+      await discard(worker, worker.config.cacheDir, path); // removed while downloading
+    }
+  } catch (error) {
+    worker.log(`cache: ${id} failed: ${describe(error)}`);
+    if (signal.aborted) {
+      return false;
+    }
+    failCache(worker.store, id, describe(error));
+  }
+  return true;
+}
 
-  #isStale(video: Video, now: number): boolean {
-    return now - video.lastPlayedAt * 1000 > this.#config.cacheTtlMs;
+async function discard(worker: DownloadWorker, root: string, path: string): Promise<void> {
+  const failures = await removeMedia(root, path);
+  for (const failure of failures) {
+    worker.log(`download: delete ${path}: ${failure.message}`);
   }
+}
 
-  async #evict(video: Video): Promise<void> {
-    this.#log(`janitor: evicting ${video.youtubeId}`);
-    await this.#discard(this.#config.cacheDir, video.cachePath);
-    this.#store.clearCache(video.youtubeId);
+/**
+ * Evicts cached copies that are redundant (the video is pinned and downloaded), stale (not
+ * played within the TTL), or over the size budget (least recently played first).
+ */
+export async function janitor(worker: DownloadWorker, now: number = Date.now()): Promise<void> {
+  const inspected = await Promise.all(
+    getCacheEntries(worker.store).map(async (video) => ({ video, size: await fileSize(video.cachePath) })),
+  );
+  const vanished = inspected.filter(({ size }) => size === undefined);
+  const present = inspected.flatMap(({ video, size }) => (size === undefined ? [] : [{ video, size }]));
+  const expired = present.filter(({ video }) => isRedundant(video) || isStale(worker, video, now));
+  const survivors = present.filter((entry) => !expired.includes(entry));
+
+  for (const { video } of vanished) {
+    clearCache(worker.store, video.youtubeId); // the file vanished: fetch again on the next play
   }
+  const toEvict = [...expired, ...overBudget(survivors, worker.config.cacheMaxBytes)];
+  await Promise.all(toEvict.map(({ video }) => evict(worker, video)));
+}
+
+const isRedundant = (video: Video): boolean => video.pinned && video.downloadStatus === "ready";
+
+const isStale = (worker: DownloadWorker, video: Video, now: number): boolean =>
+  now - video.lastPlayedAt * 1000 > worker.config.cacheTtlMs;
+
+async function evict(worker: DownloadWorker, video: Video): Promise<void> {
+  worker.log(`janitor: evicting ${video.youtubeId}`);
+  await discard(worker, worker.config.cacheDir, video.cachePath);
+  clearCache(worker.store, video.youtubeId);
 }
 
 async function fileSize(path: string): Promise<number | undefined> {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { getUserByUsername } from "../db/store.ts";
 import { changeForm, changePassword, replacementPassword, tryLogIn } from "./auth-helpers.ts";
 import { adminPassword, adminUsername, advanceClock, buildEnvironment, logIn, send } from "./harness.ts";
 
@@ -18,14 +19,14 @@ describe("changing the password", () => {
 
   test("stores a new bcrypt hash, never the password", async () => {
     const environment = await buildEnvironment();
-    const before = environment.store.userByUsername(adminUsername)?.passwordHash;
+    const before = getUserByUsername(environment.store, adminUsername)?.passwordHash;
     const cookie = await logIn(environment);
     await changePassword(
       environment,
       cookie,
       changeForm(adminPassword, replacementPassword, replacementPassword),
     );
-    const hash = environment.store.userByUsername(adminUsername)?.passwordHash ?? "";
+    const hash = getUserByUsername(environment.store, adminUsername)?.passwordHash ?? "";
     expect(hash).not.toBe(before);
     expect(hash).not.toContain("passphrase");
     expect(await Bun.password.verify(replacementPassword, hash)).toBe(true);

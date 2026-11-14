@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import {
+  blockVideo,
+  claimCache,
+  claimDownload,
+  closeStore,
+  failCache,
+  finishDownload,
+  pinVideo,
+  requestCache,
+} from "../db/store.ts";
 import { allow, buildEnvironment, logIn, send } from "./harness.ts";
 import {
   addPublished,
@@ -22,7 +32,7 @@ async function environmentWithSong() {
 
 async function environmentWithBlockedSong() {
   const environment = await environmentWithSong();
-  environment.store.block(videoId);
+  blockVideo(environment.store, videoId);
   return environment;
 }
 
@@ -31,7 +41,7 @@ describe("browsing", () => {
     const environment = await buildEnvironment();
     allowPianoVideo(environment, "aaaaaaaaaaa", "Twinkle Twinkle");
     allowPianoVideo(environment, "bbbbbbbbbbb", "Scary Video");
-    environment.store.block("bbbbbbbbbbb");
+    blockVideo(environment.store, "bbbbbbbbbbb");
 
     const response = await send(environment, "/");
     const body = await response.text();
@@ -144,9 +154,9 @@ describe("prepare and played", () => {
 
   test("prepare retries a failed download", async () => {
     const environment = await environmentWithSong();
-    environment.store.requestCache(videoId);
-    environment.store.claimCache();
-    environment.store.failCache(videoId, "network");
+    requestCache(environment.store, videoId);
+    claimCache(environment.store);
+    failCache(environment.store, videoId, "network");
 
     await send(environment, prepare(videoId), { method: "POST" });
 
@@ -226,9 +236,9 @@ describe("status", () => {
 
   test("reports a failed download", async () => {
     const environment = await environmentWithSong();
-    environment.store.requestCache(videoId);
-    environment.store.claimCache();
-    environment.store.failCache(videoId, "network");
+    requestCache(environment.store, videoId);
+    claimCache(environment.store);
+    failCache(environment.store, videoId, "network");
 
     expect(await (await send(environment, `/status/${videoId}`)).json()).toEqual({
       ready: false,
@@ -265,9 +275,9 @@ describe("video bytes", () => {
   test("falls back to the cache when the pinned file went missing", async () => {
     const environment = await environmentWithSong();
     await makeCacheReady(environment, videoId, "cached");
-    environment.store.pin(videoId);
-    environment.store.claimDownload();
-    environment.store.finishDownload(videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
+    pinVideo(environment.store, videoId);
+    claimDownload(environment.store);
+    finishDownload(environment.store, videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
 
     expect(await (await send(environment, `/video/${videoId}`)).text()).toBe("cached");
   });
@@ -280,7 +290,7 @@ describe("video bytes", () => {
   test("a blocked or unknown video is never served", async () => {
     const environment = await environmentWithSong();
     await makeCacheReady(environment, videoId, "secret bytes");
-    environment.store.block(videoId);
+    blockVideo(environment.store, videoId);
 
     for (const id of [videoId, unknownVideoId]) {
       const response = await send(environment, `/video/${id}`);
@@ -437,7 +447,7 @@ describe("database failures", () => {
   test("return a generic 500 without leaking details", async () => {
     const environment = await environmentWithSong();
     const cookie = await logIn(environment);
-    environment.store.close();
+    closeStore(environment.store);
 
     const requests = [
       { method: "GET", path: "/" },

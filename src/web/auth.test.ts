@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { createFirstUser, deleteUsers, getUserByUsername, getVideo } from "../db/store.ts";
 import * as passwords from "../passwords.ts";
 import {
   createLoginLimiter,
@@ -178,11 +179,11 @@ describe("logging in", () => {
     const original = await buildEnvironment();
     const stronger = passwords.createPasswordHasher(5);
     const environment = withHasher(original, stronger);
-    const oldHash = original.store.userByUsername(adminUsername)?.passwordHash ?? "";
+    const oldHash = getUserByUsername(original.store, adminUsername)?.passwordHash ?? "";
 
     expect(await tryLogIn(environment, adminUsername, adminPassword)).toBeDefined();
 
-    const newHash = environment.store.userByUsername(adminUsername)?.passwordHash ?? "";
+    const newHash = getUserByUsername(environment.store, adminUsername)?.passwordHash ?? "";
     expect(newHash).not.toBe(oldHash);
     expect(await passwords.verifyPassword(newHash, adminPassword)).toBe(true);
     expect(passwords.needsUpgrade(stronger, newHash)).toBe(false);
@@ -190,9 +191,9 @@ describe("logging in", () => {
 
   test("does not rehash when the cost is already current", async () => {
     const environment = await buildEnvironment();
-    const before = environment.store.userByUsername(adminUsername)?.passwordHash;
+    const before = getUserByUsername(environment.store, adminUsername)?.passwordHash;
     await logIn(environment);
-    expect(environment.store.userByUsername(adminUsername)?.passwordHash).toBe(before);
+    expect(getUserByUsername(environment.store, adminUsername)?.passwordHash).toBe(before);
   });
 
   test("HTTP basic credentials no longer work", async () => {
@@ -269,7 +270,7 @@ describe("protected pages", () => {
     const response = await send(environment, path, { method });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(target);
-    expect(environment.store.video(videoId)?.pinned).toBe(false);
+    expect(getVideo(environment.store, videoId)?.pinned).toBe(false);
   });
 
   test("pages are not cached, so back after logout shows nothing", async () => {
@@ -351,7 +352,7 @@ describe("accounts that disappear", () => {
   test("a session stops working when its account is deleted and the admin goes to setup", async () => {
     const environment = await buildEnvironment();
     const cookie = await logIn(environment);
-    environment.store.deleteUsers();
+    deleteUsers(environment.store);
     const response = await send(environment, "/admin", { cookie });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/admin/setup");
@@ -360,8 +361,8 @@ describe("accounts that disappear", () => {
   test("a session of a deleted account never works for a new account", async () => {
     const environment = await buildEnvironment();
     const oldCookie = await logIn(environment);
-    environment.store.deleteUsers();
-    environment.store.createFirstUser("someone-new", "irrelevant");
+    deleteUsers(environment.store);
+    createFirstUser(environment.store, "someone-new", "irrelevant");
     const response = await send(environment, "/admin", { cookie: oldCookie });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toStartWith("/admin/login");

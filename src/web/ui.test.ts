@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { claimDownload, finishDownload, pinVideo } from "../db/store.ts";
 import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
 import { allowPianoVideo, makeCacheReady, videoId } from "./kid-helpers.ts";
 
@@ -189,9 +190,9 @@ describe("video cards", () => {
   test("shows the duration and a star for saved videos", async () => {
     const environment = await buildEnvironment();
     allow(environment, { youtubeId: videoId, title: "Song", duration: 3661 });
-    environment.store.pin(videoId);
-    environment.store.claimDownload();
-    environment.store.finishDownload(videoId, join(environment.mediaDir, "song.mp4"));
+    pinVideo(environment.store, videoId);
+    claimDownload(environment.store);
+    finishDownload(environment.store, videoId, join(environment.mediaDir, "song.mp4"));
 
     const body = await (await send(environment, "/")).text();
 

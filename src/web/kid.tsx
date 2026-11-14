@@ -3,6 +3,7 @@ import { basename, extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
+import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
 import { thumbnailPath } from "../thumbnails.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
@@ -47,7 +48,7 @@ export function kidRoutes(services: Services): Hono {
 
   /** The video for the `:id` path value, or null if it is unknown or hidden from the child. */
   const watchableVideo = (context: Context): Video | null => {
-    const video = store.video(context.req.param("id") ?? "");
+    const video = getVideo(store, context.req.param("id") ?? "");
     return video?.watchable ? video : null;
   };
 
@@ -61,13 +62,13 @@ export function kidRoutes(services: Services): Hono {
   routes.get("/", (context) => {
     const channel = context.req.query("channel") ?? "";
     const { videos, pages } = loadPage(
-      (page) => store.watchable(channel, page),
+      (page) => getWatchableVideos(store, channel, page),
       requestedPage(context.req.query("page")),
       kidPageSize,
       listLink("/", channel),
     );
     return context.html(
-      <IndexPage videos={videos} channels={store.watchableChannels()} current={channel} pages={pages} />,
+      <IndexPage videos={videos} channels={getWatchableChannels(store)} current={channel} pages={pages} />,
     );
   });
 
@@ -86,8 +87,8 @@ export function kidRoutes(services: Services): Hono {
       return context.notFound();
     }
     if ((await playablePath(video)) === "") {
-      store.requestCache(video.youtubeId);
-      services.downloads.triggerCache();
+      requestCache(store, video.youtubeId);
+      services.triggerCache();
     }
     return context.body(null, 202);
   });
@@ -97,7 +98,7 @@ export function kidRoutes(services: Services): Hono {
     if (video === null) {
       return context.notFound();
     }
-    store.recordPlay(video.youtubeId);
+    recordPlay(store, video.youtubeId);
     return context.body(null, 204);
   });
 

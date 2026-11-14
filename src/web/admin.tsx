@@ -1,4 +1,16 @@
 import { Hono } from "hono";
+import {
+  allowVideo,
+  blockVideo,
+  deleteChannel,
+  deleteVideo,
+  getAdminVideos,
+  getChannels,
+  insertChannel,
+  pinVideo,
+  unblockVideo,
+  unpinVideo,
+} from "../db/store.ts";
 import { directorySize, removeMedia } from "../storage.ts";
 import { removeThumbnail } from "../thumbnails.ts";
 import { isVideo } from "../ytdlp/types.ts";
@@ -32,7 +44,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
   routes.get("/", async (context) => {
     const channel = context.req.query("channel") ?? "";
     const { videos, pages } = loadPage(
-      (page) => store.adminVideos(channel, page),
+      (page) => getAdminVideos(store, channel, page),
       requestedPage(context.req.query("page")),
       adminPageSize,
       listLink("/admin", channel),
@@ -45,7 +57,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
       <AdminPage
         username={context.get("user").username}
         message={context.req.query("msg") ?? ""}
-        channels={store.channels()}
+        channels={getChannels(store)}
         videos={videos}
         current={channel}
         pages={pages}
@@ -71,16 +83,16 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     }
     const { value } = resolved;
     if (!isVideo(value)) {
-      const added = messageFrom(() => store.addChannel(value.id, value.name));
+      const added = messageFrom(() => insertChannel(store, value.id, value.name));
       if (!added.ok) {
         return redirectWithMessage(context, added.message);
       }
-      services.syncer.trigger();
+      services.triggerSync();
       return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
     }
     const video = value;
     const allowed = messageFrom(() =>
-      store.allowVideo({
+      allowVideo(store, {
         youtubeId: video.id,
         channelYoutubeId: video.channel.id,
         channelName: video.channel.name,
@@ -97,7 +109,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     if (id === undefined) {
       return context.notFound();
     }
-    const removed = messageFrom(() => store.removeChannel(id));
+    const removed = messageFrom(() => deleteChannel(store, id));
     if (!removed.ok) {
       return redirectWithMessage(context, removed.message);
     }
@@ -113,7 +125,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
   });
 
   routes.post("/sync", (context) => {
-    services.syncer.trigger();
+    services.triggerSync();
     return redirectWithMessage(context, "Sync started");
   });
 
@@ -141,14 +153,14 @@ async function videoAction(services: Services, action: string, id: string): Prom
   switch (action) {
     case "pin":
     case "retry": {
-      const pinned = messageFrom(() => store.pin(id));
+      const pinned = messageFrom(() => pinVideo(store, id));
       if (pinned.ok) {
-        services.downloads.triggerPins();
+        services.triggerPins();
       }
       return { message: pinned.ok ? "Done" : pinned.message };
     }
     case "unpin": {
-      const unpinned = messageFrom(() => store.unpin(id));
+      const unpinned = messageFrom(() => unpinVideo(store, id));
       return {
         message: unpinned.ok
           ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value))
@@ -156,15 +168,15 @@ async function videoAction(services: Services, action: string, id: string): Prom
       };
     }
     case "block": {
-      const blocked = messageFrom(() => store.block(id));
+      const blocked = messageFrom(() => blockVideo(store, id));
       return { message: blocked.ok ? "Done" : blocked.message };
     }
     case "unblock": {
-      const unblocked = messageFrom(() => store.unblock(id));
+      const unblocked = messageFrom(() => unblockVideo(store, id));
       return { message: unblocked.ok ? "Done" : unblocked.message };
     }
     case "remove": {
-      const removal = messageFrom(() => store.removeVideo(id));
+      const removal = messageFrom(() => deleteVideo(store, id));
       if (!removal.ok) {
         return { message: removal.message };
       }

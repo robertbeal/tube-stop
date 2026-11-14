@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { countUsers, deleteUsers, getUserByUsername } from "../db/store.ts";
 import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
 import { advanceClock, buildEnvironment, send, sessionCookie } from "./harness.ts";
@@ -103,7 +104,7 @@ describe("setting up", () => {
     const environment = await unclaimed();
     const code = loggedSetupCode(environment);
     await postSetup(environment, setupForm(code, newUsername, newPassword, newPassword));
-    const hash = environment.store.userByUsername(newUsername)?.passwordHash ?? "";
+    const hash = getUserByUsername(environment.store, newUsername)?.passwordHash ?? "";
     expect(hash).not.toContain("enough");
     expect(hash).toMatch(/^\$2[aby]\$\d\d\$/);
     expect(await Bun.password.verify(newPassword, hash)).toBe(true);
@@ -130,7 +131,7 @@ describe("setting up", () => {
       expect(await response.text()).toContain("Wrong setup code");
       expect(sessionCookie(response)).toBeUndefined();
     }
-    expect(environment.store.userCount()).toBe(0);
+    expect(countUsers(environment.store)).toBe(0);
   });
 
   test("wrong codes are rate limited, even for the right code afterwards", async () => {
@@ -162,7 +163,7 @@ describe("setting up", () => {
     const body = await response.text();
     expect(body).toContain(message);
     expect(body).not.toContain(`value="${password}"`);
-    expect(environment.store.userCount()).toBe(0);
+    expect(countUsers(environment.store)).toBe(0);
     const retry = await postSetup(environment, setupForm(code, newUsername, newPassword, newPassword));
     expect(retry.status).toBe(303);
   });
@@ -185,7 +186,7 @@ describe("once set up", () => {
     const intruder = setupForm(code, "intruder", newPassword, newPassword);
     expect((await send(environment, "/admin/setup")).status).toBe(404);
     expect((await postSetup(environment, intruder)).status).toBe(404);
-    expect(environment.store.userCount()).toBe(1);
+    expect(countUsers(environment.store)).toBe(1);
   });
 
   test("setup is not available when the app starts with an existing admin", async () => {
@@ -203,14 +204,14 @@ describe("once set up", () => {
       ),
     );
     expect(responses.filter((response) => response.status === 303)).toHaveLength(1);
-    expect(environment.store.userCount()).toBe(1);
+    expect(countUsers(environment.store)).toBe(1);
   });
 });
 
 describe("after a reset", () => {
   test("a different setup code is printed and setup works again", async () => {
     const environment = await buildEnvironment();
-    environment.store.deleteUsers();
+    deleteUsers(environment.store);
     const redirect = await send(environment, "/admin");
     await send(environment, "/admin/setup");
     const code = loggedSetupCode(environment);

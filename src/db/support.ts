@@ -1,7 +1,20 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
-import { type NewVideo, Store, type Video } from "./store.ts";
+import {
+  claimCache,
+  claimDownload,
+  finishCache,
+  finishDownload,
+  getChannels,
+  getVideo,
+  type NewVideo,
+  openStore,
+  pinVideo,
+  requestCache,
+  type Store,
+  type Video,
+} from "./store.ts";
 
 export const everything = { limit: 1000, offset: 0 };
 
@@ -20,7 +33,7 @@ export function newVideo(channelYoutubeId: string, overrides: Partial<NewVideo> 
 }
 
 export function videoOf(store: Store, youtubeId: string): Video {
-  const video = store.video(youtubeId);
+  const video = getVideo(store, youtubeId);
   if (video === null) {
     throw new Error(`video ${youtubeId} does not exist`);
   }
@@ -32,7 +45,7 @@ export function idsOf(videos: readonly Pick<Video, "youtubeId">[]): string[] {
 }
 
 export function channelIdOf(store: Store, youtubeId: string): number {
-  const channel = store.channels().find((candidate) => candidate.youtubeId === youtubeId);
+  const channel = getChannels(store).find((candidate) => candidate.youtubeId === youtubeId);
   if (channel === undefined) {
     throw new Error(`channel ${youtubeId} does not exist`);
   }
@@ -41,16 +54,16 @@ export function channelIdOf(store: Store, youtubeId: string): number {
 
 /** Pins a video and completes its download. */
 export function keepFile(store: Store, youtubeId: string, path: string): void {
-  store.pin(youtubeId);
-  store.claimDownload();
-  store.finishDownload(youtubeId, path);
+  pinVideo(store, youtubeId);
+  claimDownload(store);
+  finishDownload(store, youtubeId, path);
 }
 
 /** Requests a watch-once copy and completes its download. */
 export function cacheFile(store: Store, youtubeId: string, path: string): void {
-  store.requestCache(youtubeId);
-  store.claimCache();
-  store.finishCache(youtubeId, path);
+  requestCache(store, youtubeId);
+  claimCache(store);
+  finishCache(store, youtubeId, path);
 }
 
 export interface TestDatabase {
@@ -62,6 +75,6 @@ export interface TestDatabase {
 
 export async function openTestDatabase(now?: () => number): Promise<TestDatabase> {
   const path = join(await temporaryDirectory(), "test.db");
-  const store = new Store(path, now ?? (() => fixedNow));
+  const store = openStore(path, now ?? (() => fixedNow));
   return { path, store, raw: new Database(path, { strict: true }) };
 }

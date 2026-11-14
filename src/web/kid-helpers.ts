@@ -1,6 +1,17 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Video } from "../db/store.ts";
+import {
+  claimCache,
+  claimDownload,
+  finishCache,
+  finishDownload,
+  getVideo,
+  insertChannel,
+  insertVideo,
+  pinVideo,
+  requestCache,
+} from "../db/store.ts";
 import { allow, type Environment } from "./harness.ts";
 
 export const videoId = "abcdefghijk";
@@ -19,9 +30,9 @@ export async function makeCacheReady(
 ): Promise<string> {
   const path = join(environment.cacheDir, `${youtubeId}.mp4`);
   await writeFileWithFolders(path, contents);
-  environment.store.requestCache(youtubeId);
-  environment.store.claimCache();
-  environment.store.finishCache(youtubeId, path);
+  requestCache(environment.store, youtubeId);
+  claimCache(environment.store);
+  finishCache(environment.store, youtubeId, path);
   return path;
 }
 
@@ -33,9 +44,9 @@ export async function makePinnedFile(
   contents: string,
 ): Promise<void> {
   await writeFileWithFolders(path, contents);
-  environment.store.pin(youtubeId);
-  environment.store.claimDownload();
-  environment.store.finishDownload(youtubeId, path);
+  pinVideo(environment.store, youtubeId);
+  claimDownload(environment.store);
+  finishDownload(environment.store, youtubeId, path);
 }
 
 export async function writeFileWithFolders(path: string, contents: string | Uint8Array): Promise<void> {
@@ -44,7 +55,7 @@ export async function writeFileWithFolders(path: string, contents: string | Uint
 }
 
 export function loadVideo(environment: Environment, youtubeId: string): Video {
-  const video = environment.store.video(youtubeId);
+  const video = getVideo(environment.store, youtubeId);
   if (video === null) {
     throw new Error(`no video ${youtubeId}`);
   }
@@ -67,9 +78,9 @@ export function numberedId(number: number): string {
 
 /** Adds `count` watchable videos to channel UC1; a higher number is a newer video. */
 export function addPublished(environment: Environment, count: number): void {
-  environment.store.addChannel("UC1", "Piano Guy");
+  insertChannel(environment.store, "UC1", "Piano Guy");
   for (const number of Array.from({ length: count }, (_, index) => index + 1)) {
-    environment.store.insertSynced({
+    insertVideo(environment.store, {
       youtubeId: numberedId(number),
       channelYoutubeId: "UC1",
       channelName: "Piano Guy",

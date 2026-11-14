@@ -2,7 +2,15 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import { AlreadySetUpError, type User } from "../db/store.ts";
+import {
+  AlreadySetUpError,
+  countUsers,
+  createFirstUser,
+  getUserById,
+  getUserByUsername,
+  type User,
+  updatePassword,
+} from "../db/store.ts";
 import {
   hashPassword,
   needsUpgrade,
@@ -67,7 +75,7 @@ export function authRoutes(services: Services): {
     if (token === undefined || userId === undefined) {
       return null;
     }
-    const user = store.userById(userId);
+    const user = getUserById(store, userId);
     if (user === null) {
       removeSession(sessions, token); // the account was removed, for example by reset-admin
     }
@@ -99,7 +107,7 @@ export function authRoutes(services: Services): {
       context.set("user", user);
       return next();
     }
-    if (store.userCount() === 0) {
+    if (countUsers(store) === 0) {
       return context.redirect(setupPath, 303);
     }
     // A GET remembers where the visitor was going; other methods cannot be replayed after logging in.
@@ -112,7 +120,7 @@ export function authRoutes(services: Services): {
   });
 
   routes.get(loginPath, (context) => {
-    if (store.userCount() === 0) {
+    if (countUsers(store) === 0) {
       return context.redirect(setupPath, 303);
     }
     const next = safeNext(context.req.query("next") ?? "");
@@ -122,7 +130,7 @@ export function authRoutes(services: Services): {
   });
 
   routes.post(loginPath, async (context) => {
-    if (store.userCount() === 0) {
+    if (countUsers(store) === 0) {
       return context.redirect(setupPath, 303);
     }
     const field = await formFields(context);
@@ -136,7 +144,7 @@ export function authRoutes(services: Services): {
       return rejected(429, tooManyAttempts);
     }
     const password = field("password");
-    const user = store.userByUsername(username);
+    const user = getUserByUsername(store, username);
     if (user === null) {
       await spendTimeVerifying(hasher, password); // an unknown username must cost the same time as a wrong password
     } else if (await verifyPassword(user.passwordHash, password)) {
@@ -153,7 +161,7 @@ export function authRoutes(services: Services): {
       return;
     }
     try {
-      store.updatePassword(user.id, await hashPassword(hasher, password));
+      updatePassword(store, user.id, await hashPassword(hasher, password));
     } catch (error) {
       services.log(
         `web: upgrade password hash of "${user.username}": ${error instanceof Error ? error.message : error}`,
@@ -172,7 +180,7 @@ export function authRoutes(services: Services): {
 
   // Once an account exists, the setup pages answer 404, so they do not even reveal that they exist.
   routes.get(setupPath, (context) => {
-    if (store.userCount() > 0) {
+    if (countUsers(store) > 0) {
       return context.notFound();
     }
     currentSetupCode(setupCode); // make sure a code has been printed to the log
@@ -180,7 +188,7 @@ export function authRoutes(services: Services): {
   });
 
   routes.post(setupPath, async (context) => {
-    if (store.userCount() > 0) {
+    if (countUsers(store) > 0) {
       return context.notFound();
     }
     const field = await formFields(context);
@@ -205,7 +213,7 @@ export function authRoutes(services: Services): {
       return rejected(422, "The two passwords do not match.");
     }
     try {
-      const user = store.createFirstUser(username, await hashPassword(hasher, password));
+      const user = createFirstUser(store, username, await hashPassword(hasher, password));
       clearSetupCode(setupCode);
       return startSession(context, user.id, "/admin");
     } catch (error) {
@@ -240,7 +248,7 @@ export function changePassword(services: Services) {
       return redirectWithMessage(context, "The two new passwords do not match.");
     }
     try {
-      store.updatePassword(user.id, await hashPassword(hasher, newPassword));
+      updatePassword(store, user.id, await hashPassword(hasher, newPassword));
     } catch (error) {
       if (error instanceof PasswordRuleError) {
         return redirectWithMessage(context, `${capitalise(error.message)}.`);
