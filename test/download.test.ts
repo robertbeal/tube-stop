@@ -3,7 +3,7 @@ import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Store } from "../src/db/store.ts";
 import { type DownloadConfig, DownloadWorker } from "../src/download.ts";
-import { createYtDlp, type Fetcher } from "../src/ytdlp.ts";
+import { downloadToCache, downloadToLibrary, type Fetcher } from "../src/ytdlp.ts";
 import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./helpers.ts";
 
 const neverAborted = new AbortController().signal;
@@ -372,7 +372,12 @@ describe("with a stub yt-dlp", () => {
     addVideo(fixture.store, id);
     fixture.store.pin(id);
 
-    await fixture.workerWith(createYtDlp(stub.binary)).processPin(neverAborted);
+    await fixture
+      .workerWith({
+        downloadToLibrary: downloadToLibrary.bind(null, stub.binary),
+        downloadToCache: downloadToCache.bind(null, stub.binary),
+      })
+      .processPin(neverAborted);
 
     expect(fixture.store.video(id)?.filePath).toBe(outputPath);
     expect(await exists(outputPath)).toBe(true);

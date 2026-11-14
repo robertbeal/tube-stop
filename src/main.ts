@@ -7,7 +7,7 @@ import { DownloadWorker } from "./download.ts";
 import { ChannelSyncer } from "./syncer.ts";
 import { ThumbnailStore } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
-import { createYtDlp } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary, listChannel, resolveUrl } from "./ytdlp.ts";
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   // Other users (such as a Jellyfin container) need to read the media folders.
@@ -20,18 +20,29 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   const cacheDir = resolve(config.cacheDir);
 
   const store = new Store(join(config.dataDir, "tubestop.db"));
-  const ytdlp = createYtDlp(config.ytdlpBin);
-  const syncer = new ChannelSyncer(store, ytdlp, config.syncIntervalMs);
-  const downloads = new DownloadWorker(store, ytdlp, {
-    mediaDir,
-    cacheDir,
-    keepMaxHeight: config.keepMaxHeight,
-    cacheTtlMs: config.cacheTtlMs,
-    cacheMaxBytes: config.cacheMaxBytes,
-  });
+  const binary = config.ytdlpBin;
+  const syncer = new ChannelSyncer(
+    store,
+    { listChannel: listChannel.bind(null, binary) },
+    config.syncIntervalMs,
+  );
+  const downloads = new DownloadWorker(
+    store,
+    {
+      downloadToLibrary: downloadToLibrary.bind(null, binary),
+      downloadToCache: downloadToCache.bind(null, binary),
+    },
+    {
+      mediaDir,
+      cacheDir,
+      keepMaxHeight: config.keepMaxHeight,
+      cacheTtlMs: config.cacheTtlMs,
+      cacheMaxBytes: config.cacheMaxBytes,
+    },
+  );
   const app = createApp({
     store,
-    resolver: ytdlp,
+    resolver: { resolve: resolveUrl.bind(null, binary) },
     syncer,
     downloads,
     thumbnails: new ThumbnailStore(join(config.dataDir, "thumbs")),

@@ -85,9 +85,6 @@ function toChannel(response: YtDlpResponse): Resolved {
   return { kind: "channel", channelId, channelName };
 }
 
-/** Everything the app asks of the yt-dlp command-line tool. */
-export type YtDlp = Resolver & ChannelLister & Fetcher;
-
 async function run(binary: string, args: string[], signal?: AbortSignal): Promise<string> {
   const process = Bun.spawn([binary, ...args], { stdout: "pipe", stderr: "pipe", signal });
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -105,7 +102,7 @@ async function run(binary: string, args: string[], signal?: AbortSignal): Promis
 }
 
 /** Inspects a user-supplied URL: a single video, or a channel or playlist. */
-async function resolve(binary: string, url: string, signal?: AbortSignal): Promise<Resolved> {
+export async function resolveUrl(binary: string, url: string, signal?: AbortSignal): Promise<Resolved> {
   const output = await run(
     binary,
     ["-J", "--flat-playlist", "--playlist-items", "1", "--no-warnings", "--", url],
@@ -122,7 +119,7 @@ async function resolve(binary: string, url: string, signal?: AbortSignal): Promi
 }
 
 /** Up to `limit` recent videos from a channel, newest first. */
-async function listChannel(
+export async function listChannel(
   binary: string,
   channelId: string,
   limit: number,
@@ -187,16 +184,30 @@ async function download(
   return path;
 }
 
-/** Runs yt-dlp at `binary`. */
-export function createYtDlp(binary: string): YtDlp {
-  return {
-    resolve: (url, signal) => resolve(binary, url, signal),
-    listChannel: (channelId, limit, signal) => listChannel(binary, channelId, limit, signal),
-    // A .jpg thumbnail is written next to the video, organised by channel and date.
-    downloadToLibrary: (id, directory, maxHeight, signal) =>
-      download(binary, id, join(directory, libraryLayout), maxHeight, signal),
-    // Named by video id, with a .jpg thumbnail next to it.
-    downloadToCache: (id, directory, maxHeight, signal) =>
-      download(binary, id, join(directory, cacheLayout), maxHeight, signal),
-  };
+/**
+ * Fetches a video into `directory`, organised by channel and date, and returns the path of
+ * the saved file. A .jpg thumbnail is written next to it.
+ */
+export function downloadToLibrary(
+  binary: string,
+  id: string,
+  directory: string,
+  maxHeight: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  return download(binary, id, join(directory, libraryLayout), maxHeight, signal);
+}
+
+/**
+ * Fetches a video into `directory`, named by its id, and returns the path of the saved
+ * file. A .jpg thumbnail is written next to it.
+ */
+export function downloadToCache(
+  binary: string,
+  id: string,
+  directory: string,
+  maxHeight: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  return download(binary, id, join(directory, cacheLayout), maxHeight, signal);
 }

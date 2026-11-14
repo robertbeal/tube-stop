@@ -3,7 +3,7 @@ import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { type Channel, Store } from "../src/db/store.ts";
 import { ChannelSyncer, type SyncStore } from "../src/syncer.ts";
-import { type ChannelLister, createYtDlp, type ListedVideo, type YtDlp } from "../src/ytdlp.ts";
+import { type ChannelLister, type ListedVideo, listChannel } from "../src/ytdlp.ts";
 import { temporaryDirectory, stubYtDlp as writeStub } from "./helpers.ts";
 
 const everything = { limit: 1000, offset: 0 };
@@ -20,10 +20,10 @@ async function openStore(): Promise<Store> {
   return new Store(join(await temporaryDirectory(), "tubestop.db"));
 }
 
-async function ytDlpPrinting(body: string): Promise<YtDlp> {
+async function ytDlpPrinting(body: string): Promise<ChannelLister> {
   const stub = await writeStub(body);
   await chmod(stub.binary, 0o755); // Bun.write ignores its mode option on some versions
-  return createYtDlp(stub.binary);
+  return { listChannel: listChannel.bind(null, stub.binary) };
 }
 
 const printing = (json: string) => `cat <<'EOF'\n${json}\nEOF`;
