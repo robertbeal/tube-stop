@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { countUsers, deleteUsers, getUserByUsername } from "../db/store.ts";
+import { countUsers, deleteUsers, getUserByUsername } from "../db/users.ts";
 import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
 import { advanceClock, buildEnvironment, send, sessionCookie } from "./harness.ts";

@@ -2,15 +2,8 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import {
-  AlreadySetUpError,
-  countUsers,
-  createFirstUser,
-  getUserById,
-  getUserByUsername,
-  type User,
-  updatePassword,
-} from "../db/store.ts";
+import { AlreadySetUpError, type User } from "../db/store.ts";
+import { countUsers, createFirstUser, getUserById, getUserByUsername, updatePassword } from "../db/users.ts";
 import {
   hashPassword,
   needsUpgrade,

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { countUsers } from "../db/store.ts";
+import { countUsers } from "../db/users.ts";
 import { createPasswordHasher } from "../passwords.ts";
 import { adminRoutes } from "./admin.tsx";
 import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "./auth.ts";

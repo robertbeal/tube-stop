@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { createFirstUser, deleteUsers, getUserByUsername, getVideo } from "../db/store.ts";
+import { getVideo } from "../db/store.ts";
+import { createFirstUser, deleteUsers, getUserByUsername } from "../db/users.ts";
 import * as passwords from "../passwords.ts";
 import {
   createLoginLimiter,

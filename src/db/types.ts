@@ -1,3 +1,5 @@
+import type { Database } from "bun:sqlite";
+
 export type Status = "none" | "queued" | "downloading" | "ready" | "failed";
 
 /** How a video's visibility is decided: allowed on its own, blocked, or following its channel. */
@@ -87,4 +89,11 @@ export class AlreadySetUpError extends Error {
   constructor() {
     super("an admin account already exists");
   }
+}
+
+/** The Tube Stop database: curated channels and videos, download and cache state, and admin accounts. */
+export interface Store {
+  database: Database;
+  /** The current time in unix seconds; tests replace it. */
+  now: () => number;
 }

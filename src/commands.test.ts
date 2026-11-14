@@ -2,17 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { resetAdmin } from "./commands.ts";
-import {
-  allowVideo,
-  closeStore,
-  countUsers,
-  createFirstUser,
-  getChannels,
-  getUserByUsername,
-  getVideo,
-  insertChannel,
-  openStore,
-} from "./db/store.ts";
+import { allowVideo, closeStore, getChannels, getVideo, insertChannel, openStore } from "./db/store.ts";
+import { countUsers, createFirstUser, getUserByUsername } from "./db/users.ts";
 import { temporaryDirectory } from "./test-helpers.ts";
 
 const videoId = "abcdefghijk";

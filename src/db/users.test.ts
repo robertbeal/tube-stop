@@ -1,17 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { randomVideoId } from "../test-helpers.ts";
+import { AlreadySetUpError, allowVideo, NotFoundError } from "./store.ts";
+import { fixedNow, newVideo, openTestDatabase, videoOf } from "./support.ts";
 import {
-  AlreadySetUpError,
-  allowVideo,
   countUsers,
   createFirstUser,
   deleteUsers,
   getUserById,
   getUserByUsername,
-  NotFoundError,
   updatePassword,
-} from "./store.ts";
-import { fixedNow, newVideo, openTestDatabase, videoOf } from "./support.ts";
+} from "./users.ts";
 
 describe("admin accounts", () => {
   test("creating the first user returns the account", async () => {

@@ -9,7 +9,6 @@ import {
   claimDownload,
   clearCache,
   closeStore,
-  countUsers,
   deleteChannel,
   deleteVideo,
   failCache,
@@ -46,6 +45,7 @@ import {
   openTestDatabase,
   videoOf,
 } from "./support.ts";
+import { countUsers } from "./users.ts";
 
 function userVersion(path: string): number {
   const raw = new Database(path, { readonly: true });

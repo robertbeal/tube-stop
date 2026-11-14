@@ -1,13 +1,13 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
+import { all, get, immediately, requireRow, run } from "./query.ts";
 import { migrations } from "./schema.ts";
 import {
-  AlreadySetUpError,
   type Channel,
   type NewVideo,
   NotFoundError,
   type Page,
   type Removal,
-  type User,
+  type Store,
   type Video,
   type VideoPage,
 } from "./types.ts";
@@ -43,12 +43,6 @@ interface ChannelRow {
   video_count: number;
 }
 
-interface UserRow {
-  id: number;
-  username: string;
-  password_hash: string;
-}
-
 function toVideo(row: VideoRow): Video {
   return {
     youtubeId: row.youtube_id,
@@ -70,10 +64,6 @@ function toVideo(row: VideoRow): Video {
     channelAllowed: row.channel_allowed === 1,
     watchable: row.watchable === 1,
   };
-}
-
-function toUser(row: UserRow): User {
-  return { id: row.id, username: row.username, passwordHash: row.password_hash };
 }
 
 /**
@@ -98,13 +88,6 @@ const videoColumns = `v.youtube_id, v.channel_yt_id, v.channel_name, v.title, v.
 const newestFirst = "ORDER BY v.published_at DESC, v.id DESC";
 
 const unixSeconds = () => Math.floor(Date.now() / 1000);
-
-/** The Tube Stop database: curated channels and videos, download and cache state, and admin accounts. */
-export interface Store {
-  database: Database;
-  /** The current time in unix seconds; tests replace it. */
-  now: () => number;
-}
 
 export function openStore(path: string, now: () => number = unixSeconds): Store {
   const database = new Database(path, { create: true, strict: true });
@@ -136,30 +119,6 @@ function migrate(database: Database): void {
       })
       .immediate();
   });
-}
-
-function get<Row>(store: Store, sql: string, ...parameters: SQLQueryBindings[]): Row | null {
-  return store.database.query<Row, SQLQueryBindings[]>(sql).get(...parameters);
-}
-
-function all<Row>(store: Store, sql: string, ...parameters: SQLQueryBindings[]): Row[] {
-  return store.database.query<Row, SQLQueryBindings[]>(sql).all(...parameters);
-}
-
-/** Runs a statement and returns how many rows it changed. */
-function run(store: Store, sql: string, ...parameters: SQLQueryBindings[]): number {
-  return store.database.query<unknown, SQLQueryBindings[]>(sql).run(...parameters).changes;
-}
-
-function requireRow(changes: number): void {
-  if (changes === 0) {
-    throw new NotFoundError();
-  }
-}
-
-/** Runs `work` in a write transaction that takes the write lock up front. */
-function immediately<Result>(store: Store, work: () => Result): Result {
-  return store.database.transaction(work).immediate();
 }
 
 // ---- channels ----
@@ -518,49 +477,4 @@ export function getCacheEntries(store: Store): Video[] {
     store,
     `SELECT ${videoColumns} FROM videos v WHERE v.cache_status = 'ready' ORDER BY v.last_played_at`,
   ).map(toVideo);
-}
-
-// ---- admin accounts ----
-
-export function countUsers(store: Store): number {
-  return get<{ total: number }>(store, "SELECT COUNT(*) AS total FROM users")?.total ?? 0;
-}
-
-/** Creates the initial admin account, but only if none exists. The check and the insert are one transaction. */
-export function createFirstUser(store: Store, username: string, passwordHash: string): User {
-  return immediately(store, () => {
-    if (countUsers(store) > 0) {
-      throw new AlreadySetUpError();
-    }
-    const result = store.database
-      .query<unknown, SQLQueryBindings[]>(
-        "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
-      )
-      .run(username, passwordHash, store.now());
-    return { id: Number(result.lastInsertRowid), username, passwordHash };
-  });
-}
-
-/** Finds an account by username, ignoring case. */
-export function getUserByUsername(store: Store, username: string): User | null {
-  const row = get<UserRow>(
-    store,
-    "SELECT id, username, password_hash FROM users WHERE username = ?",
-    username,
-  );
-  return row === null ? null : toUser(row);
-}
-
-export function getUserById(store: Store, id: number): User | null {
-  const row = get<UserRow>(store, "SELECT id, username, password_hash FROM users WHERE id = ?", id);
-  return row === null ? null : toUser(row);
-}
-
-export function updatePassword(store: Store, id: number, passwordHash: string): void {
-  requireRow(run(store, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, id));
-}
-
-/** Removes every admin account (to recover from a forgotten password). Returns how many there were. */
-export function deleteUsers(store: Store): number {
-  return run(store, "DELETE FROM users");
 }
