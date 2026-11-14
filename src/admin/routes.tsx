@@ -188,7 +188,7 @@ async function videoAction(services: Services, action: string, id: VideoId): Pro
         ...(await removeMedia(cacheDir, cachePath)),
         ...(blocked
           ? []
-          : await removeThumbnail(services.thumbnail, id).then(
+          : await removeThumbnail(services.thumbnailDir, id).then(
               () => [],
               (error: unknown) => [error instanceof Error ? error : new Error(String(error))],
             )),

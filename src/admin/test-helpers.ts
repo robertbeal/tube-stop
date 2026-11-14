@@ -1,4 +1,3 @@
-import { createThumbnail } from "../thumbnails.ts";
 import { createApp } from "../web/app.tsx";
 import { type Environment, send } from "../web/harness.ts";
 import type { PasswordHasher } from "./passwords.ts";
@@ -90,7 +89,7 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
     store: environment.store,
     resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
     syncNow: async () => undefined,
-    thumbnail: createThumbnail(environment.thumbDir, "http://images.test", fetch),
+    thumbnailDir: environment.thumbDir,
     mediaDir: environment.mediaDir,
     cacheDir: environment.cacheDir,
     hasher,

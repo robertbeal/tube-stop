@@ -1,4 +1,3 @@
-import { afterAll } from "bun:test";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,11 +6,12 @@ import type { VideoId } from "./ytdlp/types.ts";
 
 const directories: string[] = [];
 
-afterAll(async () => {
+/** Removes every directory made by `temporaryDirectory`. The test setup runs this once, after all tests. */
+export async function removeTemporaryDirectories(): Promise<void> {
   await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
-});
+}
 
-/** A fresh temporary directory, removed when the test file finishes. */
+/** A fresh temporary directory, removed after the test run. */
 export async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "tubestop-"));
   directories.push(directory);

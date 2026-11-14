@@ -1,10 +1,10 @@
+import { spyOn } from "bun:test";
 import { join } from "node:path";
 import type { Hono } from "hono";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
-import { createThumbnail } from "../thumbnails.ts";
 import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
@@ -70,12 +70,12 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     resolved.push(url);
     return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
   };
-  const fakeImageFetch = (async (input: string | URL | Request) => {
+  spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
     imageServer.requests.push(String(input));
     return imageServer.failing
       ? new Response("nope", { status: 500 })
       : new Response("JPEG", { headers: { "content-type": "image/jpeg" } });
-  }) as typeof fetch;
+  }) as typeof fetch);
 
   const app = createApp({
     store,
@@ -83,7 +83,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     syncNow: async () => {
       triggers.sync += 1;
     },
-    thumbnail: createThumbnail(thumbDir, "http://images.test", fakeImageFetch),
+    thumbnailDir: thumbDir,
     mediaDir,
     cacheDir,
     hasher,

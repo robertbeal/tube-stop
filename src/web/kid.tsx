@@ -126,9 +126,9 @@ export function kidRoutes(services: Services): Hono {
       return context.notFound();
     }
     try {
-      const path = (await pinnedThumbnail(video)) || thumbnailPath(services.thumbnail, video.youtubeId);
+      const path = (await pinnedThumbnail(video)) || thumbnailPath(services.thumbnailDir, video.youtubeId);
       if (!(await exists(path))) {
-        await downloadThumbnail(services.thumbnail, video.youtubeId, context.req.raw.signal);
+        await downloadThumbnail(services.thumbnailDir, video.youtubeId, context.req.raw.signal);
       }
       return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
     } catch (error) {
