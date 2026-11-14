@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { PasswordHasher } from "../passwords.ts";
+import { createPasswordHasher } from "../passwords.ts";
 import { adminRoutes } from "./admin.tsx";
 import { LoginLimiter, SessionStore, SetupCode } from "./auth.ts";
 import { authRoutes } from "./auth-routes.tsx";
@@ -33,7 +33,7 @@ function withDefaults(dependencies: WebDependencies): Services {
   const log = dependencies.log ?? console.log;
   return {
     ...dependencies,
-    hasher: dependencies.hasher ?? new PasswordHasher(),
+    hasher: dependencies.hasher ?? createPasswordHasher(),
     sessionLifetimeMs: dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs,
     now,
     log,

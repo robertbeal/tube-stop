@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { PasswordHasher } from "../passwords.ts";
+import { describe, expect, spyOn, test } from "bun:test";
+import * as passwords from "../passwords.ts";
 import { LoginLimiter, normaliseCode, SessionStore, usernameProblem } from "./auth.ts";
 import {
   failLogins,
@@ -146,32 +146,25 @@ describe("logging in", () => {
   });
 
   test("an unknown username still costs a password check so timing reveals nothing", async () => {
-    const checks = { verifies: 0, dummies: 0 };
-    class CountingHasher extends PasswordHasher {
-      override verify(hash: string, password: string): Promise<boolean> {
-        checks.verifies += 1;
-        return super.verify(hash, password);
-      }
-      override spendTimeVerifying(password: string): Promise<void> {
-        checks.dummies += 1;
-        return super.spendTimeVerifying(password);
-      }
-    }
-    const environment = withHasher(await buildEnvironment(), new CountingHasher(4));
+    const dummyChecks = spyOn(passwords, "spendTimeVerifying");
+    const realChecks = spyOn(passwords, "verifyPassword");
+    const environment = await buildEnvironment();
 
     await postLogin(environment, loginForm("nobody", "whatever-password"));
-    const dummiesAfterUnknownUser = checks.dummies;
-    const verifiesAfterUnknownUser = checks.verifies;
+    const dummiesAfterUnknownUser = dummyChecks.mock.calls.length;
+    const realChecksAfterUnknownUser = realChecks.mock.calls.length;
     await postLogin(environment, loginForm(adminUsername, "whatever-password"));
 
     expect(dummiesAfterUnknownUser).toBe(1);
-    expect(checks.dummies).toBe(1); // a known user costs one real check and no extra dummy
-    expect(checks.verifies - verifiesAfterUnknownUser).toBe(1);
+    expect(dummyChecks.mock.calls.length).toBe(1); // a known user costs one real check and no extra dummy
+    expect(realChecks.mock.calls.length - realChecksAfterUnknownUser).toBe(1);
+    dummyChecks.mockRestore();
+    realChecks.mockRestore();
   });
 
   test("upgrades a password hash made at an older cost", async () => {
     const original = await buildEnvironment();
-    const stronger = new PasswordHasher(5);
+    const stronger = passwords.createPasswordHasher(5);
     const environment = withHasher(original, stronger);
     const oldHash = original.store.userByUsername(adminUsername)?.passwordHash ?? "";
 
@@ -179,8 +172,8 @@ describe("logging in", () => {
 
     const newHash = environment.store.userByUsername(adminUsername)?.passwordHash ?? "";
     expect(newHash).not.toBe(oldHash);
-    expect(await stronger.verify(newHash, adminPassword)).toBe(true);
-    expect(stronger.needsUpgrade(newHash)).toBe(false);
+    expect(await passwords.verifyPassword(newHash, adminPassword)).toBe(true);
+    expect(passwords.needsUpgrade(stronger, newHash)).toBe(false);
   });
 
   test("does not rehash when the cost is already current", async () => {

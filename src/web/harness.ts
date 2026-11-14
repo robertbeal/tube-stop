@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { Hono } from "hono";
 import { type NewVideo, Store, type User } from "../db/store.ts";
-import { PasswordHasher } from "../passwords.ts";
+import { createPasswordHasher, hashPassword } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { ThumbnailStore } from "../thumbnails.ts";
 import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";
@@ -53,11 +53,11 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const thumbDir = join(directory, "thumbs");
   const clock = new FakeClock();
   const store = new Store(join(directory, "tubestop.db"), () => Math.floor(clock.now() / 1000));
-  const hasher = new PasswordHasher(4); // the cheapest bcrypt keeps tests fast
+  const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
   const admin =
     options.withAdmin === false
       ? null
-      : store.createFirstUser(adminUsername, await hasher.hash(adminPassword));
+      : store.createFirstUser(adminUsername, await hashPassword(hasher, adminPassword));
 
   const logs: string[] = [];
   const triggers = { sync: 0, pins: 0, cache: 0 };

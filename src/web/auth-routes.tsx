@@ -3,7 +3,13 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { AlreadySetUpError, type User } from "../db/store.ts";
-import { PasswordRuleError } from "../passwords.ts";
+import {
+  hashPassword,
+  needsUpgrade,
+  PasswordRuleError,
+  spendTimeVerifying,
+  verifyPassword,
+} from "../passwords.ts";
 import { capitalise, loginPath, safeNext, sessionCookieName, setupPath, usernameProblem } from "./auth.ts";
 import type { Services } from "./services.ts";
 import { LoginPage, SetupPage } from "./views.tsx";
@@ -116,8 +122,8 @@ export function authRoutes(services: Services): {
     const password = field("password");
     const user = store.userByUsername(username);
     if (user === null) {
-      await hasher.spendTimeVerifying(password); // an unknown username must cost the same time as a wrong password
-    } else if (await hasher.verify(user.passwordHash, password)) {
+      await spendTimeVerifying(hasher, password); // an unknown username must cost the same time as a wrong password
+    } else if (await verifyPassword(user.passwordHash, password)) {
       await upgradeHash(user, password);
       return startSession(context, user.id, next);
     }
@@ -127,11 +133,11 @@ export function authRoutes(services: Services): {
 
   /** Replaces a password hash made at an older, cheaper cost. Failing to do so is harmless, so it is only logged. */
   const upgradeHash = async (user: User, password: string): Promise<void> => {
-    if (!hasher.needsUpgrade(user.passwordHash)) {
+    if (!needsUpgrade(hasher, user.passwordHash)) {
       return;
     }
     try {
-      store.updatePassword(user.id, await hasher.hash(password));
+      store.updatePassword(user.id, await hashPassword(hasher, password));
     } catch (error) {
       services.log(
         `web: upgrade password hash of "${user.username}": ${error instanceof Error ? error.message : error}`,
@@ -183,7 +189,7 @@ export function authRoutes(services: Services): {
       return rejected(422, "The two passwords do not match.");
     }
     try {
-      const user = store.createFirstUser(username, await hasher.hash(password));
+      const user = store.createFirstUser(username, await hashPassword(hasher, password));
       setupCode.clear();
       return startSession(context, user.id, "/admin");
     } catch (error) {
@@ -209,7 +215,7 @@ export function changePassword(services: Services) {
       return redirectWithMessage(context, tooManyAttempts);
     }
     const field = await formFields(context);
-    if (!(await hasher.verify(user.passwordHash, field("current")))) {
+    if (!(await verifyPassword(user.passwordHash, field("current")))) {
       limiter.recordFailure();
       return redirectWithMessage(context, "Your current password is wrong.");
     }
@@ -218,7 +224,7 @@ export function changePassword(services: Services) {
       return redirectWithMessage(context, "The two new passwords do not match.");
     }
     try {
-      store.updatePassword(user.id, await hasher.hash(newPassword));
+      store.updatePassword(user.id, await hashPassword(hasher, newPassword));
     } catch (error) {
       if (error instanceof PasswordRuleError) {
         return redirectWithMessage(context, `${capitalise(error.message)}.`);

@@ -27,52 +27,51 @@ function costOf(hash: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-/** Hashes and checks admin passwords with bcrypt at a fixed cost. Only the hash is ever stored. */
-export class PasswordHasher {
-  readonly #cost: number;
+/** The settings for hashing admin passwords with bcrypt. Only the hash is ever stored. */
+export interface PasswordHasher {
+  cost: number;
   // A hash of a password nobody knows. Checking against it makes a login for a non-existent
   // user take as long as one with a wrong password.
-  readonly #unknownUserHash: Promise<string>;
+  unknownUserHash: Promise<string>;
+}
 
-  constructor(cost: number = defaultCost) {
-    if (!Number.isInteger(cost) || cost < minCost || cost > maxCost) {
-      throw new Error(`bcrypt cost ${cost} is outside ${minCost}-${maxCost}`);
-    }
-    this.#cost = cost;
-    this.#unknownUserHash = Bun.password.hash("a password nobody has", { algorithm: "bcrypt", cost });
+export function createPasswordHasher(cost: number = defaultCost): PasswordHasher {
+  if (!Number.isInteger(cost) || cost < minCost || cost > maxCost) {
+    throw new Error(`bcrypt cost ${cost} is outside ${minCost}-${maxCost}`);
   }
+  return { cost, unknownUserHash: Bun.password.hash("a password nobody has", { algorithm: "bcrypt", cost }) };
+}
 
-  async hash(password: string): Promise<string> {
-    const problem = passwordProblem(password);
-    if (problem) {
-      throw new PasswordRuleError(problem);
-    }
-    return Bun.password.hash(password, { algorithm: "bcrypt", cost: this.#cost });
+export async function hashPassword(hasher: PasswordHasher, password: string): Promise<string> {
+  const problem = passwordProblem(password);
+  if (problem) {
+    throw new PasswordRuleError(problem);
   }
+  return Bun.password.hash(password, { algorithm: "bcrypt", cost: hasher.cost });
+}
 
-  /**
-   * A malformed hash never matches, and neither does a password longer than the maximum:
-   * bcrypt would otherwise compare only its first 72 bytes.
-   */
-  async verify(hash: string, password: string): Promise<boolean> {
-    if (Buffer.byteLength(password) > maxPasswordLength) {
-      return false;
-    }
-    try {
-      return await Bun.password.verify(password, hash);
-    } catch {
-      return false;
-    }
+/**
+ * A malformed hash never matches, and neither does a password longer than the maximum:
+ * bcrypt would otherwise compare only its first 72 bytes.
+ */
+export async function verifyPassword(hash: string, password: string): Promise<boolean> {
+  if (Buffer.byteLength(password) > maxPasswordLength) {
+    return false;
   }
+  try {
+    return await Bun.password.verify(password, hash);
+  } catch {
+    return false;
+  }
+}
 
-  /** Does the work of a failed check, so the time taken does not reveal whether a username exists. */
-  async spendTimeVerifying(password: string): Promise<void> {
-    await this.verify(await this.#unknownUserHash, password);
-  }
+/** Does the work of a failed check, so the time taken does not reveal whether a username exists. */
+export async function spendTimeVerifying(hasher: PasswordHasher, password: string): Promise<void> {
+  await verifyPassword(await hasher.unknownUserHash, password);
+}
 
-  /** True when the hash was made at a lower cost than this hasher uses, or is malformed. */
-  needsUpgrade(hash: string): boolean {
-    const cost = costOf(hash);
-    return cost === undefined || cost < this.#cost;
-  }
+/** True when the hash was made at a lower cost than this hasher uses, or is malformed. */
+export function needsUpgrade(hasher: PasswordHasher, hash: string): boolean {
+  const cost = costOf(hash);
+  return cost === undefined || cost < hasher.cost;
 }
