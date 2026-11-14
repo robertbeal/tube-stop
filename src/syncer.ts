@@ -1,5 +1,5 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { type Channel, getChannels, insertVideo, markChannelSynced, type Store } from "./db/store.ts";
-import { sleep } from "./sleep.ts";
 import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
@@ -25,7 +25,7 @@ export const createSyncer = (
 export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
   await syncAll(syncer, signal);
   while (!signal.aborted) {
-    await sleep(syncer.intervalMs, signal);
+    await delay(syncer.intervalMs, undefined, { signal }).catch(() => undefined);
     await syncAll(syncer, signal);
   }
 }

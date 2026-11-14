@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   claimCache,
   claimDownload,
@@ -12,7 +13,6 @@ import {
   type Store,
   type Video,
 } from "./db/store.ts";
-import { sleep } from "./sleep.ts";
 import { removeMedia } from "./storage.ts";
 import type { Download } from "./ytdlp/types.ts";
 
@@ -82,7 +82,7 @@ async function loop(
     while (await processNext().catch((error) => logFailure(worker, error))) {
       // more work is queued
     }
-    await sleep(pollIntervalMs, signal);
+    await delay(pollIntervalMs, undefined, { signal }).catch(() => undefined);
   }
 }
 
@@ -94,7 +94,7 @@ function logFailure(worker: DownloadWorker, error: unknown): false {
 async function janitorLoop(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
   while (!signal.aborted) {
     await janitor(worker);
-    await sleep(janitorIntervalMs, signal);
+    await delay(janitorIntervalMs, undefined, { signal }).catch(() => undefined);
   }
 }
 
