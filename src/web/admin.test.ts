@@ -40,14 +40,11 @@ async function environmentWithSong() {
 }
 
 const pianoGuyVideo: Resolved = {
-  kind: "video",
-  video: {
-    id: videoId,
-    title: "Moonlight",
-    channel: { id: "UC1", name: "Piano Guy" },
-    duration: 90,
-    publishedAt: 0,
-  },
+  id: videoId,
+  title: "Moonlight",
+  channel: { id: "UC1", name: "Piano Guy" },
+  duration: 90,
+  publishedAt: 0,
 };
 
 describe("access control", () => {
@@ -312,7 +309,7 @@ describe("adding by URL", () => {
 
   test("a channel URL allows the channel and starts a sync", async () => {
     const environment = await buildEnvironment({
-      resolve: async () => ({ kind: "channel", id: "UC1", name: "Piano Guy" }),
+      resolve: async () => ({ id: "UC1", name: "Piano Guy" }),
     });
 
     const message = redirectMessage(

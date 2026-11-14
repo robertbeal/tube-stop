@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { directorySize, removeMedia } from "../storage.ts";
+import { isVideo } from "../ytdlp.ts";
 import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
 import { adminPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
 import type { Services } from "./services.ts";
@@ -67,16 +68,16 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     if (!resolved.ok) {
       return redirectWithMessage(context, `Could not read that URL: ${resolved.message}`);
     }
-    if (resolved.value.kind === "channel") {
-      const { id, name } = resolved.value;
-      const added = messageFrom(() => store.addChannel(id, name));
+    const { value } = resolved;
+    if (!isVideo(value)) {
+      const added = messageFrom(() => store.addChannel(value.id, value.name));
       if (!added.ok) {
         return redirectWithMessage(context, added.message);
       }
       services.syncer.trigger();
-      return redirectWithMessage(context, `Allowed channel ${name} (syncing videos…)`);
+      return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
     }
-    const { video } = resolved.value;
+    const video = value;
     const allowed = messageFrom(() =>
       store.allowVideo({
         youtubeId: video.id,

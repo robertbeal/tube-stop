@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { type Stub, stubYtDlp as writeStub } from "./test-helpers.ts";
-import { downloadToCache, downloadToLibrary, listChannel, resolveUrl } from "./ytdlp.ts";
+import { downloadToCache, downloadToLibrary, isVideo, listChannel, resolveUrl } from "./ytdlp.ts";
 
 const neverAborted = new AbortController().signal;
 
@@ -31,14 +31,11 @@ describe("resolve", () => {
     const resolved = await resolveUrl(binary, "https://youtu.be/abcdefghijk", neverAborted);
 
     expect(resolved).toEqual({
-      kind: "video",
-      video: {
-        id: "abcdefghijk",
-        title: "Moonlight Sonata",
-        channel: { id: "UC123", name: "Piano Guy" },
-        duration: 125,
-        publishedAt: 0,
-      },
+      id: "abcdefghijk",
+      title: "Moonlight Sonata",
+      channel: { id: "UC123", name: "Piano Guy" },
+      duration: 125,
+      publishedAt: 0,
     });
   });
 
@@ -47,7 +44,6 @@ describe("resolve", () => {
       '{"_type":"playlist","title":"Piano Guy - Videos","channel":"Piano Guy","channel_id":"UC123","entries":[]}',
     );
     expect(await resolveUrl(binary, "https://www.youtube.com/@pianoguy", neverAborted)).toEqual({
-      kind: "channel",
       id: "UC123",
       name: "Piano Guy",
     });
@@ -58,7 +54,6 @@ describe("resolve", () => {
       '{"_type":"playlist","title":"Piano Guy - Videos","entries":[{"id":"abcdefghijk","channel_id":"UC999"}]}',
     );
     expect(await resolveUrl(binary, "https://www.youtube.com/@pianoguy/videos", neverAborted)).toEqual({
-      kind: "channel",
       id: "UC999",
       name: "Piano Guy",
     });
@@ -92,7 +87,7 @@ describe("resolve", () => {
       '{"_type":"video","id":"abcdefghijk","title":"Song","upload_date":"20240305"}',
     );
     const resolved = await resolveUrl(binary, "https://youtu.be/abcdefghijk", neverAborted);
-    expect(resolved.kind === "video" && resolved.video.publishedAt).toBe(Date.UTC(2024, 2, 5) / 1000);
+    expect(isVideo(resolved) && resolved.publishedAt).toBe(Date.UTC(2024, 2, 5) / 1000);
   });
 
   test("a timestamp wins over the upload date", async () => {
@@ -100,13 +95,13 @@ describe("resolve", () => {
       '{"_type":"video","id":"abcdefghijk","timestamp":1700000000,"upload_date":"20240305"}',
     );
     const resolved = await resolveUrl(binary, "https://youtu.be/abcdefghijk", neverAborted);
-    expect(resolved.kind === "video" && resolved.video.publishedAt).toBe(1700000000);
+    expect(isVideo(resolved) && resolved.publishedAt).toBe(1700000000);
   });
 
   test("a malformed upload date means unknown", async () => {
     const { binary } = await printing('{"_type":"video","id":"abcdefghijk","upload_date":"not-a-date"}');
     const resolved = await resolveUrl(binary, "https://youtu.be/abcdefghijk", neverAborted);
-    expect(resolved.kind === "video" && resolved.video.publishedAt).toBe(0);
+    expect(isVideo(resolved) && resolved.publishedAt).toBe(0);
   });
 });
 

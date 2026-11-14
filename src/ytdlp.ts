@@ -1,12 +1,10 @@
 import { join } from "node:path";
 
-/** A channel as described by yt-dlp. */
 export interface Channel {
   id: string;
   name: string;
 }
 
-/** A video as described by yt-dlp. */
 export interface Video {
   id: string;
   title: string;
@@ -18,7 +16,10 @@ export interface Video {
 }
 
 /** What a pasted URL points at. */
-export type Resolved = { kind: "video"; video: Video } | ({ kind: "channel" } & Channel);
+export type Resolved = Video | Channel;
+
+/** A video is the one with a channel of its own; a channel is just an id and a name. */
+export const isVideo = (resolved: Resolved): resolved is Video => "channel" in resolved;
 
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
@@ -108,12 +109,12 @@ export async function resolveUrl(binary: string, url: string, signal: AbortSigna
   );
   const response: Info = JSON.parse(output);
   if (response._type === "playlist") {
-    return { kind: "channel", ...toChannel(response) };
+    return toChannel(response);
   }
   if (!response.id) {
     throw new Error("could not determine video from URL");
   }
-  return { kind: "video", video: toVideo(response) };
+  return toVideo(response);
 }
 
 /** Up to `limit` recent videos from a channel, newest first. */
