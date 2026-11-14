@@ -1,6 +1,6 @@
 import type { Channel, NewVideo } from "./db/store.ts";
 import { Wakeup } from "./wakeup.ts";
-import type { ChannelLister, Video } from "./ytdlp.ts";
+import type { ListChannel, Video } from "./ytdlp.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
@@ -15,19 +15,19 @@ export interface SyncStore {
 /** Copies the recent videos of each allowed channel into the database, on a schedule and on demand. */
 export class ChannelSyncer {
   readonly #store: SyncStore;
-  readonly #lister: ChannelLister;
+  readonly #listChannel: ListChannel;
   readonly #intervalMs: number;
   readonly #log: (message: string) => void;
   readonly #wakeup = new Wakeup();
 
   constructor(
     store: SyncStore,
-    lister: ChannelLister,
+    listChannel: ListChannel,
     intervalMs: number,
     log: (message: string) => void = console.log,
   ) {
     this.#store = store;
-    this.#lister = lister;
+    this.#listChannel = listChannel;
     this.#intervalMs = intervalMs;
     this.#log = log;
   }
@@ -71,7 +71,7 @@ export class ChannelSyncer {
   async #syncChannel(channel: Channel, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
     try {
-      const listed = await this.#lister.listChannel(channel.youtubeId, recentVideos, timeout);
+      const listed = await this.#listChannel(channel.youtubeId, recentVideos, timeout);
       // Insert oldest first so newer videos get higher ids, and are shown first.
       for (const video of listed.toReversed()) {
         this.#insert(channel, video);

@@ -60,7 +60,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
       return redirectWithMessage(context, "Enter a URL");
     }
     const signal = AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(resolveTimeoutMs)]);
-    const resolved = await services.resolver.resolve(url, signal).then(
+    const resolved = await services.resolveUrl(url, signal).then(
       (value) => ({ ok: true as const, value }),
       (error) => ({ ok: false as const, message: describe(error) }),
     );

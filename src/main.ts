@@ -21,11 +21,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
 
   const store = new Store(join(config.dataDir, "tubestop.db"));
   const binary = config.ytdlpBin;
-  const syncer = new ChannelSyncer(
-    store,
-    { listChannel: listChannel.bind(null, binary) },
-    config.syncIntervalMs,
-  );
+  const syncer = new ChannelSyncer(store, listChannel.bind(null, binary), config.syncIntervalMs);
   const downloads = new DownloadWorker(
     store,
     {
@@ -42,7 +38,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
   );
   const app = createApp({
     store,
-    resolver: { resolve: resolveUrl.bind(null, binary) },
+    resolveUrl: resolveUrl.bind(null, binary),
     syncer,
     downloads,
     thumbnails: new ThumbnailStore(join(config.dataDir, "thumbs")),

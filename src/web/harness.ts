@@ -4,7 +4,7 @@ import { type NewVideo, Store, type User } from "../db/store.ts";
 import { PasswordHasher } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
 import { ThumbnailStore } from "../thumbnails.ts";
-import type { Resolved, Resolver } from "../ytdlp.ts";
+import type { Resolved, ResolveUrl } from "../ytdlp.ts";
 import { createApp } from "./app.tsx";
 
 export const adminUsername = "parent";
@@ -63,11 +63,9 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const triggers = { sync: 0, pins: 0, cache: 0 };
   const imageServer = { requests: [] as string[], failing: false };
   const resolved: string[] = [];
-  const resolver: Resolver = {
-    resolve: (url) => {
-      resolved.push(url);
-      return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
-    },
+  const resolveUrl: ResolveUrl = (url) => {
+    resolved.push(url);
+    return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
   };
   const fakeImageFetch = (async (input: string | URL | Request) => {
     imageServer.requests.push(String(input));
@@ -78,7 +76,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
 
   const app = createApp({
     store,
-    resolver,
+    resolveUrl,
     syncer: {
       trigger: () => {
         triggers.sync += 1;

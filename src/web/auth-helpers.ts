@@ -88,7 +88,7 @@ function expectRedirect(response: Response): void {
 export function withHasher(environment: Environment, hasher: PasswordHasher): Environment {
   const app = createApp({
     store: environment.store,
-    resolver: { resolve: () => Promise.reject(new Error("no resolver in this test")) },
+    resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
     syncer: { trigger: () => undefined },
     downloads: { triggerPins: () => undefined, triggerCache: () => undefined },
     thumbnails: new ThumbnailStore(environment.thumbDir, "http://images.test", fetch),

@@ -17,18 +17,24 @@ export type Resolved =
   | { kind: "video"; video: Video }
   | { kind: "channel"; channelId: string; channelName: string };
 
-export interface Resolver {
-  resolve(url: string, signal?: AbortSignal): Promise<Resolved>;
-}
+export type ResolveUrl = (url: string, signal?: AbortSignal) => Promise<Resolved>;
 
-export interface ChannelLister {
-  listChannel(channelId: string, limit: number, signal?: AbortSignal): Promise<Video[]>;
-}
+export type ListChannel = (channelId: string, limit: number, signal?: AbortSignal) => Promise<Video[]>;
 
-export interface Fetcher {
-  downloadToLibrary(id: string, directory: string, maxHeight: number, signal?: AbortSignal): Promise<string>;
-  downloadToCache(id: string, directory: string, maxHeight: number, signal?: AbortSignal): Promise<string>;
-}
+export type Fetcher = {
+  downloadToLibrary: (
+    id: string,
+    directory: string,
+    maxHeight: number,
+    signal?: AbortSignal,
+  ) => Promise<string>;
+  downloadToCache: (
+    id: string,
+    directory: string,
+    maxHeight: number,
+    signal?: AbortSignal,
+  ) => Promise<string>;
+};
 
 interface YtDlpResponse {
   _type?: string;

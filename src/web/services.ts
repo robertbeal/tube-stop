@@ -1,13 +1,13 @@
 import type { Store } from "../db/store.ts";
 import type { PasswordHasher } from "../passwords.ts";
 import type { Thumbnails } from "../thumbnails.ts";
-import type { Resolver } from "../ytdlp.ts";
+import type { ResolveUrl } from "../ytdlp.ts";
 import type { LoginLimiter, SessionStore, SetupCode } from "./auth.ts";
 
 /** Everything the web layer needs from the rest of the app. */
 export interface WebDependencies {
   store: Store;
-  resolver: Resolver;
+  resolveUrl: ResolveUrl;
   syncer: { trigger(): void };
   downloads: { triggerPins(): void; triggerCache(): void };
   thumbnails: Thumbnails;
