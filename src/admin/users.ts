@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from "bun:sqlite";
-import { get, immediately, requireRow, run } from "../db/query.ts";
-import { AlreadySetUpError, type Store, type User } from "../db/types.ts";
+import { get, immediately, run } from "../db/query.ts";
+import { AlreadySetUpError, NotFoundError, type Store, type User } from "../db/types.ts";
 
 interface UserRow {
   id: number;
@@ -47,7 +47,10 @@ export function getUserById(store: Store, id: number): User | null {
 }
 
 export function updatePassword(store: Store, id: number, passwordHash: string): void {
-  requireRow(run(store, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, id));
+  const changes = run(store, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, id);
+  if (changes === 0) {
+    throw new NotFoundError();
+  }
 }
 
 /** Removes the admin account (to recover from a forgotten password). Returns how many were removed. */

@@ -1,5 +1,5 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
-import { all, get, immediately, requireRow, run } from "./query.ts";
+import { all, get, immediately, run } from "./query.ts";
 import { migrations } from "./schema.ts";
 import {
   type Channel,
@@ -230,7 +230,10 @@ export function allowVideo(store: Store, video: NewVideo): void {
 
 /** Hides a video from the child, even if its channel is allowed. */
 export function blockVideo(store: Store, youtubeId: string): void {
-  requireRow(run(store, "UPDATE videos SET rule = 'block' WHERE youtube_id = ?", youtubeId));
+  const changes = run(store, "UPDATE videos SET rule = 'block' WHERE youtube_id = ?", youtubeId);
+  if (changes === 0) {
+    throw new NotFoundError();
+  }
 }
 
 /** Reverses `block`: back to the channel's rule, or to an explicit allow if its channel is not allowed. */
@@ -296,16 +299,17 @@ export function recordPlay(store: Store, youtubeId: string): void {
 
 /** Marks a video to be kept, and queues a download if no file is ready. */
 export function pinVideo(store: Store, youtubeId: string): void {
-  requireRow(
-    run(
-      store,
-      `UPDATE videos SET pinned = 1,
-         download_status = CASE WHEN download_status = 'ready' THEN 'ready' WHEN download_status = 'downloading' THEN 'downloading' ELSE 'queued' END,
-         download_error = ''
-       WHERE youtube_id = ?`,
-      youtubeId,
-    ),
+  const changes = run(
+    store,
+    `UPDATE videos SET pinned = 1,
+       download_status = CASE WHEN download_status = 'ready' THEN 'ready' WHEN download_status = 'downloading' THEN 'downloading' ELSE 'queued' END,
+       download_error = ''
+     WHERE youtube_id = ?`,
+    youtubeId,
   );
+  if (changes === 0) {
+    throw new NotFoundError();
+  }
 }
 
 /**
