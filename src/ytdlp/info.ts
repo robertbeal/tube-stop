@@ -14,11 +14,11 @@ export interface Info {
   entries?: Info[];
 }
 
-const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
-
 /** The one way to make a `VideoId`: anything that is not a YouTube video id gives undefined. */
 export function parseVideoId(value: string | undefined): VideoId | undefined {
-  return value !== undefined && videoIdPattern.test(value) ? (value as VideoId) : undefined;
+  const pattern = /^[A-Za-z0-9_-]{11}$/;
+
+  return value !== undefined && pattern.test(value) ? (value as VideoId) : undefined;
 }
 
 function publishedAt(info: Info): number {
