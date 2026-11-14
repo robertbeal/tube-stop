@@ -1,13 +1,16 @@
 import { join } from "node:path";
 
+/** A channel as described by yt-dlp. */
+export interface Channel {
+  id: string;
+  name: string;
+}
+
 /** A video as described by yt-dlp. */
 export interface Video {
   id: string;
   title: string;
-  channel: {
-    id: string;
-    name: string;
-  };
+  channel: Channel;
   /** Seconds. */
   duration: number;
   /** Upload time in unix seconds, or 0 if unknown. For channel listings it is approximate (accurate to the day). */
@@ -15,7 +18,7 @@ export interface Video {
 }
 
 /** What a pasted URL points at. */
-export type Resolved = { kind: "video"; video: Video } | { kind: "channel"; id: string; name: string };
+export type Resolved = { kind: "video"; video: Video } | ({ kind: "channel" } & Channel);
 
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
@@ -69,7 +72,7 @@ function toVideo(info: Info): Video {
   };
 }
 
-function toChannel(info: Info): Resolved {
+function toChannel(info: Info): Channel {
   const id = info.channel_id || info.entries?.[0]?.channel_id || "";
 
   if (id === "") {
@@ -77,7 +80,7 @@ function toChannel(info: Info): Resolved {
   }
 
   const name = info.channel || info.uploader || (info.title ?? "").replace(/ - Videos$/, "");
-  return { kind: "channel", id, name };
+  return { id, name };
 }
 
 async function ytdlp(binary: string, args: string[], signal: AbortSignal): Promise<string> {
@@ -105,7 +108,7 @@ export async function resolveUrl(binary: string, url: string, signal: AbortSigna
   );
   const response: Info = JSON.parse(output);
   if (response._type === "playlist") {
-    return toChannel(response);
+    return { kind: "channel", ...toChannel(response) };
   }
   if (!response.id) {
     throw new Error("could not determine video from URL");
