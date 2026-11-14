@@ -11,12 +11,14 @@ export const adminUsername = "parent";
 export const adminPassword = "correct horse battery";
 
 /** A clock the test can move. */
-export class FakeClock {
-  milliseconds = Date.UTC(2026, 0, 1, 12, 0, 0);
-  now = () => this.milliseconds;
-  advance(milliseconds: number): void {
-    this.milliseconds += milliseconds;
-  }
+export interface FakeClock {
+  milliseconds: number;
+}
+
+export const createFakeClock = (): FakeClock => ({ milliseconds: Date.UTC(2026, 0, 1, 12, 0, 0) });
+
+export function advanceClock(clock: FakeClock, milliseconds: number): void {
+  clock.milliseconds += milliseconds;
 }
 
 export interface Environment {
@@ -51,8 +53,8 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
   const mediaDir = join(directory, "media");
   const cacheDir = join(directory, "cache");
   const thumbDir = join(directory, "thumbs");
-  const clock = new FakeClock();
-  const store = new Store(join(directory, "tubestop.db"), () => Math.floor(clock.now() / 1000));
+  const clock = createFakeClock();
+  const store = new Store(join(directory, "tubestop.db"), () => Math.floor(clock.milliseconds / 1000));
   const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
   const admin =
     options.withAdmin === false
@@ -95,7 +97,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     cacheDir,
     hasher,
     sessionLifetimeMs: options.sessionLifetimeMs,
-    now: clock.now,
+    now: () => clock.milliseconds,
     log: (message) => void logs.push(message),
   });
   return { app, store, clock, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };

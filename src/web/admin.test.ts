@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Resolved } from "../ytdlp/types.ts";
-import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
+import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
 import {
   allowPianoVideo,
   countOccurrences,
@@ -263,7 +263,7 @@ describe("the admin page", () => {
       publishedAt: 0,
     });
     environment.store.markSynced("UC1");
-    environment.clock.advance(2 * 60 * 60 * 1000);
+    advanceClock(environment.clock, 2 * 60 * 60 * 1000);
 
     const body = await adminPage(environment);
 

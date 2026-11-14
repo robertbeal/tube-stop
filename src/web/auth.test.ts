@@ -23,9 +23,10 @@ import {
 import {
   adminPassword,
   adminUsername,
+  advanceClock,
   allow,
   buildEnvironment,
-  FakeClock,
+  createFakeClock,
   logIn,
   send,
   sessionCookie,
@@ -313,18 +314,18 @@ describe("session expiry and logout", () => {
   test("a session works until its lifetime ends and then stops", async () => {
     const environment = await buildEnvironment();
     const cookie = await logIn(environment);
-    environment.clock.advance(thirtyDays - minute);
+    advanceClock(environment.clock, thirtyDays - minute);
     expect((await send(environment, "/admin", { cookie })).status).toBe(200);
-    environment.clock.advance(2 * minute);
+    advanceClock(environment.clock, 2 * minute);
     expect((await send(environment, "/admin", { cookie })).status).toBe(303);
   });
 
   test("the lifetime is configurable", async () => {
     const environment = await buildEnvironment({ sessionLifetimeMs: 60 * minute });
     const cookie = await logIn(environment);
-    environment.clock.advance(59 * minute);
+    advanceClock(environment.clock, 59 * minute);
     expect((await send(environment, "/admin", { cookie })).status).toBe(200);
-    environment.clock.advance(2 * minute);
+    advanceClock(environment.clock, 2 * minute);
     expect((await send(environment, "/admin", { cookie })).status).toBe(303);
   });
 
@@ -395,14 +396,14 @@ describe("brute force protection", () => {
   test("login works again once the minute has passed", async () => {
     const environment = await buildEnvironment();
     await failLogins(environment, 5);
-    environment.clock.advance(61 * 1000);
+    advanceClock(environment.clock, 61 * 1000);
     expect(await tryLogIn(environment, adminUsername, adminPassword)).toBeDefined();
   });
 
   test("old failures age out rather than adding up forever", async () => {
     const environment = await buildEnvironment();
     await failLogins(environment, 4);
-    environment.clock.advance(61 * 1000);
+    advanceClock(environment.clock, 61 * 1000);
     await failLogins(environment, 4);
     expect(await tryLogIn(environment, adminUsername, adminPassword)).toBeDefined();
   });
@@ -411,24 +412,24 @@ describe("brute force protection", () => {
     const environment = await buildEnvironment();
     await failLogins(environment, 5);
     await failLogins(environment, 10);
-    environment.clock.advance(61 * 1000);
+    advanceClock(environment.clock, 61 * 1000);
     expect(await tryLogIn(environment, adminUsername, adminPassword)).toBeDefined();
   });
 });
 
 describe("sessions", () => {
   test("looks up a created session until it expires", () => {
-    const clock = new FakeClock();
-    const sessions = createSessions(1000, clock.now);
+    const clock = createFakeClock();
+    const sessions = createSessions(1000, () => clock.milliseconds);
     const { token, expiresAt } = createSession(sessions, 7);
-    expect(expiresAt).toBe(clock.now() + 1000);
+    expect(expiresAt).toBe(clock.milliseconds + 1000);
     expect(lookupSession(sessions, token)).toBe(7);
-    clock.advance(1000);
+    advanceClock(clock, 1000);
     expect(lookupSession(sessions, token)).toBeUndefined();
   });
 
   test("removeOthers keeps only the given session of that user", () => {
-    const sessions = createSessions(1000, new FakeClock().now);
+    const sessions = createSessions(1000, () => createFakeClock().milliseconds);
     const kept = createSession(sessions, 1).token;
     const dropped = createSession(sessions, 1).token;
     const otherUser = createSession(sessions, 2).token;
@@ -439,7 +440,7 @@ describe("sessions", () => {
   });
 
   test("remove ends a session", () => {
-    const sessions = createSessions(1000, new FakeClock().now);
+    const sessions = createSessions(1000, () => createFakeClock().milliseconds);
     const { token } = createSession(sessions, 1);
     removeSession(sessions, token);
     expect(lookupSession(sessions, token)).toBeUndefined();
@@ -448,14 +449,14 @@ describe("sessions", () => {
 
 describe("login limiter", () => {
   test("blocks after five failures and unblocks when they leave the window", () => {
-    const clock = new FakeClock();
-    const limiter = createLoginLimiter(clock.now);
+    const clock = createFakeClock();
+    const limiter = createLoginLimiter(() => clock.milliseconds);
     for (let failure = 0; failure < 5; failure += 1) {
       expect(isLoginBlocked(limiter)).toBe(false);
       recordLoginFailure(limiter);
     }
     expect(isLoginBlocked(limiter)).toBe(true);
-    clock.advance(minute + 1);
+    advanceClock(clock, minute + 1);
     expect(isLoginBlocked(limiter)).toBe(false);
   });
 });

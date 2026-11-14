@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { changeForm, changePassword, replacementPassword, tryLogIn } from "./auth-helpers.ts";
-import { adminPassword, adminUsername, buildEnvironment, logIn, send } from "./harness.ts";
+import { adminPassword, adminUsername, advanceClock, buildEnvironment, logIn, send } from "./harness.ts";
 
 describe("changing the password", () => {
   test("the new password works and the old one stops", async () => {
@@ -90,7 +90,7 @@ describe("changing the password", () => {
     );
     expect(limited).toContain("Too many");
     expect(await tryLogIn(environment, adminUsername, replacementPassword)).toBeUndefined();
-    environment.clock.advance(61 * 1000);
+    advanceClock(environment.clock, 61 * 1000);
     const later = await changePassword(
       environment,
       cookie,

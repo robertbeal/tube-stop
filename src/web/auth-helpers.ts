@@ -95,7 +95,7 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
     mediaDir: environment.mediaDir,
     cacheDir: environment.cacheDir,
     hasher,
-    now: environment.clock.now,
+    now: () => environment.clock.milliseconds,
     log: (message) => void environment.logs.push(message),
   });
   return { ...environment, app };

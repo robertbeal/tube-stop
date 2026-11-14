@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
-import { buildEnvironment, send, sessionCookie } from "./harness.ts";
+import { advanceClock, buildEnvironment, send, sessionCookie } from "./harness.ts";
 
 const unclaimed = () => buildEnvironment({ withAdmin: false });
 
@@ -140,7 +140,7 @@ describe("setting up", () => {
       await postSetup(environment, setupForm("WRONG-CODE", newUsername, newPassword, newPassword));
     }
     const blocked = await postSetup(environment, setupForm(code, newUsername, newPassword, newPassword));
-    environment.clock.advance(61 * 1000);
+    advanceClock(environment.clock, 61 * 1000);
     const later = await postSetup(environment, setupForm(code, newUsername, newPassword, newPassword));
     expect(blocked.status).toBe(429);
     expect(later.status).toBe(303);
