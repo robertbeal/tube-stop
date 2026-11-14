@@ -64,9 +64,7 @@ describe("thumbnailPath", () => {
       () => new Response("<html>captcha</html>", { headers: { "content-type": "text/html" } }),
     );
 
-    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow(
-      'sent "text/html", not an image',
-    );
+    await expect(thumbnailPath(store, videoId, neverAborted)).rejects.toThrow("did not send an image");
     expect(await readdir(directory)).toEqual([]);
   });
 
