@@ -1,0 +1,105 @@
+import { mkdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { loadConfig } from "./config.ts";
+import { Store } from "./db/store.ts";
+import { DownloadWorker } from "./download.ts";
+import { ChannelSyncer } from "./syncer.ts";
+import { ThumbnailStore } from "./thumbnails.ts";
+import { createApp } from "./web/app.tsx";
+import { YtDlp } from "./ytdlp.ts";
+
+const shutdownGraceMs = 5000;
+
+function resetAdmin(dataDir: string): void {
+  const path = join(dataDir, "tubestop.db");
+  if (!Bun.file(path).size) {
+    throw new Error(`no database at ${path}: is DATA_DIR set to the same folder the app uses?`);
+  }
+  const store = new Store(path);
+  const removed = store.deleteUsers();
+  store.close();
+  console.log(
+    removed === 0
+      ? "There were no admin accounts to remove. Open /admin to set one up."
+      : `Removed ${removed} admin account(s). Videos, channels and settings were kept.\n` +
+          "Open /admin in the app to create a new account: the setup code is printed in the app's log.",
+  );
+}
+
+async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
+  // Other users (such as a Jellyfin container) need to read the media folders.
+  await Promise.all(
+    [config.dataDir, config.mediaDir, config.cacheDir].map((directory) =>
+      mkdir(directory, { recursive: true, mode: 0o755 }),
+    ),
+  );
+  const mediaDir = resolve(config.mediaDir);
+  const cacheDir = resolve(config.cacheDir);
+
+  const store = new Store(join(config.dataDir, "tubestop.db"));
+  const ytdlp = new YtDlp(config.ytdlpBin);
+  const syncer = new ChannelSyncer(store, ytdlp, config.syncIntervalMs);
+  const downloads = new DownloadWorker(store, ytdlp, {
+    mediaDir,
+    cacheDir,
+    keepMaxHeight: config.keepMaxHeight,
+    cacheTtlMs: config.cacheTtlMs,
+    cacheMaxBytes: config.cacheMaxBytes,
+  });
+  const app = createApp({
+    store,
+    resolver: ytdlp,
+    syncer,
+    downloads,
+    thumbnails: new ThumbnailStore(join(config.dataDir, "thumbs")),
+    mediaDir,
+    cacheDir,
+    sessionLifetimeMs: config.sessionLifetimeMs,
+  });
+
+  const stopping = new AbortController();
+  const workers = Promise.all([syncer.run(stopping.signal), downloads.run(stopping.signal)]);
+  const server = Bun.serve({
+    hostname: config.host,
+    port: config.port,
+    fetch: app.fetch,
+    idleTimeout: 120, // resolving a pasted URL can take a while without sending anything
+  });
+  console.log(`listening on ${server.url} (media: ${mediaDir})`);
+
+  const stopped = new Promise<void>((done) => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      process.once(signal, () => {
+        stopping.abort();
+        done();
+      });
+    }
+  });
+  await stopped;
+  await Promise.race([server.stop(), Bun.sleep(shutdownGraceMs)]);
+  await workers; // workers stop before the database closes
+  store.close();
+}
+
+async function main(): Promise<void> {
+  const config = (() => {
+    try {
+      return loadConfig(process.env);
+    } catch (error) {
+      throw new Error(`invalid configuration:\n${error instanceof Error ? error.message : error}`);
+    }
+  })();
+  const [command] = process.argv.slice(2);
+  if (command === undefined) {
+    return serve(config);
+  }
+  if (command === "reset-admin") {
+    return resetAdmin(config.dataDir);
+  }
+  throw new Error(`unknown command "${command}" (the only command is: reset-admin)`);
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});

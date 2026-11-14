@@ -1,0 +1,41 @@
+/* Styles that Bootstrap does not provide. Colours come from Bootstrap's theme variables, so
+   they follow the light or dark setting automatically. */
+
+.video-card {
+  transition: transform 0.1s ease-in-out;
+}
+.video-card:hover,
+.video-card:focus-visible {
+  transform: translateY(-2px);
+}
+.video-card img {
+  object-fit: cover;
+}
+.video-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Keep the player within the screen height on wide displays. */
+.player-frame {
+  max-width: calc(75vh * 16 / 9);
+  margin-inline: auto;
+}
+.player-frame video {
+  background: #000;
+}
+
+.auth-card {
+  max-width: 26rem;
+}
+.password-form {
+  max-width: 24rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-card {
+    transition: none;
+  }
+}

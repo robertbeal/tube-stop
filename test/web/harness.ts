@@ -1,0 +1,156 @@
+import { join } from "node:path";
+import type { Hono } from "hono";
+import { type NewVideo, Store, type User } from "../../src/db/store.ts";
+import { PasswordHasher } from "../../src/passwords.ts";
+import { ThumbnailStore } from "../../src/thumbnails.ts";
+import { createApp } from "../../src/web/app.tsx";
+import type { Resolved, Resolver } from "../../src/ytdlp.ts";
+import { temporaryDirectory } from "../helpers.ts";
+
+export const adminUsername = "parent";
+export const adminPassword = "correct horse battery";
+
+/** A clock the test can move. */
+export class FakeClock {
+  milliseconds = Date.UTC(2026, 0, 1, 12, 0, 0);
+  now = () => this.milliseconds;
+  advance(milliseconds: number): void {
+    this.milliseconds += milliseconds;
+  }
+}
+
+export interface Environment {
+  app: Hono;
+  store: Store;
+  clock: FakeClock;
+  mediaDir: string;
+  cacheDir: string;
+  thumbDir: string;
+  /** Messages the app logged. */
+  logs: string[];
+  /** How many times each worker was woken. */
+  triggers: { sync: number; pins: number; cache: number };
+  /** The images the fake thumbnail server was asked for, and whether it should fail. */
+  imageServer: { requests: string[]; failing: boolean };
+  /** The URLs the resolver was asked about. */
+  resolved: string[];
+  admin: User | null;
+}
+
+export interface EnvironmentOptions {
+  /** Create the admin account `parent` / `correct horse battery` (the default). Pass false to test first-run setup. */
+  withAdmin?: boolean;
+  /** Answers admin "add" requests; by default every URL fails to resolve. */
+  resolve?: (url: string) => Promise<Resolved>;
+  sessionLifetimeMs?: number;
+}
+
+/** A complete app on a temporary database and folders, with fakes for everything outside the process. */
+export async function buildEnvironment(options: EnvironmentOptions = {}): Promise<Environment> {
+  const directory = await temporaryDirectory();
+  const mediaDir = join(directory, "media");
+  const cacheDir = join(directory, "cache");
+  const thumbDir = join(directory, "thumbs");
+  const clock = new FakeClock();
+  const store = new Store(join(directory, "tubestop.db"), () => Math.floor(clock.now() / 1000));
+  const hasher = new PasswordHasher(4); // the cheapest bcrypt keeps tests fast
+  const admin =
+    options.withAdmin === false
+      ? null
+      : store.createFirstUser(adminUsername, await hasher.hash(adminPassword));
+
+  const logs: string[] = [];
+  const triggers = { sync: 0, pins: 0, cache: 0 };
+  const imageServer = { requests: [] as string[], failing: false };
+  const resolved: string[] = [];
+  const resolver: Resolver = {
+    resolve: (url) => {
+      resolved.push(url);
+      return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
+    },
+  };
+  const fakeImageFetch = (async (input: string | URL | Request) => {
+    imageServer.requests.push(String(input));
+    return imageServer.failing
+      ? new Response("nope", { status: 500 })
+      : new Response("JPEG", { headers: { "content-type": "image/jpeg" } });
+  }) as typeof fetch;
+
+  const app = createApp({
+    store,
+    resolver,
+    syncer: { trigger: () => void (triggers.sync += 1) },
+    downloads: {
+      triggerPins: () => void (triggers.pins += 1),
+      triggerCache: () => void (triggers.cache += 1),
+    },
+    thumbnails: new ThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
+    mediaDir,
+    cacheDir,
+    hasher,
+    sessionLifetimeMs: options.sessionLifetimeMs,
+    now: clock.now,
+    log: (message) => void logs.push(message),
+  });
+  return { app, store, clock, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
+}
+
+export interface RequestOptions {
+  method?: string;
+  /** Sent as a url-encoded form body. */
+  form?: Record<string, string>;
+  headers?: Record<string, string>;
+  /** A cookie header value, such as the one returned by `logIn`. */
+  cookie?: string;
+}
+
+export function send(
+  environment: Environment,
+  path: string,
+  options: RequestOptions = {},
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  if (options.cookie) {
+    headers.set("cookie", options.cookie);
+  }
+  if (options.form) {
+    headers.set("content-type", "application/x-www-form-urlencoded");
+  }
+  return Promise.resolve(
+    environment.app.request(path, {
+      method: options.method ?? (options.form ? "POST" : "GET"),
+      headers,
+      body: options.form ? new URLSearchParams(options.form).toString() : undefined,
+    }),
+  );
+}
+
+/** The `name=value` part of the session cookie a response set, for sending back as a cookie header. */
+export function sessionCookie(response: Response): string | undefined {
+  const header = response.headers.getSetCookie().find((cookie) => cookie.startsWith("tubestop_admin="));
+  return header?.split(";")[0];
+}
+
+/** Logs in as the admin and returns the cookie header value. */
+export async function logIn(environment: Environment): Promise<string> {
+  const response = await send(environment, "/admin/login", {
+    form: { username: adminUsername, password: adminPassword },
+  });
+  const cookie = sessionCookie(response);
+  if (response.status !== 303 || !cookie) {
+    throw new Error(`login failed with status ${response.status}`);
+  }
+  return cookie;
+}
+
+/** Adds a video the child may watch. */
+export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: string }): void {
+  environment.store.allowVideo({
+    channelYoutubeId: "",
+    channelName: "",
+    title: "A video",
+    duration: 0,
+    publishedAt: 0,
+    ...video,
+  });
+}
