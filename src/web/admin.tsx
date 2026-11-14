@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { directorySize, removeMedia } from "../storage.ts";
+import { removeThumbnail } from "../thumbnails.ts";
 import { isVideo } from "../ytdlp/types.ts";
 import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
 import { adminPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
@@ -173,7 +174,7 @@ async function videoAction(services: Services, action: string, id: string): Prom
         ...(await removeMedia(cacheDir, cachePath)),
         ...(blocked
           ? []
-          : await services.thumbnails.remove(id).then(
+          : await removeThumbnail(services.thumbnails, id).then(
               () => [],
               (error: unknown) => [error instanceof Error ? error : new Error(String(error))],
             )),

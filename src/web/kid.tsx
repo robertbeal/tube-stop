@@ -3,6 +3,7 @@ import { basename, extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
+import { thumbnailPath } from "../thumbnails.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
 import type { Services } from "./services.ts";
@@ -125,7 +126,7 @@ export function kidRoutes(services: Services): Hono {
     try {
       const path =
         (await pinnedThumbnail(video)) ||
-        (await services.thumbnails.path(video.youtubeId, context.req.raw.signal));
+        (await thumbnailPath(services.thumbnails, video.youtubeId, context.req.raw.signal));
       return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
     } catch (error) {
       services.log(`web: thumbnail of ${video.youtubeId}: ${error instanceof Error ? error.message : error}`);

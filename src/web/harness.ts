@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import { type NewVideo, Store, type User } from "../db/store.ts";
 import { createPasswordHasher, hashPassword } from "../passwords.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
-import { ThumbnailStore } from "../thumbnails.ts";
+import { createThumbnailStore } from "../thumbnails.ts";
 import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
@@ -90,7 +90,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
         triggers.cache += 1;
       },
     },
-    thumbnails: new ThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
+    thumbnails: createThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,
     cacheDir,
     hasher,

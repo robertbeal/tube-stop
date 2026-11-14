@@ -1,6 +1,6 @@
 import type { Store } from "../db/store.ts";
 import type { PasswordHasher } from "../passwords.ts";
-import type { Thumbnails } from "../thumbnails.ts";
+import type { ThumbnailStore } from "../thumbnails.ts";
 import type { ResolveUrl } from "../ytdlp/types.ts";
 import type { LoginLimiter, SessionStore, SetupCode } from "./auth.ts";
 
@@ -10,7 +10,7 @@ export interface WebDependencies {
   resolveUrl: ResolveUrl;
   syncer: { trigger(): void };
   downloads: { triggerPins(): void; triggerCache(): void };
-  thumbnails: Thumbnails;
+  thumbnails: ThumbnailStore;
   /** Pinned downloads. */
   mediaDir: string;
   /** Watch-once copies. */
