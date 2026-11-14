@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { createPasswordHasher } from "../passwords.ts";
 import { adminRoutes } from "./admin.tsx";
-import { LoginLimiter, SessionStore, SetupCode } from "./auth.ts";
+import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "./auth.ts";
 import { authRoutes } from "./auth-routes.tsx";
 import { kidRoutes } from "./kid.tsx";
 import type { Services, WebDependencies } from "./services.ts";
@@ -37,9 +37,9 @@ function withDefaults(dependencies: WebDependencies): Services {
     sessionLifetimeMs: dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs,
     now,
     log,
-    sessions: new SessionStore(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs, now),
-    limiter: new LoginLimiter(now),
-    setupCode: new SetupCode(log),
+    sessions: createSessions(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs, now),
+    limiter: createLoginLimiter(now),
+    setupCode: createSetupCode(log),
   };
 }
 
@@ -63,7 +63,7 @@ export function createApp(dependencies: WebDependencies): Hono {
   app.route("/admin", admin);
 
   if (services.store.userCount() === 0) {
-    services.setupCode.current(); // print the setup code at startup, where the admin will look
+    currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
   }
   return app;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SetupCode } from "./auth.ts";
+import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./auth-helpers.ts";
 import { buildEnvironment, send, sessionCookie } from "./harness.ts";
 
@@ -40,12 +40,12 @@ describe("the setup code", () => {
 
   test("is created once and then reused until cleared", () => {
     const messages: string[] = [];
-    const setupCode = new SetupCode((message) => void messages.push(message));
-    const first = setupCode.current();
-    expect(setupCode.current()).toBe(first);
+    const setupCode = createSetupCode((message) => void messages.push(message));
+    const first = currentSetupCode(setupCode);
+    expect(currentSetupCode(setupCode)).toBe(first);
     expect(messages).toHaveLength(1);
-    setupCode.clear();
-    expect(setupCode.matches(first)).toBe(false);
+    clearSetupCode(setupCode);
+    expect(setupCodeMatches(setupCode, first)).toBe(false);
     expect(messages).toHaveLength(2);
   });
 });

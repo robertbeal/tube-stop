@@ -10,7 +10,23 @@ import {
   spendTimeVerifying,
   verifyPassword,
 } from "../passwords.ts";
-import { capitalise, loginPath, safeNext, sessionCookieName, setupPath, usernameProblem } from "./auth.ts";
+import {
+  capitalise,
+  clearSetupCode,
+  createSession,
+  currentSetupCode,
+  isLoginBlocked,
+  loginPath,
+  lookupSession,
+  recordLoginFailure,
+  removeOtherSessions,
+  removeSession,
+  safeNext,
+  sessionCookieName,
+  setupCodeMatches,
+  setupPath,
+  usernameProblem,
+} from "./auth.ts";
 import type { Services } from "./services.ts";
 import { LoginPage, SetupPage } from "./views.tsx";
 
@@ -47,13 +63,13 @@ export function authRoutes(services: Services): {
   /** The admin the request is logged in as, or null if there is no session or its account has since been deleted. */
   const sessionUser = (context: Context): User | null => {
     const token = getCookie(context, sessionCookieName);
-    const userId = token === undefined ? undefined : sessions.lookup(token);
+    const userId = token === undefined ? undefined : lookupSession(sessions, token);
     if (token === undefined || userId === undefined) {
       return null;
     }
     const user = store.userById(userId);
     if (user === null) {
-      sessions.remove(token); // the account was removed, for example by reset-admin
+      removeSession(sessions, token); // the account was removed, for example by reset-admin
     }
     return user;
   };
@@ -67,7 +83,7 @@ export function authRoutes(services: Services): {
   });
 
   const startSession = (context: Context, userId: number, next: string): Response => {
-    const { token, expiresAt } = sessions.create(userId);
+    const { token, expiresAt } = createSession(sessions, userId);
     setCookie(context, sessionCookieName, token, {
       ...cookieOptions(context),
       expires: new Date(expiresAt),
@@ -115,7 +131,7 @@ export function authRoutes(services: Services): {
     const rejected = (status: 401 | 429, error: string) =>
       context.html(<LoginPage next={next} username={username} error={error} />, status);
 
-    if (limiter.blocked()) {
+    if (isLoginBlocked(limiter)) {
       context.header("Retry-After", "60");
       return rejected(429, tooManyAttempts);
     }
@@ -127,7 +143,7 @@ export function authRoutes(services: Services): {
       await upgradeHash(user, password);
       return startSession(context, user.id, next);
     }
-    limiter.recordFailure();
+    recordLoginFailure(limiter);
     return rejected(401, "Wrong username or password."); // the same message whichever was wrong
   });
 
@@ -148,7 +164,7 @@ export function authRoutes(services: Services): {
   routes.post("/admin/logout", (context) => {
     const token = getCookie(context, sessionCookieName);
     if (token !== undefined) {
-      sessions.remove(token);
+      removeSession(sessions, token);
     }
     setCookie(context, sessionCookieName, "", { ...cookieOptions(context), maxAge: 0 });
     return context.redirect(loginPath, 303);
@@ -159,7 +175,7 @@ export function authRoutes(services: Services): {
     if (store.userCount() > 0) {
       return context.notFound();
     }
-    setupCode.current(); // make sure a code has been printed to the log
+    currentSetupCode(setupCode); // make sure a code has been printed to the log
     return context.html(<SetupPage />);
   });
 
@@ -172,12 +188,12 @@ export function authRoutes(services: Services): {
     const rejected = (status: 401 | 422 | 429, error: string) =>
       context.html(<SetupPage username={username} error={error} />, status);
 
-    if (limiter.blocked()) {
+    if (isLoginBlocked(limiter)) {
       context.header("Retry-After", "60");
       return rejected(429, tooManyAttempts);
     }
-    if (!setupCode.matches(field("code"))) {
-      limiter.recordFailure();
+    if (!setupCodeMatches(setupCode, field("code"))) {
+      recordLoginFailure(limiter);
       return rejected(401, "Wrong setup code. It is printed in the app's log.");
     }
     const problem = usernameProblem(username);
@@ -190,7 +206,7 @@ export function authRoutes(services: Services): {
     }
     try {
       const user = store.createFirstUser(username, await hashPassword(hasher, password));
-      setupCode.clear();
+      clearSetupCode(setupCode);
       return startSession(context, user.id, "/admin");
     } catch (error) {
       if (error instanceof PasswordRuleError) {
@@ -211,12 +227,12 @@ export function changePassword(services: Services) {
   const { store, hasher, sessions, limiter } = services;
   return async (context: Context<AuthEnv>): Promise<Response> => {
     const user = context.get("user");
-    if (limiter.blocked()) {
+    if (isLoginBlocked(limiter)) {
       return redirectWithMessage(context, tooManyAttempts);
     }
     const field = await formFields(context);
     if (!(await verifyPassword(user.passwordHash, field("current")))) {
-      limiter.recordFailure();
+      recordLoginFailure(limiter);
       return redirectWithMessage(context, "Your current password is wrong.");
     }
     const newPassword = field("new");
@@ -233,7 +249,7 @@ export function changePassword(services: Services) {
     }
     const token = getCookie(context, sessionCookieName);
     if (token !== undefined) {
-      sessions.removeOthers(user.id, token);
+      removeOtherSessions(sessions, user.id, token);
     }
     return redirectWithMessage(context, "Password changed. Any other logins were signed out.");
   };

@@ -17,53 +17,54 @@ interface Session {
  * Remembers which admin login tokens are valid and whose they are. It lives in memory, so a
  * restart logs everyone out, which for a single admin just means logging in again.
  */
-export class SessionStore {
-  readonly #sessions = new Map<string, Session>();
-  readonly lifetimeMs: number;
-  readonly #now: () => number;
+export interface Sessions {
+  byToken: Map<string, Session>;
+  lifetimeMs: number;
+  now: () => number;
+}
 
-  constructor(lifetimeMs: number, now: () => number) {
-    this.lifetimeMs = lifetimeMs;
-    this.#now = now;
-  }
+export const createSessions = (lifetimeMs: number, now: () => number): Sessions => ({
+  byToken: new Map(),
+  lifetimeMs,
+  now,
+});
 
-  /** Starts a session for a user and returns its random token and when it expires. */
-  create(userId: number): { token: string; expiresAt: number } {
-    const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
-    const now = this.#now();
-    for (const [existing, session] of this.#sessions) {
-      if (now >= session.expiresAt) {
-        this.#sessions.delete(existing); // keeps the map from growing forever
-      }
+/** Starts a session for a user and returns its random token and when it expires. */
+export function createSession(sessions: Sessions, userId: number): { token: string; expiresAt: number } {
+  const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+  const now = sessions.now();
+  for (const [existing, session] of sessions.byToken) {
+    if (now >= session.expiresAt) {
+      sessions.byToken.delete(existing); // keeps the map from growing forever
     }
-    const expiresAt = now + this.lifetimeMs;
-    this.#sessions.set(token, { userId, expiresAt });
-    return { token, expiresAt };
   }
+  const expiresAt = now + sessions.lifetimeMs;
+  sessions.byToken.set(token, { userId, expiresAt });
+  return { token, expiresAt };
+}
 
-  /** The user a token belongs to, if the session has not expired or been removed. */
-  lookup(token: string): number | undefined {
-    const session = this.#sessions.get(token);
-    if (session === undefined) {
-      return undefined;
-    }
-    if (this.#now() >= session.expiresAt) {
-      this.#sessions.delete(token);
-      return undefined;
-    }
-    return session.userId;
+/** The user a token belongs to, if the session has not expired or been removed. */
+export function lookupSession(sessions: Sessions, token: string): number | undefined {
+  const session = sessions.byToken.get(token);
+  if (session === undefined) {
+    return undefined;
   }
-
-  remove(token: string): void {
-    this.#sessions.delete(token);
+  if (sessions.now() >= session.expiresAt) {
+    sessions.byToken.delete(token);
+    return undefined;
   }
+  return session.userId;
+}
 
-  /** Ends every session of a user except the one identified by `keep`. */
-  removeOthers(userId: number, keep: string): void {
-    for (const [token, session] of this.#sessions) {
-      if (session.userId === userId && token !== keep) {
-        this.#sessions.delete(token);
-      }
+export function removeSession(sessions: Sessions, token: string): void {
+  sessions.byToken.delete(token);
+}
+
+/** Ends every session of a user except the one identified by `keep`. */
+export function removeOtherSessions(sessions: Sessions, userId: number, keep: string): void {
+  for (const [token, session] of sessions.byToken) {
+    if (session.userId === userId && token !== keep) {
+      sessions.byToken.delete(token);
     }
   }
 }
@@ -73,28 +74,26 @@ export class SessionStore {
  * within a short window. It counts every failure together rather than per device, because
  * behind a home network all devices can look the same.
  */
-export class LoginLimiter {
-  #failures: number[] = [];
-  readonly #now: () => number;
+export interface LoginLimiter {
+  failures: number[];
+  now: () => number;
+}
 
-  constructor(now: () => number) {
-    this.#now = now;
-  }
+export const createLoginLimiter = (now: () => number): LoginLimiter => ({ failures: [], now });
 
-  #recent(): number[] {
-    const cutoff = this.#now() - failedLoginWindowMs;
-    return this.#failures.filter((failure) => failure > cutoff);
-  }
+const recentFailures = (limiter: LoginLimiter): number[] => {
+  const cutoff = limiter.now() - failedLoginWindowMs;
+  return limiter.failures.filter((failure) => failure > cutoff);
+};
 
-  /** Whether attempts are currently being refused. */
-  blocked(): boolean {
-    this.#failures = this.#recent();
-    return this.#failures.length >= maxFailedLogins;
-  }
+/** Whether attempts are currently being refused. */
+export function isLoginBlocked(limiter: LoginLimiter): boolean {
+  limiter.failures = recentFailures(limiter);
+  return limiter.failures.length >= maxFailedLogins;
+}
 
-  recordFailure(): void {
-    this.#failures = [...this.#recent(), this.#now()];
-  }
+export function recordLoginFailure(limiter: LoginLimiter): void {
+  limiter.failures = [...recentFailures(limiter), limiter.now()];
 }
 
 /** Typed codes are forgiving: case, spaces and the dash do not matter. */
@@ -106,38 +105,36 @@ export function normaliseCode(typed: string): string {
  * The one-time code that proves whoever is creating the first admin account can read the
  * app's log. It exists only in memory and is cleared once setup succeeds.
  */
-export class SetupCode {
-  #code = "";
-  readonly #log: (message: string) => void;
+export interface SetupCode {
+  code: string;
+  log: (message: string) => void;
+}
 
-  constructor(log: (message: string) => void) {
-    this.#log = log;
-  }
+export const createSetupCode = (log: (message: string) => void): SetupCode => ({ code: "", log });
 
-  /** The setup code, created (and printed to the log) if there is none. */
-  current(): string {
-    if (this.#code === "") {
-      this.#code = Array.from(
-        crypto.getRandomValues(new Uint8Array(8)),
-        (byte) => codeAlphabet[byte % codeAlphabet.length],
-      ).join("");
-      this.#log(
-        `No admin account exists yet. Open /admin and enter this setup code: ${this.#code.slice(0, 4)}-${this.#code.slice(4)}`,
-      );
-    }
-    return this.#code;
+/** The setup code, created (and printed to the log) if there is none. */
+export function currentSetupCode(setupCode: SetupCode): string {
+  if (setupCode.code === "") {
+    setupCode.code = Array.from(
+      crypto.getRandomValues(new Uint8Array(8)),
+      (byte) => codeAlphabet[byte % codeAlphabet.length],
+    ).join("");
+    setupCode.log(
+      `No admin account exists yet. Open /admin and enter this setup code: ${setupCode.code.slice(0, 4)}-${setupCode.code.slice(4)}`,
+    );
   }
+  return setupCode.code;
+}
 
-  /** Compares a typed code with the current one in constant time. */
-  matches(typed: string): boolean {
-    const wanted = Buffer.from(this.current());
-    const given = Buffer.from(normaliseCode(typed));
-    return given.length === wanted.length && timingSafeEqual(given, wanted);
-  }
+/** Compares a typed code with the current one in constant time. */
+export function setupCodeMatches(setupCode: SetupCode, typed: string): boolean {
+  const wanted = Buffer.from(currentSetupCode(setupCode));
+  const given = Buffer.from(normaliseCode(typed));
+  return given.length === wanted.length && timingSafeEqual(given, wanted);
+}
 
-  clear(): void {
-    this.#code = "";
-  }
+export function clearSetupCode(setupCode: SetupCode): void {
+  setupCode.code = "";
 }
 
 /** Returns `next` if it is a page inside the admin area, and "/admin" otherwise, so the login form cannot send someone to another site. */

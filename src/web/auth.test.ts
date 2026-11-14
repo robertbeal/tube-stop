@@ -1,6 +1,17 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import * as passwords from "../passwords.ts";
-import { LoginLimiter, normaliseCode, SessionStore, usernameProblem } from "./auth.ts";
+import {
+  createLoginLimiter,
+  createSession,
+  createSessions,
+  isLoginBlocked,
+  lookupSession,
+  normaliseCode,
+  recordLoginFailure,
+  removeOtherSessions,
+  removeSession,
+  usernameProblem,
+} from "./auth.ts";
 import {
   failLogins,
   loginForm,
@@ -405,47 +416,47 @@ describe("brute force protection", () => {
   });
 });
 
-describe("SessionStore", () => {
+describe("sessions", () => {
   test("looks up a created session until it expires", () => {
     const clock = new FakeClock();
-    const sessions = new SessionStore(1000, clock.now);
-    const { token, expiresAt } = sessions.create(7);
+    const sessions = createSessions(1000, clock.now);
+    const { token, expiresAt } = createSession(sessions, 7);
     expect(expiresAt).toBe(clock.now() + 1000);
-    expect(sessions.lookup(token)).toBe(7);
+    expect(lookupSession(sessions, token)).toBe(7);
     clock.advance(1000);
-    expect(sessions.lookup(token)).toBeUndefined();
+    expect(lookupSession(sessions, token)).toBeUndefined();
   });
 
   test("removeOthers keeps only the given session of that user", () => {
-    const sessions = new SessionStore(1000, new FakeClock().now);
-    const kept = sessions.create(1).token;
-    const dropped = sessions.create(1).token;
-    const otherUser = sessions.create(2).token;
-    sessions.removeOthers(1, kept);
-    expect(sessions.lookup(kept)).toBe(1);
-    expect(sessions.lookup(dropped)).toBeUndefined();
-    expect(sessions.lookup(otherUser)).toBe(2);
+    const sessions = createSessions(1000, new FakeClock().now);
+    const kept = createSession(sessions, 1).token;
+    const dropped = createSession(sessions, 1).token;
+    const otherUser = createSession(sessions, 2).token;
+    removeOtherSessions(sessions, 1, kept);
+    expect(lookupSession(sessions, kept)).toBe(1);
+    expect(lookupSession(sessions, dropped)).toBeUndefined();
+    expect(lookupSession(sessions, otherUser)).toBe(2);
   });
 
   test("remove ends a session", () => {
-    const sessions = new SessionStore(1000, new FakeClock().now);
-    const { token } = sessions.create(1);
-    sessions.remove(token);
-    expect(sessions.lookup(token)).toBeUndefined();
+    const sessions = createSessions(1000, new FakeClock().now);
+    const { token } = createSession(sessions, 1);
+    removeSession(sessions, token);
+    expect(lookupSession(sessions, token)).toBeUndefined();
   });
 });
 
-describe("LoginLimiter", () => {
+describe("login limiter", () => {
   test("blocks after five failures and unblocks when they leave the window", () => {
     const clock = new FakeClock();
-    const limiter = new LoginLimiter(clock.now);
+    const limiter = createLoginLimiter(clock.now);
     for (let failure = 0; failure < 5; failure += 1) {
-      expect(limiter.blocked()).toBe(false);
-      limiter.recordFailure();
+      expect(isLoginBlocked(limiter)).toBe(false);
+      recordLoginFailure(limiter);
     }
-    expect(limiter.blocked()).toBe(true);
+    expect(isLoginBlocked(limiter)).toBe(true);
     clock.advance(minute + 1);
-    expect(limiter.blocked()).toBe(false);
+    expect(isLoginBlocked(limiter)).toBe(false);
   });
 });
 
