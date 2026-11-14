@@ -4,7 +4,7 @@ import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
 import { temporaryDirectory } from "../test-helpers.ts";
-import { createThumbnailStore } from "../thumbnails.ts";
+import { createThumbnail } from "../thumbnails.ts";
 import type { Resolved, ResolveUrl } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
@@ -83,7 +83,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     syncNow: async () => {
       triggers.sync += 1;
     },
-    thumbnails: createThumbnailStore(thumbDir, "http://images.test", fakeImageFetch),
+    thumbnails: createThumbnail(thumbDir, "http://images.test", fakeImageFetch),
     mediaDir,
     cacheDir,
     hasher,

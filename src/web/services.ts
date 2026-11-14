@@ -1,7 +1,7 @@
 import type { LoginLimiter, Sessions, SetupCode } from "../admin/auth.ts";
 import type { PasswordHasher } from "../admin/passwords.ts";
 import type { Store } from "../db/store.ts";
-import type { ThumbnailStore } from "../thumbnails.ts";
+import type { Thumbnail } from "../thumbnails.ts";
 import type { ResolveUrl } from "../ytdlp/types.ts";
 
 /** Everything the web layer needs from the rest of the app. */
@@ -10,7 +10,7 @@ export interface WebDependencies {
   resolveUrl: ResolveUrl;
   /** Starts a sync of every channel and resolves when it is done. It does not fail. */
   syncNow: () => Promise<void>;
-  thumbnails: ThumbnailStore;
+  thumbnails: Thumbnail;
   /** Pinned downloads. */
   mediaDir: string;
   /** Watch-once copies. */

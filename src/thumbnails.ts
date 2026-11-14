@@ -14,27 +14,27 @@ export class InvalidVideoIdError extends Error {
 }
 
 /** Fetches each video's thumbnail from YouTube once and keeps it on disk as `<directory>/<video id>.jpg`. */
-export interface ThumbnailStore {
+export interface Thumbnail {
   directory: string;
   baseUrl: string;
   fetch: typeof fetch;
 }
 
 /** @param baseUrl the image server to fetch from, YouTube's by default. */
-export function createThumbnailStore(
+export function createThumbnail(
   directory: string,
   baseUrl: string = defaultBaseUrl,
   fetchImplementation: typeof fetch = fetch,
-): ThumbnailStore {
+): Thumbnail {
   return { directory, baseUrl: baseUrl.replace(/\/$/, ""), fetch: fetchImplementation };
 }
 
-const pathFor = (thumbnails: ThumbnailStore, videoId: string): string =>
+const pathFor = (thumbnails: Thumbnail, videoId: string): string =>
   join(thumbnails.directory, `${videoId}.jpg`);
 
 /** The file holding a video's thumbnail, fetching and saving it first if necessary. */
 export async function thumbnailPath(
-  thumbnails: ThumbnailStore,
+  thumbnails: Thumbnail,
   videoId: string,
   signal: AbortSignal,
 ): Promise<string> {
@@ -54,7 +54,7 @@ export async function thumbnailPath(
 
 /** Downloads the thumbnail and moves it into place atomically, so a half-written file is never served. */
 async function downloadThumbnail(
-  thumbnails: ThumbnailStore,
+  thumbnails: Thumbnail,
   videoId: string,
   destination: string,
   signal: AbortSignal,
@@ -85,7 +85,7 @@ async function downloadThumbnail(
 }
 
 /** Deletes a video's saved thumbnail. A thumbnail that is not there is not an error. */
-export async function removeThumbnail(thumbnails: ThumbnailStore, videoId: string): Promise<void> {
+export async function removeThumbnail(thumbnails: Thumbnail, videoId: string): Promise<void> {
   if (!validId.test(videoId)) {
     throw new InvalidVideoIdError();
   }

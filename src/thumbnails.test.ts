@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory } from "./test-helpers.ts";
-import { createThumbnailStore, InvalidVideoIdError, removeThumbnail, thumbnailPath } from "./thumbnails.ts";
+import { createThumbnail, InvalidVideoIdError, removeThumbnail, thumbnailPath } from "./thumbnails.ts";
 
 const neverAborted = new AbortController().signal;
 
@@ -29,7 +29,7 @@ function imageServer(handler: Handler = jpeg) {
 async function storeFor(handler?: Handler) {
   const directory = await temporaryDirectory();
   const server = imageServer(handler);
-  return { directory, server, store: createThumbnailStore(directory, baseUrl, server.fetchImplementation) };
+  return { directory, server, store: createThumbnail(directory, baseUrl, server.fetchImplementation) };
 }
 
 describe("thumbnailPath", () => {
@@ -97,7 +97,7 @@ describe("thumbnailPath", () => {
   test("creates the directory on first use", async () => {
     const parent = await temporaryDirectory();
     const directory = join(parent, "not", "yet", "there");
-    const store = createThumbnailStore(directory, baseUrl, imageServer().fetchImplementation);
+    const store = createThumbnail(directory, baseUrl, imageServer().fetchImplementation);
 
     const path = await thumbnailPath(store, videoId, neverAborted);
 

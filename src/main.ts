@@ -5,7 +5,7 @@ import { loadConfig } from "./config.ts";
 import { closeStore, openStore } from "./db/store.ts";
 import { createDownloadWorker, runDownloads } from "./download.ts";
 import { createSyncer, runSync, syncAll } from "./syncer.ts";
-import { createThumbnailStore } from "./thumbnails.ts";
+import { createThumbnail } from "./thumbnails.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
 import { getChannelVideos, resolveUrl } from "./ytdlp/resolve.ts";
@@ -40,7 +40,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     store,
     resolveUrl: resolveUrl.bind(null, binary),
     syncNow: syncAll.bind(null, syncer, stopping.signal),
-    thumbnails: createThumbnailStore(join(config.dataDir, "thumbs")),
+    thumbnails: createThumbnail(join(config.dataDir, "thumbs")),
     mediaDir,
     cacheDir,
     sessionLifetimeMs: config.sessionLifetimeMs,
