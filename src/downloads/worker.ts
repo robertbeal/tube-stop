@@ -1,5 +1,10 @@
+import type { Database } from "bun:sqlite";
 import { stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
+import type { Video } from "../db/types.ts";
+import { logger } from "../logger.ts";
+import { removeMedia } from "../storage.ts";
+import type { Download } from "../ytdlp/types.ts";
 import {
     claimCache,
     claimDownload,
@@ -10,12 +15,7 @@ import {
     finishDownload,
     getCacheEntries,
     resetDownloading,
-    type Store,
-    type Video,
-} from "./db/store.ts";
-import { logger } from "./logger.ts";
-import { removeMedia } from "./storage.ts";
-import type { Download } from "./ytdlp/types.ts";
+} from "./queue.ts";
 
 /** Watch-once copies are always fetched at this height. */
 const cacheHeight = 720;
@@ -38,7 +38,7 @@ export type DownloadConfig = {
 
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
 export type DownloadWorker = {
-    store: Store;
+    database: Database;
     downloadToLibrary: Download;
     downloadToCache: Download;
     config: DownloadConfig;
@@ -46,7 +46,7 @@ export type DownloadWorker = {
 
 /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
 export async function runDownloads(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
-    resetDownloading(worker.store);
+    resetDownloading(worker.database);
     await Promise.all([
         loop(signal, () => processPin(worker, signal)),
         loop(signal, () => processCache(worker, signal)),
@@ -81,14 +81,14 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
     if (signal.aborted) {
         return false;
     }
-    const id = claimDownload(worker.store);
+    const id = claimDownload(worker.database);
     if (id === null) {
         return false;
     }
     logger.info(`download: pinning ${id}`);
     try {
         const path = await worker.downloadToLibrary(id, worker.config.mediaDir, worker.config.keepMaxHeight, signal);
-        const kept = finishDownload(worker.store, id, path);
+        const kept = finishDownload(worker.database, id, path);
         if (kept) {
             logger.info(`download: pinned ${id} -> ${path}`);
         } else {
@@ -99,7 +99,7 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
         if (signal.aborted) {
             return false;
         }
-        failDownload(worker.store, id, error.message);
+        failDownload(worker.database, id, error.message);
     }
     return true;
 }
@@ -109,14 +109,14 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
     if (signal.aborted) {
         return false;
     }
-    const id = claimCache(worker.store);
+    const id = claimCache(worker.database);
     if (id === null) {
         return false;
     }
     logger.info(`cache: fetching ${id}`);
     try {
         const path = await worker.downloadToCache(id, worker.config.cacheDir, cacheHeight, signal);
-        const stored = finishCache(worker.store, id, path);
+        const stored = finishCache(worker.database, id, path);
         if (!stored) {
             await discard(worker.config.cacheDir, path); // removed while downloading
         }
@@ -125,7 +125,7 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
         if (signal.aborted) {
             return false;
         }
-        failCache(worker.store, id, error.message);
+        failCache(worker.database, id, error.message);
     }
     return true;
 }
@@ -143,7 +143,7 @@ async function discard(root: string, path: string): Promise<void> {
  */
 export async function janitor(worker: DownloadWorker): Promise<void> {
     const inspected = await Promise.all(
-        getCacheEntries(worker.store).map(async (video) => ({ video, size: await fileSize(video.cachePath) })),
+        getCacheEntries(worker.database).map(async (video) => ({ video, size: await fileSize(video.cachePath) })),
     );
     const vanished = inspected.filter(({ size }) => size === undefined);
     const present = inspected.flatMap(({ video, size }) => (size === undefined ? [] : [{ video, size }]));
@@ -151,7 +151,7 @@ export async function janitor(worker: DownloadWorker): Promise<void> {
     const survivors = present.filter((entry) => !expired.includes(entry));
 
     for (const { video } of vanished) {
-        clearCache(worker.store, video.youtubeId); // the file vanished: fetch again on the next play
+        clearCache(worker.database, video.youtubeId); // the file vanished: fetch again on the next play
     }
     const toEvict = [...expired, ...overBudget(survivors, worker.config.cacheMaxBytes)];
     await Promise.all(toEvict.map(({ video }) => evict(worker, video)));
@@ -165,7 +165,7 @@ const isStale = (worker: DownloadWorker, video: Video): boolean =>
 async function evict(worker: DownloadWorker, video: Video): Promise<void> {
     logger.info(`janitor: evicting ${video.youtubeId}`);
     await discard(worker.config.cacheDir, video.cachePath);
-    clearCache(worker.store, video.youtubeId);
+    clearCache(worker.database, video.youtubeId);
 }
 
 async function fileSize(path: string): Promise<number | undefined> {

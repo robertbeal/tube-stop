@@ -1,31 +1,14 @@
+import type { Database } from "bun:sqlite";
 import { describe, expect, setSystemTime, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { randomVideoId, temporaryDirectory, testStart, stubYtDlp as writeStub } from "../tests/helpers.ts";
-import {
-    allowVideo,
-    claimCache,
-    claimDownload,
-    deleteVideo,
-    finishCache,
-    finishDownload,
-    getVideo,
-    openStore,
-    pinVideo,
-    requestCache,
-    type Store,
-    unpinVideo,
-} from "./db/store.ts";
-import {
-    type DownloadConfig,
-    type DownloadWorker,
-    janitor,
-    processCache,
-    processPin,
-    runDownloads,
-} from "./download.ts";
-import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
-import type { VideoId } from "./ytdlp/types.ts";
+import { randomVideoId, temporaryDirectory, testStart, stubYtDlp as writeStub } from "../../tests/helpers.ts";
+import { openDatabase } from "../db/open.ts";
+import { allowVideo, deleteVideo, getVideo } from "../db/videos.ts";
+import { downloadToCache, downloadToLibrary } from "../ytdlp/download.ts";
+import type { VideoId } from "../ytdlp/types.ts";
+import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache, unpinVideo } from "./queue.ts";
+import { type DownloadConfig, type DownloadWorker, janitor, processCache, processPin, runDownloads } from "./worker.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;
@@ -95,13 +78,13 @@ function gatedFetcher(pathFor: (call: FetchCall) => string) {
 type Fetcher = ReturnType<typeof fakeFetcher>["fetcher"];
 
 type Fixture = {
-    store: Store;
+    database: Database;
     config: DownloadConfig;
     workerWith(fetcher: Fetcher, overrides?: Partial<DownloadConfig>): DownloadWorker;
 };
 
 async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fixture> {
-    const store = openStore(join(await temporaryDirectory(), "tubestop.db"));
+    const database = openDatabase(join(await temporaryDirectory(), "tubestop.db"));
     const config: DownloadConfig = {
         mediaDir: await temporaryDirectory(),
         cacheDir: await temporaryDirectory(),
@@ -110,10 +93,10 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
         cacheMaxBytes,
     };
     return {
-        store,
+        database,
         config,
         workerWith: (fetcher, overrides = {}) => ({
-            store,
+            database,
             downloadToLibrary: fetcher.downloadToLibrary,
             downloadToCache: fetcher.downloadToCache,
             config: { ...config, ...overrides },
@@ -121,8 +104,8 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
     };
 }
 
-function addVideo(store: Store, youtubeId: VideoId): void {
-    allowVideo(store, {
+function addVideo(database: Database, youtubeId: VideoId): void {
+    allowVideo(database, {
         youtubeId,
         channelYoutubeId: "",
         channelName: "",
@@ -141,16 +124,16 @@ async function addCached(fixture: Fixture, size: number, playedAgoMs: number) {
     const id = randomVideoId();
     const path = join(fixture.config.cacheDir, `${id}.mp4`);
     await writeFile(path, size);
-    addVideo(fixture.store, id);
+    addVideo(fixture.database, id);
     setSystemTime(new Date(testStart.getTime() - playedAgoMs));
-    requestCache(fixture.store, id);
-    claimCache(fixture.store);
-    finishCache(fixture.store, id, path);
+    requestCache(fixture.database, id);
+    claimCache(fixture.database);
+    finishCache(fixture.database, id, path);
     setSystemTime(testStart);
     return { id, path };
 }
 
-const cacheStatus = (fixture: Fixture, id: VideoId) => getVideo(fixture.store, id)?.cacheStatus;
+const cacheStatus = (fixture: Fixture, id: VideoId) => getVideo(fixture.database, id)?.cacheStatus;
 
 describe("janitor", () => {
     test("keeps recent files under the budget", async () => {
@@ -195,9 +178,9 @@ describe("janitor", () => {
     test("drops the cached copy once the video is pinned and downloaded", async () => {
         const fixture = await newFixture(7 * day, 1 << 20);
         const { id, path } = await addCached(fixture, 100, 60_000);
-        pinVideo(fixture.store, id);
-        claimDownload(fixture.store);
-        finishDownload(fixture.store, id, join(fixture.config.mediaDir, "kept.mp4"));
+        pinVideo(fixture.database, id);
+        claimDownload(fixture.database);
+        finishDownload(fixture.database, id, join(fixture.config.mediaDir, "kept.mp4"));
 
         await janitor(fixture.workerWith(neverCalled));
 
@@ -208,7 +191,7 @@ describe("janitor", () => {
     test("keeps the cached copy while the pinned download is still pending", async () => {
         const fixture = await newFixture(7 * day, 1 << 20);
         const { id, path } = await addCached(fixture, 100, 60_000);
-        pinVideo(fixture.store, id);
+        pinVideo(fixture.database, id);
 
         await janitor(fixture.workerWith(neverCalled));
 
@@ -232,13 +215,13 @@ describe("processCache", () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
         const outputPath = join(fixture.config.cacheDir, `${id}.mp4`);
-        addVideo(fixture.store, id);
-        requestCache(fixture.store, id);
+        addVideo(fixture.database, id);
+        requestCache(fixture.database, id);
         const { fetcher } = writingFetcher(() => outputPath);
 
         const didWork = await processCache(fixture.workerWith(fetcher), neverAborted);
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(didWork).toBe(true);
         expect(video?.cacheStatus).toBe("ready");
         expect(video?.cachePath).toBe(outputPath);
@@ -248,12 +231,12 @@ describe("processCache", () => {
     test("records a failure so it can be retried", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        requestCache(fixture.store, id);
+        addVideo(fixture.database, id);
+        requestCache(fixture.database, id);
 
         await processCache(fixture.workerWith(failingFetcher().fetcher), neverAborted);
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(video?.cacheStatus).toBe("failed");
         expect(video?.cacheError).toContain("boom");
     });
@@ -267,13 +250,13 @@ describe("processCache", () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
         const outputPath = join(fixture.config.cacheDir, `${id}.mp4`);
-        addVideo(fixture.store, id);
-        requestCache(fixture.store, id);
+        addVideo(fixture.database, id);
+        requestCache(fixture.database, id);
         const { fetcher, started, release } = gatedFetcher(() => outputPath);
 
         const processing = processCache(fixture.workerWith(fetcher), neverAborted);
         await started;
-        deleteVideo(fixture.store, id);
+        deleteVideo(fixture.database, id);
         release();
         await processing;
 
@@ -283,8 +266,8 @@ describe("processCache", () => {
     test("does not record a failure when the download was cancelled", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        requestCache(fixture.store, id);
+        addVideo(fixture.database, id);
+        requestCache(fixture.database, id);
         const controller = new AbortController();
         const { fetcher } = fakeFetcher(async () => {
             controller.abort();
@@ -304,13 +287,13 @@ describe("processPin", () => {
     test("keeps the downloaded file in the media folder", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
         const { fetcher } = writingFetcher(() => pinnedPath(fixture, id));
 
         await processPin(fixture.workerWith(fetcher), neverAborted);
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(video?.downloadStatus).toBe("ready");
         expect(video?.filePath).toBe(pinnedPath(fixture, id));
         expect(await exists(pinnedPath(fixture, id))).toBe(true);
@@ -319,17 +302,17 @@ describe("processPin", () => {
     test("unpinned during the download discards the file", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
         const { fetcher, started, release } = gatedFetcher(() => pinnedPath(fixture, id));
 
         const processing = processPin(fixture.workerWith(fetcher), neverAborted);
         await started;
-        unpinVideo(fixture.store, id);
+        unpinVideo(fixture.database, id);
         release();
         await processing;
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(await exists(pinnedPath(fixture, id))).toBe(false);
         expect(video?.pinned).toBe(false);
         expect(video?.filePath).toBe("");
@@ -339,18 +322,18 @@ describe("processPin", () => {
     test("re-pinned during the download keeps the file", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
         const { fetcher, started, release } = gatedFetcher(() => pinnedPath(fixture, id));
 
         const processing = processPin(fixture.workerWith(fetcher), neverAborted);
         await started;
-        unpinVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        unpinVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
         release();
         await processing;
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(await exists(pinnedPath(fixture, id))).toBe(true);
         expect(video?.pinned).toBe(true);
         expect(video?.downloadStatus).toBe("ready");
@@ -359,12 +342,12 @@ describe("processPin", () => {
     test("records a failure without losing the pin", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
 
         await processPin(fixture.workerWith(failingFetcher().fetcher), neverAborted);
 
-        const video = getVideo(fixture.store, id);
+        const video = getVideo(fixture.database, id);
         expect(video?.downloadStatus).toBe("failed");
         expect(video?.pinned).toBe(true);
         expect(video?.downloadError).toContain("boom");
@@ -385,8 +368,8 @@ describe("with a stub yt-dlp", () => {
             `mkdir -p "$(dirname '${outputPath}')"\necho data > '${outputPath}'\necho '${outputPath}'`,
         );
         await chmod(stub.binary, 0o755); // Bun.write ignores its mode option on some versions
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
 
         await processPin(
             fixture.workerWith({
@@ -396,7 +379,7 @@ describe("with a stub yt-dlp", () => {
             neverAborted,
         );
 
-        expect(getVideo(fixture.store, id)?.filePath).toBe(outputPath);
+        expect(getVideo(fixture.database, id)?.filePath).toBe(outputPath);
         expect(await exists(outputPath)).toBe(true);
     });
 });
@@ -406,10 +389,10 @@ describe("what the workers ask for", () => {
         const fixture = await newFixture(hour, 1 << 30);
         const { fetcher, calls } = failingFetcher();
         const [pinned, watched] = [randomVideoId(), randomVideoId()];
-        addVideo(fixture.store, pinned);
-        addVideo(fixture.store, watched);
-        pinVideo(fixture.store, pinned);
-        requestCache(fixture.store, watched);
+        addVideo(fixture.database, pinned);
+        addVideo(fixture.database, watched);
+        pinVideo(fixture.database, pinned);
+        requestCache(fixture.database, watched);
         const worker = fixture.workerWith(fetcher, { keepMaxHeight: 1440 });
 
         await processPin(worker, neverAborted);
@@ -437,9 +420,9 @@ describe("run", () => {
     test("requeues downloads interrupted by a restart", async () => {
         const fixture = await newFixture(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.store, id);
-        pinVideo(fixture.store, id);
-        claimDownload(fixture.store); // "downloading" when the previous process died
+        addVideo(fixture.database, id);
+        pinVideo(fixture.database, id);
+        claimDownload(fixture.database); // "downloading" when the previous process died
         const fetched = Promise.withResolvers<void>();
         const { fetcher } = fakeFetcher(async () => {
             fetched.resolve();

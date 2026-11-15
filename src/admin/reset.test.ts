@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory, testVideoId } from "../../tests/helpers.ts";
-import { allowVideo, closeStore, getChannels, getVideo, insertChannel, openStore } from "../db/store.ts";
+import { getChannels, insertChannel } from "../db/channels.ts";
+import { openDatabase } from "../db/open.ts";
+import { allowVideo, getVideo } from "../db/videos.ts";
 import { resetAdmin } from "./reset.ts";
 import { countUsers, createFirstUser, getUserByUsername } from "./users.ts";
 
@@ -10,10 +12,10 @@ const videoId = testVideoId("abcdefghijk");
 
 async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
     const dataDir = await temporaryDirectory();
-    const store = openStore(join(dataDir, "tubestop.db"));
-    createFirstUser(store, "parent", "some-hash");
-    insertChannel(store, "UCchannelchannelchannelaa", "Music");
-    allowVideo(store, {
+    const database = openDatabase(join(dataDir, "tubestop.db"));
+    createFirstUser(database, "parent", "some-hash");
+    insertChannel(database, "UCchannelchannelchannelaa", "Music");
+    allowVideo(database, {
         youtubeId: videoId,
         channelYoutubeId: "UCchannelchannelchannelaa",
         channelName: "Music",
@@ -21,7 +23,7 @@ async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
         duration: 60,
         publishedAt: 0,
     });
-    closeStore(store);
+    database.close();
     return dataDir;
 }
 
@@ -41,10 +43,10 @@ describe("resetAdmin", () => {
         expect(text).toContain("Removed the admin account");
         expect(text).toContain("kept");
         expect(text).toContain("setup code");
-        const store = openStore(join(dataDir, "tubestop.db"));
-        expect(countUsers(store)).toBe(0);
-        expect(getUserByUsername(store, "parent")).toBeNull();
-        closeStore(store);
+        const database = openDatabase(join(dataDir, "tubestop.db"));
+        expect(countUsers(database)).toBe(0);
+        expect(getUserByUsername(database, "parent")).toBeNull();
+        database.close();
     });
 
     test("keeps videos and channels", async () => {
@@ -52,10 +54,10 @@ describe("resetAdmin", () => {
 
         resetAdmin(dataDir, () => {});
 
-        const store = openStore(join(dataDir, "tubestop.db"));
-        expect(getVideo(store, videoId)?.title).toBe("Song");
-        expect(getChannels(store).map((channel) => channel.name)).toEqual(["Music"]);
-        closeStore(store);
+        const database = openDatabase(join(dataDir, "tubestop.db"));
+        expect(getVideo(database, videoId)?.title).toBe("Song");
+        expect(getChannels(database).map((channel) => channel.name)).toEqual(["Music"]);
+        database.close();
     });
 
     test("says so when there is no account left to remove", async () => {

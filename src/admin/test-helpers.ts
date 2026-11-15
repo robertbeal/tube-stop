@@ -79,7 +79,7 @@ function expectRedirect(response: Response): void {
 /** The same app and database, but served by a differently configured password hasher. */
 export function withHasher(environment: Environment, hasher: PasswordHasher): Environment {
     const app = createApp({
-        store: environment.store,
+        database: environment.database,
         resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
         syncNow: async () => undefined,
         thumbnailDir: environment.thumbDir,

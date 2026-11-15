@@ -1,5 +1,5 @@
-import type { SQLQueryBindings } from "bun:sqlite";
-import { AlreadySetUpError, NotFoundError, type Store, type User } from "../db/types.ts";
+import type { Database, SQLQueryBindings } from "bun:sqlite";
+import { AlreadySetUpError, NotFoundError, type User } from "../db/types.ts";
 
 type UserRow = {
     id: number;
@@ -11,18 +11,18 @@ function toUser(row: UserRow): User {
     return { id: row.id, username: row.username, passwordHash: row.password_hash };
 }
 
-export function countUsers(store: Store): number {
-    return store.database.query<{ total: number }, []>("SELECT COUNT(*) AS total FROM users").get()?.total ?? 0;
+export function countUsers(database: Database): number {
+    return database.query<{ total: number }, []>("SELECT COUNT(*) AS total FROM users").get()?.total ?? 0;
 }
 
 /** Creates the initial admin account, but only if none exists. The check and the insert are one transaction. */
-export function createFirstUser(store: Store, username: string, passwordHash: string): User {
-    return store.database
+export function createFirstUser(database: Database, username: string, passwordHash: string): User {
+    return database
         .transaction(() => {
-            if (countUsers(store) > 0) {
+            if (countUsers(database) > 0) {
                 throw new AlreadySetUpError();
             }
-            const result = store.database
+            const result = database
                 .query<unknown, SQLQueryBindings[]>(
                     "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
                 )
@@ -33,28 +33,26 @@ export function createFirstUser(store: Store, username: string, passwordHash: st
 }
 
 /** Finds an account by username, ignoring case. */
-export function getUserByUsername(store: Store, username: string): User | null {
-    const row = store.database
+export function getUserByUsername(database: Database, username: string): User | null {
+    const row = database
         .query<UserRow, [string]>("SELECT id, username, password_hash FROM users WHERE username = ?")
         .get(username);
     return row === null ? null : toUser(row);
 }
 
-export function getUserById(store: Store, id: number): User | null {
-    const row = store.database
-        .query<UserRow, [number]>("SELECT id, username, password_hash FROM users WHERE id = ?")
-        .get(id);
+export function getUserById(database: Database, id: number): User | null {
+    const row = database.query<UserRow, [number]>("SELECT id, username, password_hash FROM users WHERE id = ?").get(id);
     return row === null ? null : toUser(row);
 }
 
-export function updatePassword(store: Store, id: number, passwordHash: string): void {
-    const changes = store.database.run("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id]).changes;
+export function updatePassword(database: Database, id: number, passwordHash: string): void {
+    const changes = database.run("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id]).changes;
     if (changes === 0) {
         throw new NotFoundError();
     }
 }
 
 /** Removes the admin account (to recover from a forgotten password). Returns how many were removed. */
-export function deleteUsers(store: Store): number {
-    return store.database.run("DELETE FROM users").changes;
+export function deleteUsers(database: Database): number {
+    return database.run("DELETE FROM users").changes;
 }

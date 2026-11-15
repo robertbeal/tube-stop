@@ -60,7 +60,7 @@ export function createApp(dependencies: WebDependencies): Hono {
     admin.route("/", adminRoutes(services));
     app.route("/admin", admin);
 
-    if (countUsers(services.store) === 0) {
+    if (countUsers(services.database) === 0) {
         currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
     }
     return app;

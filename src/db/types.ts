@@ -1,4 +1,3 @@
-import type { Database } from "bun:sqlite";
 import type { VideoId } from "../ytdlp/types.ts";
 
 export type Status = "none" | "queued" | "downloading" | "ready" | "failed";
@@ -91,8 +90,3 @@ export class AlreadySetUpError extends Error {
         super("an admin account already exists");
     }
 }
-
-/** The Tube Stop database: curated channels and videos, download and cache state, and admin accounts. */
-export type Store = {
-    database: Database;
-};

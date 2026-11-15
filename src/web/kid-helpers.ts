@@ -1,18 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { testVideoId } from "../../tests/helpers.ts";
-import type { Video } from "../db/store.ts";
-import {
-    claimCache,
-    claimDownload,
-    finishCache,
-    finishDownload,
-    getVideo,
-    insertChannel,
-    insertVideo,
-    pinVideo,
-    requestCache,
-} from "../db/store.ts";
+import { insertChannel } from "../db/channels.ts";
+import type { Video } from "../db/types.ts";
+import { getVideo, insertVideo } from "../db/videos.ts";
+import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { allow, type Environment } from "./harness.ts";
 
@@ -28,9 +20,9 @@ export function allowPianoVideo(environment: Environment, youtubeId: VideoId, ti
 export async function makeCacheReady(environment: Environment, youtubeId: VideoId, contents: string): Promise<string> {
     const path = join(environment.cacheDir, `${youtubeId}.mp4`);
     await writeFileWithFolders(path, contents);
-    requestCache(environment.store, youtubeId);
-    claimCache(environment.store);
-    finishCache(environment.store, youtubeId, path);
+    requestCache(environment.database, youtubeId);
+    claimCache(environment.database);
+    finishCache(environment.database, youtubeId, path);
     return path;
 }
 
@@ -42,9 +34,9 @@ export async function makePinnedFile(
     contents: string,
 ): Promise<void> {
     await writeFileWithFolders(path, contents);
-    pinVideo(environment.store, youtubeId);
-    claimDownload(environment.store);
-    finishDownload(environment.store, youtubeId, path);
+    pinVideo(environment.database, youtubeId);
+    claimDownload(environment.database);
+    finishDownload(environment.database, youtubeId, path);
 }
 
 export async function writeFileWithFolders(path: string, contents: string | Uint8Array): Promise<void> {
@@ -53,7 +45,7 @@ export async function writeFileWithFolders(path: string, contents: string | Uint
 }
 
 export function loadVideo(environment: Environment, youtubeId: VideoId): Video {
-    const video = getVideo(environment.store, youtubeId);
+    const video = getVideo(environment.database, youtubeId);
     if (video === null) {
         throw new Error(`no video ${youtubeId}`);
     }
@@ -76,9 +68,9 @@ export function numberedId(number: number): VideoId {
 
 /** Adds `count` watchable videos to channel UC1; a higher number is a newer video. */
 export function addPublished(environment: Environment, count: number): void {
-    insertChannel(environment.store, "UC1", "Piano Guy");
+    insertChannel(environment.database, "UC1", "Piano Guy");
     for (const number of Array.from({ length: count }, (_, index) => index + 1)) {
-        insertVideo(environment.store, {
+        insertVideo(environment.database, {
             youtubeId: numberedId(number),
             channelYoutubeId: "UC1",
             channelName: "Piano Guy",

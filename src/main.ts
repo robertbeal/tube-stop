@@ -2,8 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { resetAdmin } from "./admin/reset.ts";
 import { loadConfig } from "./config.ts";
-import { closeStore, openStore } from "./db/store.ts";
-import { type DownloadWorker, runDownloads } from "./download.ts";
+import { openDatabase } from "./db/open.ts";
+import { type DownloadWorker, runDownloads } from "./downloads/worker.ts";
 import { logger } from "./logger.ts";
 import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
@@ -20,15 +20,15 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     const mediaDir = resolve(config.mediaDir);
     const cacheDir = resolve(config.cacheDir);
 
-    const store = openStore(join(config.dataDir, "tubestop.db"));
+    const database = openDatabase(join(config.dataDir, "tubestop.db"));
     const binary = config.ytdlpBin;
     const syncer: Syncer = {
-        store,
+        database,
         getChannelVideos: getChannelVideos.bind(null, binary),
         intervalMs: config.syncIntervalMs,
     };
     const downloads: DownloadWorker = {
-        store,
+        database,
         downloadToLibrary: downloadToLibrary.bind(null, binary),
         downloadToCache: downloadToCache.bind(null, binary),
         config: {
@@ -41,7 +41,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     };
     const stopping = new AbortController();
     const app = createApp({
-        store,
+        database,
         resolveUrl: resolveUrl.bind(null, binary),
         syncNow: syncAll.bind(null, syncer, stopping.signal),
         thumbnailDir: join(config.dataDir, "thumbs"),
@@ -70,7 +70,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     await stopped;
     await server.stop(true); // close idle keep-alive connections too, or shutdown would wait for them
     await workers; // workers stop before the database closes
-    closeStore(store);
+    database.close();
 }
 
 async function main(): Promise<void> {

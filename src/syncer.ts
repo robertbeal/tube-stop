@@ -1,5 +1,8 @@
+import type { Database } from "bun:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
-import { type Channel, getChannels, insertVideo, markChannelSynced, type Store } from "./db/store.ts";
+import { getChannels, markChannelSynced } from "./db/channels.ts";
+import type { Channel } from "./db/types.ts";
+import { insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
 import type { Video } from "./ytdlp/types.ts";
 
@@ -9,7 +12,7 @@ const perChannelTimeoutMs = 3 * 60 * 1000;
 
 /** Copies the recent videos of each allowed channel into the database, on a schedule. */
 export type Syncer = {
-    store: Store;
+    database: Database;
     getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
     intervalMs: number;
 };
@@ -29,7 +32,7 @@ export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void
         return;
     }
     try {
-        for (const channel of getChannels(syncer.store)) {
+        for (const channel of getChannels(syncer.database)) {
             if (signal.aborted) {
                 return;
             }
@@ -48,7 +51,7 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
         for (const video of listed.toReversed()) {
             insertSyncedVideo(syncer, channel, video);
         }
-        markChannelSynced(syncer.store, channel.youtubeId);
+        markChannelSynced(syncer.database, channel.youtubeId);
         logger.info(`sync: ${channel.name}: ${listed.length} videos`);
     } catch (error) {
         logger.error(`sync: ${channel.name}: ${error.message}`);
@@ -57,7 +60,7 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
 
 function insertSyncedVideo(syncer: Syncer, channel: Channel, video: Video): void {
     try {
-        insertVideo(syncer.store, {
+        insertVideo(syncer.database, {
             youtubeId: video.id,
             channelYoutubeId: channel.youtubeId,
             channelName: channel.name,

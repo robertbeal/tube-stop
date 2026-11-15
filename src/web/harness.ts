@@ -1,10 +1,13 @@
+import type { Database } from "bun:sqlite";
 import { spyOn } from "bun:test";
 import { join } from "node:path";
 import type { Hono } from "hono";
 import { temporaryDirectory } from "../../tests/helpers.ts";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
-import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
+import { openDatabase } from "../db/open.ts";
+import type { NewVideo, User } from "../db/types.ts";
+import { allowVideo } from "../db/videos.ts";
 import { logger } from "../logger.ts";
 import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
@@ -14,7 +17,7 @@ export const adminPassword = "correct horse battery";
 
 export type Environment = {
     app: Hono;
-    store: Store;
+    database: Database;
     mediaDir: string;
     cacheDir: string;
     thumbDir: string;
@@ -43,12 +46,12 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     const mediaDir = join(directory, "media");
     const cacheDir = join(directory, "cache");
     const thumbDir = join(directory, "thumbs");
-    const store = openStore(join(directory, "tubestop.db"));
+    const database = openDatabase(join(directory, "tubestop.db"));
     const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
     const admin =
         options.withAdmin === false
             ? null
-            : createFirstUser(store, adminUsername, await hashPassword(hasher, adminPassword));
+            : createFirstUser(database, adminUsername, await hashPassword(hasher, adminPassword));
 
     const logs: string[] = [];
     spyOn(logger, "info").mockImplementation((message) => void logs.push(message));
@@ -68,7 +71,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     }) as typeof fetch);
 
     const app = createApp({
-        store,
+        database,
         resolveUrl,
         syncNow: async () => {
             triggers.sync += 1;
@@ -79,7 +82,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
         hasher,
         sessionLifetimeMs: options.sessionLifetimeMs,
     });
-    return { app, store, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
+    return { app, database, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
 }
 
 export type RequestOptions = {
@@ -128,7 +131,7 @@ export async function logIn(environment: Environment): Promise<string> {
 
 /** Adds a video the child may watch. */
 export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: VideoId }): void {
-    allowVideo(environment.store, {
+    allowVideo(environment.database, {
         channelYoutubeId: "",
         channelName: "",
         title: "A video",

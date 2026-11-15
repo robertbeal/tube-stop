@@ -2,8 +2,10 @@ import { stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import type { Video } from "../db/store.ts";
-import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
+import { getWatchableChannels } from "../db/channels.ts";
+import type { Video } from "../db/types.ts";
+import { getVideo, getWatchableVideos, recordPlay } from "../db/videos.ts";
+import { requestCache } from "../downloads/queue.ts";
 import { logger } from "../logger.ts";
 import { downloadThumbnail } from "../thumbnails.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
@@ -45,13 +47,13 @@ const staticDirectory = join(import.meta.dir, "static");
 
 /** The child-facing pages: browse, watch, and the endpoints the player script uses. */
 export function kidRoutes(services: Services): Hono {
-    const { store } = services;
+    const { database } = services;
     const routes = new Hono();
 
     /** The video for the `:id` path value, or null if it is unknown or hidden from the child. */
     const watchableVideo = (context: Context): Video | null => {
         const id = parseVideoId(context.req.param("id"));
-        const video = id === undefined ? null : getVideo(store, id);
+        const video = id === undefined ? null : getVideo(database, id);
         return video?.watchable ? video : null;
     };
 
@@ -65,13 +67,13 @@ export function kidRoutes(services: Services): Hono {
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";
         const { videos, pages } = loadPage(
-            (page) => getWatchableVideos(store, channel, page),
+            (page) => getWatchableVideos(database, channel, page),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink("/", channel),
         );
         return context.html(
-            <IndexPage videos={videos} channels={getWatchableChannels(store)} current={channel} pages={pages} />,
+            <IndexPage videos={videos} channels={getWatchableChannels(database)} current={channel} pages={pages} />,
         );
     });
 
@@ -90,7 +92,7 @@ export function kidRoutes(services: Services): Hono {
             return context.notFound();
         }
         if ((await playablePath(video)) === "") {
-            requestCache(store, video.youtubeId);
+            requestCache(database, video.youtubeId);
         }
         return context.body(null, 202);
     });
@@ -100,7 +102,7 @@ export function kidRoutes(services: Services): Hono {
         if (video === null) {
             return context.notFound();
         }
-        recordPlay(store, video.youtubeId);
+        recordPlay(database, video.youtubeId);
         return context.body(null, 204);
     });
 

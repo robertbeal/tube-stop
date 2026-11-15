@@ -1,16 +1,7 @@
 import { Hono } from "hono";
-import {
-    allowVideo,
-    blockVideo,
-    deleteChannel,
-    deleteVideo,
-    getAdminVideos,
-    getChannels,
-    insertChannel,
-    pinVideo,
-    unblockVideo,
-    unpinVideo,
-} from "../db/store.ts";
+import { deleteChannel, getChannels, insertChannel } from "../db/channels.ts";
+import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../db/videos.ts";
+import { pinVideo, unpinVideo } from "../downloads/queue.ts";
 import { directorySize, removeMedia } from "../storage.ts";
 import { removeThumbnail } from "../thumbnails.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
@@ -23,7 +14,7 @@ import { AdminPage } from "./views.tsx";
 
 const resolveTimeoutMs = 90 * 1000;
 
-/** Runs a store change; a missing row or other failure becomes the message to show the admin. */
+/** Runs a database change; a missing row or other failure becomes the message to show the admin. */
 function messageFrom<Result>(change: () => Result): { ok: true; value: Result } | { ok: false; message: string } {
     try {
         return { ok: true, value: change() };
@@ -34,13 +25,13 @@ function messageFrom<Result>(change: () => Result): { ok: true; value: Result } 
 
 /** The password-protected admin pages. Mount them behind the login middleware. */
 export function adminRoutes(services: Services): Hono<AuthEnv> {
-    const { store } = services;
+    const { database } = services;
     const routes = new Hono<AuthEnv>();
 
     routes.get("/", async (context) => {
         const channel = context.req.query("channel") ?? "";
         const { videos, pages } = loadPage(
-            (page) => getAdminVideos(store, channel, page),
+            (page) => getAdminVideos(database, channel, page),
             requestedPage(context.req.query("page")),
             adminPageSize,
             listLink("/admin", channel),
@@ -53,7 +44,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             <AdminPage
                 username={context.get("user").username}
                 message={context.req.query("msg") ?? ""}
-                channels={getChannels(store)}
+                channels={getChannels(database)}
                 videos={videos}
                 current={channel}
                 pages={pages}
@@ -78,7 +69,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         }
         const { value } = resolved;
         if (!isVideo(value)) {
-            const added = messageFrom(() => insertChannel(store, value.id, value.name));
+            const added = messageFrom(() => insertChannel(database, value.id, value.name));
             if (!added.ok) {
                 return redirectWithMessage(context, added.message);
             }
@@ -87,7 +78,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         }
         const video = value;
         const allowed = messageFrom(() =>
-            allowVideo(store, {
+            allowVideo(database, {
                 youtubeId: video.id,
                 channelYoutubeId: video.channel.id,
                 channelName: video.channel.name,
@@ -104,7 +95,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         if (id === undefined) {
             return context.notFound();
         }
-        const removed = messageFrom(() => deleteChannel(store, id));
+        const removed = messageFrom(() => deleteChannel(database, id));
         if (!removed.ok) {
             return redirectWithMessage(context, removed.message);
         }
@@ -145,15 +136,15 @@ function withFileFailures(message: string, failures: Error[]): string {
 }
 
 async function videoAction(services: Services, action: string, id: VideoId): Promise<ActionOutcome> {
-    const { store, mediaDir, cacheDir } = services;
+    const { database, mediaDir, cacheDir } = services;
     switch (action) {
         case "pin":
         case "retry": {
-            const pinned = messageFrom(() => pinVideo(store, id));
+            const pinned = messageFrom(() => pinVideo(database, id));
             return { message: pinned.ok ? "Done" : pinned.message };
         }
         case "unpin": {
-            const unpinned = messageFrom(() => unpinVideo(store, id));
+            const unpinned = messageFrom(() => unpinVideo(database, id));
             return {
                 message: unpinned.ok
                     ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value))
@@ -161,15 +152,15 @@ async function videoAction(services: Services, action: string, id: VideoId): Pro
             };
         }
         case "block": {
-            const blocked = messageFrom(() => blockVideo(store, id));
+            const blocked = messageFrom(() => blockVideo(database, id));
             return { message: blocked.ok ? "Done" : blocked.message };
         }
         case "unblock": {
-            const unblocked = messageFrom(() => unblockVideo(store, id));
+            const unblocked = messageFrom(() => unblockVideo(database, id));
             return { message: unblocked.ok ? "Done" : unblocked.message };
         }
         case "remove": {
-            const removal = messageFrom(() => deleteVideo(store, id));
+            const removal = messageFrom(() => deleteVideo(database, id));
             if (!removal.ok) {
                 return { message: removal.message };
             }

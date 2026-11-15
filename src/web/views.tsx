@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import type { Channel, Video } from "../db/store.ts";
+import type { Channel, Video } from "../db/types.ts";
 import { formatDuration } from "./format.ts";
 import { Layout } from "./layout.tsx";
 import type { Pagination } from "./paging.ts";

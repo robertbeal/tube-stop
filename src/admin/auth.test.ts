@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
-import { getVideo } from "../db/store.ts";
+import { getVideo } from "../db/videos.ts";
 import { adminPassword, adminUsername, allow, buildEnvironment, logIn, send, sessionCookie } from "../web/harness.ts";
 import {
     createLoginLimiter,
@@ -164,11 +164,11 @@ describe("logging in", () => {
         const original = await buildEnvironment();
         const stronger = passwords.createPasswordHasher(5);
         const environment = withHasher(original, stronger);
-        const oldHash = getUserByUsername(original.store, adminUsername)?.passwordHash ?? "";
+        const oldHash = getUserByUsername(original.database, adminUsername)?.passwordHash ?? "";
 
         expect(await tryLogIn(environment, adminUsername, adminPassword)).toBeDefined();
 
-        const newHash = getUserByUsername(environment.store, adminUsername)?.passwordHash ?? "";
+        const newHash = getUserByUsername(environment.database, adminUsername)?.passwordHash ?? "";
         expect(newHash).not.toBe(oldHash);
         expect(await passwords.verifyPassword(newHash, adminPassword)).toBe(true);
         expect(passwords.needsUpgrade(stronger, newHash)).toBe(false);
@@ -176,9 +176,9 @@ describe("logging in", () => {
 
     test("does not rehash when the cost is already current", async () => {
         const environment = await buildEnvironment();
-        const before = getUserByUsername(environment.store, adminUsername)?.passwordHash;
+        const before = getUserByUsername(environment.database, adminUsername)?.passwordHash;
         await logIn(environment);
-        expect(getUserByUsername(environment.store, adminUsername)?.passwordHash).toBe(before);
+        expect(getUserByUsername(environment.database, adminUsername)?.passwordHash).toBe(before);
     });
 
     test("HTTP basic credentials no longer work", async () => {
@@ -255,7 +255,7 @@ describe("protected pages", () => {
         const response = await send(environment, path, { method });
         expect(response.status).toBe(303);
         expect(response.headers.get("location")).toBe(target);
-        expect(getVideo(environment.store, videoId)?.pinned).toBe(false);
+        expect(getVideo(environment.database, videoId)?.pinned).toBe(false);
     });
 
     test("pages are not cached, so back after logout shows nothing", async () => {
@@ -337,7 +337,7 @@ describe("accounts that disappear", () => {
     test("a session stops working when its account is deleted and the admin goes to setup", async () => {
         const environment = await buildEnvironment();
         const cookie = await logIn(environment);
-        deleteUsers(environment.store);
+        deleteUsers(environment.database);
         const response = await send(environment, "/admin", { cookie });
         expect(response.status).toBe(303);
         expect(response.headers.get("location")).toBe("/admin/setup");
@@ -346,8 +346,8 @@ describe("accounts that disappear", () => {
     test("a session of a deleted account never works for a new account", async () => {
         const environment = await buildEnvironment();
         const oldCookie = await logIn(environment);
-        deleteUsers(environment.store);
-        createFirstUser(environment.store, "someone-new", "irrelevant");
+        deleteUsers(environment.database);
+        createFirstUser(environment.database, "someone-new", "irrelevant");
         const response = await send(environment, "/admin", { cookie: oldCookie });
         expect(response.status).toBe(303);
         expect(response.headers.get("location")).toStartWith("/admin/login");

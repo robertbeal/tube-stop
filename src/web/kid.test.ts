@@ -1,16 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { testVideoId } from "../../tests/helpers.ts";
-import {
-    blockVideo,
-    claimCache,
-    claimDownload,
-    closeStore,
-    failCache,
-    finishDownload,
-    pinVideo,
-    requestCache,
-} from "../db/store.ts";
+import { blockVideo } from "../db/videos.ts";
+import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { allow, buildEnvironment, logIn, send } from "./harness.ts";
 import {
@@ -34,7 +26,7 @@ async function environmentWithSong() {
 
 async function environmentWithBlockedSong() {
     const environment = await environmentWithSong();
-    blockVideo(environment.store, videoId);
+    blockVideo(environment.database, videoId);
     return environment;
 }
 
@@ -57,7 +49,7 @@ describe("browsing", () => {
         const environment = await buildEnvironment();
         allowPianoVideo(environment, testVideoId("aaaaaaaaaaa"), "Twinkle Twinkle");
         allowPianoVideo(environment, testVideoId("bbbbbbbbbbb"), "Scary Video");
-        blockVideo(environment.store, testVideoId("bbbbbbbbbbb"));
+        blockVideo(environment.database, testVideoId("bbbbbbbbbbb"));
 
         const response = await send(environment, "/");
         const body = await response.text();
@@ -168,9 +160,9 @@ describe("prepare and played", () => {
 
     test("prepare retries a failed download", async () => {
         const environment = await environmentWithSong();
-        requestCache(environment.store, videoId);
-        claimCache(environment.store);
-        failCache(environment.store, videoId, "network");
+        requestCache(environment.database, videoId);
+        claimCache(environment.database);
+        failCache(environment.database, videoId, "network");
 
         await send(environment, prepare(videoId), { method: "POST" });
 
@@ -250,9 +242,9 @@ describe("status", () => {
 
     test("reports a failed download", async () => {
         const environment = await environmentWithSong();
-        requestCache(environment.store, videoId);
-        claimCache(environment.store);
-        failCache(environment.store, videoId, "network");
+        requestCache(environment.database, videoId);
+        claimCache(environment.database);
+        failCache(environment.database, videoId, "network");
 
         expect(await (await send(environment, `/status/${videoId}`)).json()).toEqual({
             ready: false,
@@ -289,9 +281,9 @@ describe("video bytes", () => {
     test("falls back to the cache when the pinned file went missing", async () => {
         const environment = await environmentWithSong();
         await makeCacheReady(environment, videoId, "cached");
-        pinVideo(environment.store, videoId);
-        claimDownload(environment.store);
-        finishDownload(environment.store, videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
+        pinVideo(environment.database, videoId);
+        claimDownload(environment.database);
+        finishDownload(environment.database, videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
 
         expect(await (await send(environment, `/video/${videoId}`)).text()).toBe("cached");
     });
@@ -304,7 +296,7 @@ describe("video bytes", () => {
     test("a blocked or unknown video is never served", async () => {
         const environment = await environmentWithSong();
         await makeCacheReady(environment, videoId, "secret bytes");
-        blockVideo(environment.store, videoId);
+        blockVideo(environment.database, videoId);
 
         for (const id of [videoId, unknownVideoId]) {
             const response = await send(environment, `/video/${id}`);
@@ -461,7 +453,7 @@ describe("database failures", () => {
     test("return a generic 500 without leaking details", async () => {
         const environment = await environmentWithSong();
         const cookie = await logIn(environment);
-        closeStore(environment.store);
+        environment.database.close();
 
         const requests = [
             { method: "GET", path: "/" },
