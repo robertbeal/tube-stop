@@ -1,16 +1,13 @@
 import type { Database } from "bun:sqlite";
 import { describe, expect, spyOn, test } from "bun:test";
-import { chmod } from "node:fs/promises";
 import { join } from "node:path";
-import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "../tests/helpers.ts";
+import { stubYtDlp, temporaryDirectory, testVideoId } from "../tests/helpers.ts";
 import { getChannels, insertChannel } from "./db/channels.ts";
 import { openDatabase } from "./db/database.ts";
 import type { Channel } from "./db/types.ts";
 import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
 import { runSync, syncChannels } from "./syncer.ts";
-import { getChannelVideos } from "./ytdlp/resolve.ts";
-import type { Video } from "./ytdlp/types.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;
@@ -26,40 +23,17 @@ async function newDatabase(): Promise<Database> {
     return openDatabase(join(await temporaryDirectory(), "tubestop.db"));
 }
 
-async function ytDlpPrinting(body: string) {
-    const stub = await writeStub(body);
-    await chmod(stub.binary, 0o755); // Bun.write ignores its mode option on some versions
-    return getChannelVideos.bind(null, stub.binary);
-}
-
-const printing = (json: string) => `cat <<'EOF'\n${json}\nEOF`;
-
-function fakeLister(videos: Video[] = []) {
-    const calls: { channelId: string; limit: number }[] = [];
-    const lister = async (channelId: string, limit: number) => {
-        calls.push({ channelId, limit });
-        return videos;
-    };
-    return { lister, calls };
+/** A fake yt-dlp that prints the given JSON, and the path to run it. */
+async function ytDlpPrinting(json: string) {
+    return stubYtDlp(`cat <<'EOF'\n${json}\nEOF`);
 }
 
 const titlesOf = (database: Database) =>
     getWatchableVideos(database, "", everything).videos.map((video) => video.title);
 
-function listed(overrides: Partial<Video>): Video {
-    return {
-        id: testVideoId("abcdefghijk"),
-        title: "t",
-        channel: { id: "", name: "" },
-        duration: 0,
-        publishedAt: 0,
-        ...overrides,
-    };
-}
-
-async function waitFor(description: string, condition: () => boolean): Promise<void> {
+async function waitFor(description: string, condition: () => boolean | Promise<boolean>): Promise<void> {
     const deadline = performance.now() + 5000;
-    while (!condition()) {
+    while (!(await condition())) {
         if (performance.now() > deadline) {
             throw new Error(`timed out waiting for ${description}`);
         }
@@ -72,7 +46,7 @@ describe("syncChannels", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncChannels(database, await ytDlpPrinting(printing(listing)), neverAborted);
+        await syncChannels(database, (await ytDlpPrinting(listing)).binary, neverAborted);
 
         expect(titlesOf(database)).toEqual(["Newest", "Middle", "Oldest"]);
     });
@@ -81,7 +55,7 @@ describe("syncChannels", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncChannels(database, await ytDlpPrinting(printing(listing)), neverAborted);
+        await syncChannels(database, (await ytDlpPrinting(listing)).binary, neverAborted);
 
         const videos = getWatchableVideos(database, "", everything).videos;
         expect(videos).toHaveLength(3);
@@ -92,11 +66,11 @@ describe("syncChannels", () => {
     test("is idempotent and keeps blocked videos blocked", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const getVideos = await ytDlpPrinting(printing(listing));
-        await syncChannels(database, getVideos, neverAborted);
+        const { binary } = await ytDlpPrinting(listing);
+        await syncChannels(database, binary, neverAborted);
         blockVideo(database, testVideoId("middlevideo"));
 
-        await syncChannels(database, getVideos, neverAborted);
+        await syncChannels(database, binary, neverAborted);
 
         expect(titlesOf(database)).toEqual(["Newest", "Oldest"]);
     });
@@ -105,7 +79,8 @@ describe("syncChannels", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncChannels(database, await ytDlpPrinting(printing(listing)), neverAborted);
+        await syncChannels(database, (await ytDlpPrinting(listing)).binary, neverAborted);
+        await syncChannels(database, (await ytDlpPrinting(listing)).binary, neverAborted);
 
         const [channel] = getChannels(database);
         expect(channel?.lastSyncedAt).toBeGreaterThan(0);
@@ -123,23 +98,23 @@ describe("syncChannels", () => {
             duration: 0,
             publishedAt: 0,
         });
+        const failing = await stubYtDlp("echo 'ERROR: offline' >&2\nexit 1");
 
-        await syncChannels(database, await ytDlpPrinting("echo 'ERROR: offline' >&2\nexit 1"), neverAborted);
+        await syncChannels(database, failing.binary, neverAborted);
 
         expect(titlesOf(database)).toEqual(["Existing"]);
         expect(getChannels(database)[0]?.lastSyncedAt).toBe(0);
     });
 
     test("one broken channel does not stop the others", async () => {
-        const database = await ytDlpPrinting(
-            `case "$*" in *UC1*) echo 'ERROR: nope' >&2; exit 1;; esac\n${printing(listing)}`,
-        ).then(async (client) => {
-            const database = await newDatabase();
-            insertChannel(database, "UC1", "Broken");
-            insertChannel(database, "UC2", "Healthy");
-            await syncChannels(database, client, neverAborted);
-            return database;
-        });
+        const database = await newDatabase();
+        insertChannel(database, "UC1", "Broken");
+        insertChannel(database, "UC2", "Healthy");
+        const oneBroken = await stubYtDlp(
+            `case "$*" in *UC1*) echo 'ERROR: nope' >&2; exit 1;; esac\ncat <<'EOF'\n${listing}\nEOF`,
+        );
+
+        await syncChannels(database, oneBroken.binary, neverAborted);
 
         const syncedByName = Object.fromEntries(
             getChannels(database).map((channel: Channel) => [channel.name, channel.lastSyncedAt > 0]),
@@ -151,7 +126,7 @@ describe("syncChannels", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncChannels(database, await ytDlpPrinting(printing(listing)), AbortSignal.abort());
+        await syncChannels(database, (await ytDlpPrinting(listing)).binary, AbortSignal.abort());
 
         expect(titlesOf(database)).toEqual([]);
     });
@@ -159,45 +134,47 @@ describe("syncChannels", () => {
     test("looks at the channel's 50 most recent videos only", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const { lister, calls } = fakeLister();
+        const stub = await ytDlpPrinting(`{"_type":"playlist","entries":[]}`);
 
-        await syncChannels(database, lister, neverAborted);
+        await syncChannels(database, stub.binary, neverAborted);
 
-        expect(calls).toEqual([{ channelId: "UC1", limit: 50 }]);
+        const joined = (await stub.arguments()).join(" ");
+        expect(joined).toContain("/channel/UC1/videos");
+        expect(joined).toContain("--playlist-end 50");
     });
 
     test("uses the video id when YouTube gives no title", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const { lister } = fakeLister([listed({ id: testVideoId("untitledvid"), title: "" })]);
+        const untitled = await ytDlpPrinting(`{"_type":"playlist","entries":[{"id":"untitledvid","title":""}]}`);
 
-        await syncChannels(database, lister, neverAborted);
+        await syncChannels(database, untitled.binary, neverAborted);
 
         expect(getVideo(database, testVideoId("untitledvid"))?.title).toBe("untitledvid");
     });
 
     test("a database failure is logged and the run ends without calling YouTube", async () => {
-        const { lister, calls } = fakeLister();
         const brokenDatabase = await newDatabase();
         brokenDatabase.close();
+        const stub = await ytDlpPrinting(listing);
 
         const errors = spyOn(logger, "error");
-        await syncChannels(brokenDatabase, lister, neverAborted);
+        await syncChannels(brokenDatabase, stub.binary, neverAborted);
 
         expect(errors.mock.calls).toHaveLength(1);
         expect(errors.mock.calls[0]?.[0]).toStartWith("sync: ");
-        expect(calls).toEqual([]);
+        await expect(stub.arguments()).rejects.toThrow(); // yt-dlp never ran, so it never recorded its arguments
     });
 
     test("shows videos in publish order even when YouTube lists them differently", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const datedListing = `{"_type":"playlist","entries":[
+        const dated = await ytDlpPrinting(`{"_type":"playlist","entries":[
  {"id":"middlevideo","title":"Published second","timestamp":200},
  {"id":"newestvideo","title":"Published third","timestamp":300},
- {"id":"oldestvideo","title":"Published first","timestamp":100}]}`;
+ {"id":"oldestvideo","title":"Published first","timestamp":100}]}`);
 
-        await syncChannels(database, await ytDlpPrinting(printing(datedListing)), neverAborted);
+        await syncChannels(database, dated.binary, neverAborted);
 
         expect(titlesOf(database)).toEqual(["Published third", "Published second", "Published first"]);
     });
@@ -213,9 +190,11 @@ describe("syncChannels", () => {
             duration: 0,
             publishedAt: 0,
         });
-        const { lister } = fakeLister([listed({ id: testVideoId("oldvideoaaa"), title: "Old", publishedAt: 4242 })]);
+        const dated = await ytDlpPrinting(
+            `{"_type":"playlist","entries":[{"id":"oldvideoaaa","title":"Old","timestamp":4242}]}`,
+        );
 
-        await syncChannels(database, lister, neverAborted);
+        await syncChannels(database, dated.binary, neverAborted);
 
         expect(getVideo(database, testVideoId("oldvideoaaa"))?.publishedAt).toBe(4242);
     });
@@ -225,10 +204,10 @@ describe("run", () => {
     test("syncs straight away and stops when aborted", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const getVideos = await ytDlpPrinting(printing(listing));
+        const { binary } = await ytDlpPrinting(listing);
 
         const controller = new AbortController();
-        const running = runSync(database, getVideos, hour, controller.signal);
+        const running = runSync(database, binary, hour, controller.signal);
         await waitFor("run to sync the channel", () => titlesOf(database).length === 3);
         controller.abort();
 
@@ -238,11 +217,20 @@ describe("run", () => {
     test("syncs again on every interval", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
-        const { lister, calls } = fakeLister();
+        const callsFile = join(await temporaryDirectory(), "calls.txt");
+        const counting = await stubYtDlp(`echo called >> '${callsFile}'\necho '{"_type":"playlist","entries":[]}'`);
+        const calls = async () =>
+            (
+                await Bun.file(callsFile)
+                    .text()
+                    .catch(() => "")
+            )
+                .split("\n")
+                .filter(Boolean).length;
 
         const controller = new AbortController();
-        const running = runSync(database, lister, 20, controller.signal);
-        await waitFor("a third sync", () => calls.length >= 3);
+        const running = runSync(database, counting.binary, 20, controller.signal);
+        await waitFor("a third sync", async () => (await calls()) >= 3);
         controller.abort();
 
         await running;

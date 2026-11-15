@@ -25,5 +25,3 @@ export const isVideo = (resolved: Resolved): resolved is Video => "channel" in r
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
 export type Download = (id: VideoId, directory: string, maxHeight: number, signal: AbortSignal) => Promise<string>;
-
-export type GetChannelVideos = (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;

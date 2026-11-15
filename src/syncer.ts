@@ -4,7 +4,7 @@ import { getChannels, markChannelSynced } from "./db/channels.ts";
 import type { Channel } from "./db/types.ts";
 import { insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
-import type { GetChannelVideos } from "./ytdlp/types.ts";
+import { getChannelVideos } from "./ytdlp/resolve.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
@@ -13,23 +13,19 @@ const perChannelTimeoutMs = 3 * 60 * 1000;
 /** Syncs once straight away, then on every interval, until `signal` aborts. */
 export async function runSync(
     database: Database,
-    getChannelVideos: GetChannelVideos,
+    binary: string,
     intervalMs: number,
     signal: AbortSignal,
 ): Promise<void> {
-    await syncChannels(database, getChannelVideos, signal);
+    await syncChannels(database, binary, signal);
     while (!signal.aborted) {
         await delay(intervalMs, undefined, { signal }).catch(() => undefined);
-        await syncChannels(database, getChannelVideos, signal);
+        await syncChannels(database, binary, signal);
     }
 }
 
 /** Syncs every channel. It never rejects, because it also runs on its own when the admin asks for a sync. */
-export async function syncChannels(
-    database: Database,
-    getChannelVideos: GetChannelVideos,
-    signal: AbortSignal,
-): Promise<void> {
+export async function syncChannels(database: Database, binary: string, signal: AbortSignal): Promise<void> {
     if (signal.aborted) {
         return;
     }
@@ -39,23 +35,18 @@ export async function syncChannels(
             if (signal.aborted) {
                 return;
             }
-            await syncChannel(database, getChannelVideos, channel, signal);
+            await syncChannel(database, binary, channel, signal);
         }
     } catch (error) {
         logger.error(`sync: ${error.message}`);
     }
 }
 
-async function syncChannel(
-    database: Database,
-    getChannelVideos: GetChannelVideos,
-    channel: Channel,
-    signal: AbortSignal,
-): Promise<void> {
+async function syncChannel(database: Database, binary: string, channel: Channel, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
 
     try {
-        const videos = await getChannelVideos(channel.youtubeId, recentVideos, timeout);
+        const videos = await getChannelVideos(binary, channel.youtubeId, recentVideos, timeout);
 
         for (const video of videos.toReversed()) {
             try {

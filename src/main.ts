@@ -8,7 +8,7 @@ import { logger } from "./logger.ts";
 import { runSync, syncChannels } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
-import { getChannelVideos, resolveUrl } from "./ytdlp/resolve.ts";
+import { resolveUrl } from "./ytdlp/resolve.ts";
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     // Other users (such as a Jellyfin container) need to read the media folders.
@@ -22,7 +22,6 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
 
     const database = openDatabase(join(config.dataDir, "tubestop.db"));
     const binary = config.ytdlpBin;
-    const getVideos = getChannelVideos.bind(null, binary);
     const downloads: DownloadWorker = {
         database,
         downloadToLibrary: downloadToLibrary.bind(null, binary),
@@ -39,7 +38,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     const app = createApp({
         database,
         resolveUrl: resolveUrl.bind(null, binary),
-        syncNow: syncChannels.bind(null, database, getVideos, stopping.signal),
+        syncNow: syncChannels.bind(null, database, binary, stopping.signal),
         thumbnailDir: join(config.dataDir, "thumbs"),
         mediaDir,
         cacheDir,
@@ -47,7 +46,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     });
 
     const workers = Promise.all([
-        runSync(database, getVideos, config.syncIntervalMs, stopping.signal),
+        runSync(database, binary, config.syncIntervalMs, stopping.signal),
         runDownloads(downloads, stopping.signal),
     ]);
     const server = Bun.serve({
