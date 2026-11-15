@@ -8,7 +8,7 @@ import { openDatabase } from "./db/database.ts";
 import type { Channel } from "./db/types.ts";
 import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
-import { runSync, type Syncer, syncAll } from "./syncer.ts";
+import { runSync, type Syncer, syncChannels } from "./syncer.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
 
@@ -71,12 +71,12 @@ async function waitFor(description: string, condition: () => boolean): Promise<v
     }
 }
 
-describe("syncAll", () => {
+describe("syncChannels", () => {
     test("adds channel videos as watchable, newest first", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncAll(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
+        await syncChannels(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
 
         const videos = getWatchableVideos(database, "", everything).videos;
         expect(videos.map((video) => video.title)).toEqual(["Newest", "Middle", "Oldest"]);
@@ -88,10 +88,10 @@ describe("syncAll", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
         const syncer = syncerFor(database, await ytDlpPrinting(printing(listing)));
-        await syncAll(syncer, neverAborted);
+        await syncChannels(syncer, neverAborted);
         blockVideo(database, testVideoId("middlevideo"));
 
-        await syncAll(syncer, neverAborted);
+        await syncChannels(syncer, neverAborted);
 
         expect(titlesOf(database)).toEqual(["Newest", "Oldest"]);
     });
@@ -100,7 +100,7 @@ describe("syncAll", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncAll(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
+        await syncChannels(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
 
         const [channel] = getChannels(database);
         expect(channel?.lastSyncedAt).toBeGreaterThan(0);
@@ -119,7 +119,7 @@ describe("syncAll", () => {
             publishedAt: 0,
         });
 
-        await syncAll(syncerFor(database, await ytDlpPrinting("echo 'ERROR: offline' >&2\nexit 1")), neverAborted);
+        await syncChannels(syncerFor(database, await ytDlpPrinting("echo 'ERROR: offline' >&2\nexit 1")), neverAborted);
 
         expect(titlesOf(database)).toEqual(["Existing"]);
         expect(getChannels(database)[0]?.lastSyncedAt).toBe(0);
@@ -132,7 +132,7 @@ describe("syncAll", () => {
             const database = await newDatabase();
             insertChannel(database, "UC1", "Broken");
             insertChannel(database, "UC2", "Healthy");
-            await syncAll(syncerFor(database, client), neverAborted);
+            await syncChannels(syncerFor(database, client), neverAborted);
             return database;
         });
 
@@ -146,7 +146,7 @@ describe("syncAll", () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
-        await syncAll(syncerFor(database, await ytDlpPrinting(printing(listing))), AbortSignal.abort());
+        await syncChannels(syncerFor(database, await ytDlpPrinting(printing(listing))), AbortSignal.abort());
 
         expect(titlesOf(database)).toEqual([]);
     });
@@ -156,7 +156,7 @@ describe("syncAll", () => {
         insertChannel(database, "UC1", "Piano Guy");
         const { lister, calls } = fakeLister();
 
-        await syncAll(syncerFor(database, lister), neverAborted);
+        await syncChannels(syncerFor(database, lister), neverAborted);
 
         expect(calls).toEqual([{ channelId: "UC1", limit: 50 }]);
     });
@@ -166,7 +166,7 @@ describe("syncAll", () => {
         insertChannel(database, "UC1", "Piano Guy");
         const { lister } = fakeLister([listed({ id: testVideoId("untitledvid"), title: "" })]);
 
-        await syncAll(syncerFor(database, lister), neverAborted);
+        await syncChannels(syncerFor(database, lister), neverAborted);
 
         expect(getVideo(database, testVideoId("untitledvid"))?.title).toBe("untitledvid");
     });
@@ -178,7 +178,7 @@ describe("syncAll", () => {
 
         const errors = spyOn(logger, "error");
         const syncer: Syncer = { database: brokenDatabase, getChannelVideos: lister, intervalMs: hour };
-        await syncAll(syncer, neverAborted);
+        await syncChannels(syncer, neverAborted);
 
         expect(errors.mock.calls).toHaveLength(1);
         expect(errors.mock.calls[0]?.[0]).toStartWith("sync: ");
@@ -193,7 +193,7 @@ describe("syncAll", () => {
  {"id":"newestvideo","title":"Published third","timestamp":300},
  {"id":"oldestvideo","title":"Published first","timestamp":100}]}`;
 
-        await syncAll(syncerFor(database, await ytDlpPrinting(printing(datedListing))), neverAborted);
+        await syncChannels(syncerFor(database, await ytDlpPrinting(printing(datedListing))), neverAborted);
 
         expect(titlesOf(database)).toEqual(["Published third", "Published second", "Published first"]);
     });
@@ -211,7 +211,7 @@ describe("syncAll", () => {
         });
         const { lister } = fakeLister([listed({ id: testVideoId("oldvideoaaa"), title: "Old", publishedAt: 4242 })]);
 
-        await syncAll(syncerFor(database, lister), neverAborted);
+        await syncChannels(syncerFor(database, lister), neverAborted);
 
         expect(getVideo(database, testVideoId("oldvideoaaa"))?.publishedAt).toBe(4242);
     });

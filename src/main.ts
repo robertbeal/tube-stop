@@ -5,7 +5,7 @@ import { loadConfig } from "./config.ts";
 import { openDatabase } from "./db/database.ts";
 import { type DownloadWorker, runDownloads } from "./downloads/worker.ts";
 import { logger } from "./logger.ts";
-import { runSync, type Syncer, syncAll } from "./syncer.ts";
+import { runSync, type Syncer, syncChannels } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
 import { getChannelVideos, resolveUrl } from "./ytdlp/resolve.ts";
@@ -43,7 +43,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     const app = createApp({
         database,
         resolveUrl: resolveUrl.bind(null, binary),
-        syncNow: syncAll.bind(null, syncer, stopping.signal),
+        syncNow: syncChannels.bind(null, syncer, stopping.signal),
         thumbnailDir: join(config.dataDir, "thumbs"),
         mediaDir,
         cacheDir,

@@ -19,15 +19,15 @@ export type Syncer = {
 
 /** Syncs once straight away, then on every interval, until `signal` aborts. */
 export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
-    await syncAll(syncer, signal);
+    await syncChannels(syncer, signal);
     while (!signal.aborted) {
         await delay(syncer.intervalMs, undefined, { signal }).catch(() => undefined);
-        await syncAll(syncer, signal);
+        await syncChannels(syncer, signal);
     }
 }
 
 /** Syncs every channel. It never rejects, because it also runs on its own when the admin asks for a sync. */
-export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void> {
+export async function syncChannels(syncer: Syncer, signal: AbortSignal): Promise<void> {
     if (signal.aborted) {
         return;
     }
