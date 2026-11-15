@@ -31,6 +31,7 @@ export async function syncChannels(syncer: Syncer, signal: AbortSignal): Promise
     if (signal.aborted) {
         return;
     }
+
     try {
         for (const channel of getChannels(syncer.database)) {
             if (signal.aborted) {
@@ -45,9 +46,11 @@ export async function syncChannels(syncer: Syncer, signal: AbortSignal): Promise
 
 async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
+
     try {
-        const listed = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
-        for (const video of listed.toReversed()) {
+        const videos = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
+
+        for (const video of videos.toReversed()) {
             try {
                 insertVideo(syncer.database, {
                     youtubeId: video.id,
@@ -62,7 +65,7 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
             }
         }
         markChannelSynced(syncer.database, channel.youtubeId);
-        logger.info(`sync: ${channel.name}: ${listed.length} videos`);
+        logger.info(`sync: ${channel.name}: ${videos.length} videos`);
     } catch (error) {
         logger.error(`sync: ${channel.name}: ${error.message}`);
     }
