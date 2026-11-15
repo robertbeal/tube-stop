@@ -47,7 +47,6 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
     try {
         const listed = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
-        // Insert oldest first so newer videos get higher ids, and are shown first.
         for (const video of listed.toReversed()) {
             try {
                 insertVideo(syncer.database, {

@@ -72,14 +72,23 @@ async function waitFor(description: string, condition: () => boolean): Promise<v
 }
 
 describe("syncChannels", () => {
-    test("adds channel videos as watchable, newest first", async () => {
+    test("videos without dates are shown in the order YouTube lists them, newest first", async () => {
+        const database = await newDatabase();
+        insertChannel(database, "UC1", "Piano Guy");
+
+        await syncChannels(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
+
+        expect(titlesOf(database)).toEqual(["Newest", "Middle", "Oldest"]);
+    });
+
+    test("adds channel videos as watchable, with the channel's name and the video's duration", async () => {
         const database = await newDatabase();
         insertChannel(database, "UC1", "Piano Guy");
 
         await syncChannels(syncerFor(database, await ytDlpPrinting(printing(listing))), neverAborted);
 
         const videos = getWatchableVideos(database, "", everything).videos;
-        expect(videos.map((video) => video.title)).toEqual(["Newest", "Middle", "Oldest"]);
+        expect(videos).toHaveLength(3);
         expect(videos[0]?.channelName).toBe("Piano Guy");
         expect(videos[0]?.duration).toBe(30);
     });
