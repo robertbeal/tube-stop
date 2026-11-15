@@ -5,12 +5,12 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-# yt-dlp's standalone build, checked against the checksums published with the release. This is the newest
-# release as of the last build that did not come from the layer cache: use --no-cache to update it.
+# yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
 ARG TARGETARCH
+ARG YTDLP_VERSION=2026.10.26
 RUN case "$TARGETARCH" in amd64) asset=yt-dlp_musllinux ;; arm64) asset=yt-dlp_musllinux_aarch64 ;; esac \
-    && release="https://github.com/yt-dlp/yt-dlp/releases/latest/download" \
+    && release="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}" \
     && wget -q "${release}/${asset}" \
     && wget -qO- "${release}/SHA2-256SUMS" | grep " ${asset}\$" | sha256sum -c \
     && install -m 755 "${asset}" /yt-dlp

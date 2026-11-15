@@ -58,8 +58,8 @@ updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volume
     docker build -t tube-stop .
     docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
 
-The image has Bun, `ffmpeg`, QuickJS and the newest `yt-dlp` as of the build. Docker reuses the cached
-`yt-dlp` layer, so add `--no-cache` to fetch a newer one. It builds for `linux/amd64` and `linux/arm64`:
+The image has Bun, `ffmpeg`, QuickJS and a pinned `yt-dlp`. To update `yt-dlp`, change `YTDLP_VERSION`
+in the `Dockerfile` (or pass `--build-arg YTDLP_VERSION=...`) and rebuild. The image builds for `linux/amd64` and `linux/arm64`:
 
     docker buildx build --platform linux/amd64,linux/arm64 -t tube-stop .
 
