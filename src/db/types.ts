@@ -6,7 +6,7 @@ export type Status = "none" | "queued" | "downloading" | "ready" | "failed";
 /** How a video's visibility is decided: allowed on its own, blocked, or following its channel. */
 export type Rule = "allow" | "block" | "inherit";
 
-export interface Channel {
+export type Channel = {
     id: number;
     youtubeId: string;
     name: string;
@@ -14,9 +14,9 @@ export interface Channel {
     lastSyncedAt: number;
     /** Videos known for the channel that are not blocked. */
     videoCount: number;
-}
+};
 
-export interface Video {
+export type Video = {
     youtubeId: VideoId;
     channelYoutubeId: string;
     channelName: string;
@@ -40,37 +40,37 @@ export interface Video {
     channelAllowed: boolean;
     /** The child may watch it: explicitly allowed, or inheriting from an allowed channel. */
     watchable: boolean;
-}
+};
 
 /** What is known about a video when it is first added. */
-export interface NewVideo {
+export type NewVideo = {
     youtubeId: VideoId;
     channelYoutubeId: string;
     channelName: string;
     title: string;
     duration: number;
     publishedAt: number;
-}
+};
 
-export interface User {
+export type User = {
     id: number;
     username: string;
     passwordHash: string;
-}
+};
 
 /** A window of a list: `limit` rows starting after `offset` rows. */
-export interface Page {
+export type Page = {
     limit: number;
     offset: number;
-}
+};
 
-export interface VideoPage {
+export type VideoPage = {
     videos: Video[];
     total: number;
-}
+};
 
 /** Describes what removing a video did, so the caller can delete the files. */
-export interface Removal {
+export type Removal = {
     filePath: string;
     cachePath: string;
     /**
@@ -78,7 +78,7 @@ export interface Removal {
      * allowed channel, which a later sync would otherwise add back.
      */
     blocked: boolean;
-}
+};
 
 export class NotFoundError extends Error {
     constructor() {
@@ -93,8 +93,8 @@ export class AlreadySetUpError extends Error {
 }
 
 /** The Tube Stop database: curated channels and videos, download and cache state, and admin accounts. */
-export interface Store {
+export type Store = {
     database: Database;
     /** The current time in unix seconds; tests replace it. */
     now: () => number;
-}
+};

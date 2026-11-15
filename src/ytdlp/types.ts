@@ -1,12 +1,12 @@
 /** A YouTube video id: 11 characters from a URL-safe alphabet. It is safe to put in a file name or a URL. */
 export type VideoId = string & { readonly brand: "VideoId" };
 
-export interface Channel {
+export type Channel = {
     id: string;
     name: string;
-}
+};
 
-export interface Video {
+export type Video = {
     id: VideoId;
     title: string;
     channel: Channel;
@@ -14,7 +14,7 @@ export interface Video {
     duration: number;
     /** Upload time in unix seconds, or 0 if unknown. For channel listings it is approximate (accurate to the day). */
     publishedAt: number;
-}
+};
 
 /** What a pasted URL points at. */
 export type Resolved = Video | Channel;

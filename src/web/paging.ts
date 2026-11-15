@@ -5,7 +5,7 @@ export const adminPageSize = 100; // the admin list is for scanning
 const maxPageNumber = 1_000_000;
 
 /** One page of a longer list, for the views. */
-export interface Pagination {
+export type Pagination = {
     number: number;
     /** 1-based positions of the first and last video shown; 0 when the list is empty. */
     from: number;
@@ -15,7 +15,7 @@ export interface Pagination {
     previousUrl: string;
     /** Empty when this is the last page. */
     nextUrl: string;
-}
+};
 
 /** Reads the page number from a query value; anything invalid means page 1. */
 export function requestedPage(raw: string | undefined): number {

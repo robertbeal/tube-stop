@@ -18,12 +18,12 @@ export async function temporaryDirectory(): Promise<string> {
     return directory;
 }
 
-export interface Stub {
+export type Stub = {
     /** Path of the fake yt-dlp executable. */
     binary: string;
     /** Reads the arguments of the most recent call, one per element. */
     arguments(): Promise<string[]>;
-}
+};
 
 /**
  * Writes a fake yt-dlp: a shell script that records its arguments (one per line) and then

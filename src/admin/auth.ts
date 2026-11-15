@@ -8,20 +8,20 @@ const maxFailedLogins = 5;
 const failedLoginWindowMs = 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no look-alikes (0/O, 1/I); 32 symbols divide 256 evenly
 
-interface Session {
+type Session = {
     userId: number;
     expiresAt: number;
-}
+};
 
 /**
  * Remembers which admin login tokens are valid and whose they are. It lives in memory, so a
  * restart logs everyone out, which for a single admin just means logging in again.
  */
-export interface Sessions {
+export type Sessions = {
     byToken: Map<string, Session>;
     lifetimeMs: number;
     now: () => number;
-}
+};
 
 export const createSessions = (lifetimeMs: number, now: () => number): Sessions => ({
     byToken: new Map(),
@@ -74,10 +74,10 @@ export function removeOtherSessions(sessions: Sessions, userId: number, keep: st
  * within a short window. It counts every failure together rather than per device, because
  * behind a home network all devices can look the same.
  */
-export interface LoginLimiter {
+export type LoginLimiter = {
     failures: number[];
     now: () => number;
-}
+};
 
 export const createLoginLimiter = (now: () => number): LoginLimiter => ({ failures: [], now });
 
@@ -105,10 +105,10 @@ export function normaliseCode(typed: string): string {
  * The one-time code that proves whoever is creating the first admin account can read the
  * app's log. It exists only in memory and is cleared once setup succeeds.
  */
-export interface SetupCode {
+export type SetupCode = {
     code: string;
     log: (message: string) => void;
-}
+};
 
 export const createSetupCode = (log: (message: string) => void): SetupCode => ({ code: "", log });
 

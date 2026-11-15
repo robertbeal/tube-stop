@@ -1,10 +1,10 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 
-interface LayoutProps {
+type LayoutProps = {
     title: string;
     navbar?: Child;
-}
+};
 
 export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, navbar, children }) => (
     <>

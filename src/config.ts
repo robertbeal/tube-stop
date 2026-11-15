@@ -1,4 +1,4 @@
-export interface Config {
+export type Config = {
     host: string;
     port: number;
     dataDir: string;
@@ -10,7 +10,7 @@ export interface Config {
     cacheMaxBytes: number;
     syncIntervalMs: number;
     sessionLifetimeMs: number;
-}
+};
 
 type Parsed<Value> = { ok: true; value: Value } | { ok: false; problem: string };
 

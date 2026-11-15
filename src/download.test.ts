@@ -45,12 +45,12 @@ async function exists(path: string): Promise<boolean> {
     );
 }
 
-interface FetchCall {
+type FetchCall = {
     kind: "library" | "cache";
     id: VideoId;
     directory: string;
     maxHeight: number;
-}
+};
 
 type Download = (call: FetchCall, signal: AbortSignal) => Promise<string>;
 
@@ -96,14 +96,14 @@ function gatedFetcher(pathFor: (call: FetchCall) => string) {
 
 type Fetcher = ReturnType<typeof fakeFetcher>["fetcher"];
 
-interface Fixture {
+type Fixture = {
     store: Store;
     config: DownloadConfig;
     logs: string[];
     workerWith(fetcher: Fetcher, overrides?: Partial<DownloadConfig>): DownloadWorker;
     /** Moves the store's clock, which stamps cache requests as played. */
     setTime(unixSeconds: number): void;
-}
+};
 
 async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fixture> {
     const clock = { now: baseTimeSeconds };

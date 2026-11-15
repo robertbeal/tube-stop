@@ -1,11 +1,11 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 import { AlreadySetUpError, NotFoundError, type Store, type User } from "../db/types.ts";
 
-interface UserRow {
+type UserRow = {
     id: number;
     username: string;
     password_hash: string;
-}
+};
 
 function toUser(row: UserRow): User {
     return { id: row.id, username: row.username, passwordHash: row.password_hash };

@@ -365,10 +365,10 @@ describe("download queue", () => {
     test("queued videos are claimed oldest first, each exactly once", async () => {
         const { store } = await openTestDatabase();
         const videos = Array.from({ length: 12 }, () => newVideo(randomVideoId()));
-        videos.forEach((video) => {
+        for (const video of videos) {
             allowVideo(store, video);
             pinVideo(store, video.youtubeId);
-        });
+        }
         const claimed = videos.map(() => claimDownload(store));
         expect(claimed).toEqual(idsOf(videos));
         expect(claimDownload(store)).toBeNull();
@@ -491,18 +491,18 @@ describe("watch-once cache", () => {
             newVideo(randomVideoId()),
             newVideo(randomVideoId()),
         ];
-        [firstVideo, secondVideo, notReady].forEach((video) => {
+        for (const video of [firstVideo, secondVideo, notReady]) {
             allowVideo(store, video);
-        });
-        [firstVideo, secondVideo].forEach((video) => {
+        }
+        for (const video of [firstVideo, secondVideo]) {
             cacheFile(store, video.youtubeId, `/cache/${video.youtubeId}.mp4`);
-        });
-        [firstVideo, secondVideo, notReady].forEach((video, index) => {
+        }
+        for (const [index, video] of [firstVideo, secondVideo, notReady].entries()) {
             raw.query("UPDATE videos SET last_played_at = ? WHERE youtube_id = ?").run(
                 100 * (3 - index),
                 video.youtubeId,
             );
-        });
+        }
         expect(idsOf(getCacheEntries(store))).toEqual([secondVideo.youtubeId, firstVideo.youtubeId]);
     });
 
@@ -522,14 +522,14 @@ describe("schema constraints", () => {
         const { raw } = await openTestDatabase();
         const statuses = ["none", "queued", "downloading", "ready", "failed"];
         const rules = ["allow", "block", "inherit"];
-        statuses.forEach((status) => {
+        for (const status of statuses) {
             raw.query(
                 "INSERT INTO videos (youtube_id, title, download_status, cache_status) VALUES (?, 't', ?, ?)",
             ).run(randomVideoId(), status, status);
-        });
-        rules.forEach((rule) => {
+        }
+        for (const rule of rules) {
             raw.query("INSERT INTO videos (youtube_id, title, rule) VALUES (?, 't', ?)").run(randomVideoId(), rule);
-        });
+        }
         expect(raw.query<{ total: number }, []>("SELECT COUNT(*) AS total FROM videos").get()?.total).toBe(8);
     });
 
@@ -652,9 +652,9 @@ describe("removing a channel", () => {
         const [inherited, individual] = [newVideo(channel), newVideo(channel)];
         insertVideo(store, inherited);
         allowVideo(store, individual);
-        [inherited, individual].forEach((video) => {
+        for (const video of [inherited, individual]) {
             cacheFile(store, video.youtubeId, `/cache/${video.youtubeId}.mp4`);
-        });
+        }
 
         const paths = deleteChannel(store, channelIdOf(store, channel));
 
@@ -733,9 +733,9 @@ describe("paging and ordering", () => {
         const channel = randomVideoId();
         insertChannel(store, channel, "Channel");
         const synced = [300, 900, 600].map((publishedAt) => newVideo(channel, { publishedAt }));
-        synced.forEach((video) => {
+        for (const video of synced) {
             insertVideo(store, video);
-        });
+        }
         const [oldest, newest, middle] = synced.map((video) => video.youtubeId);
         expect([oldest, newest, middle]).not.toContain(undefined);
         expect(idsOf(getWatchableVideos(store, "", everything).videos)).toEqual([newest, middle, oldest] as VideoId[]);
@@ -750,9 +750,9 @@ describe("paging and ordering", () => {
             newVideo(channel, { publishedAt: 500 }),
             newVideo(channel),
         ];
-        [undatedFirst, dated, undatedSecond].forEach((video) => {
+        for (const video of [undatedFirst, dated, undatedSecond]) {
             insertVideo(store, video);
-        });
+        }
         expect(idsOf(getWatchableVideos(store, "", everything).videos)).toEqual([
             dated.youtubeId,
             undatedSecond.youtubeId,
@@ -762,9 +762,9 @@ describe("paging and ordering", () => {
 
     test("admin videos page and count the listed videos", async () => {
         const { store } = await openTestDatabase();
-        Array.from({ length: 7 }, () => newVideo(randomVideoId())).forEach((video) => {
+        for (const video of Array.from({ length: 7 }, () => newVideo(randomVideoId()))) {
             allowVideo(store, video);
-        });
+        }
         insertVideo(store, newVideo(randomVideoId()));
         const page = getAdminVideos(store, "", { limit: 5, offset: 5 });
         expect([page.videos.length, page.total]).toEqual([2, 7]);

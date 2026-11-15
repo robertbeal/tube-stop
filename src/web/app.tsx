@@ -23,9 +23,9 @@ const crossOriginProtection = createMiddleware(async (context, next) => {
     const site = context.req.header("sec-fetch-site");
     const origin = context.req.header("origin");
     const sameOrigin =
-        site !== undefined
-            ? site === "same-origin" || site === "none"
-            : origin === undefined || URL.parse(origin)?.host === context.req.header("host");
+        site === undefined
+            ? origin === undefined || URL.parse(origin)?.host === context.req.header("host")
+            : site === "same-origin" || site === "none";
     return sameOrigin ? next() : context.text("cross-origin request rejected", 403);
 });
 

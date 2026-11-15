@@ -6,12 +6,12 @@ import type { Pagination } from "./paging.ts";
 
 const thumbnailUrl = (id: string) => `/thumb/${encodeURIComponent(id)}`;
 
-export interface IndexProps {
+export type IndexProps = {
     videos: Video[];
     channels: Pick<Channel, "youtubeId" | "name">[];
     current: string;
     pages: Pagination;
-}
+};
 
 export const IndexPage: FC<IndexProps> = ({ videos, channels, current, pages }) => (
     <Layout title="Tube Stop">

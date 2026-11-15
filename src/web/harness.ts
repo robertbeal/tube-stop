@@ -12,9 +12,9 @@ export const adminUsername = "parent";
 export const adminPassword = "correct horse battery";
 
 /** A clock the test can move. */
-export interface FakeClock {
+export type FakeClock = {
     milliseconds: number;
-}
+};
 
 export const createFakeClock = (): FakeClock => ({ milliseconds: Date.UTC(2026, 0, 1, 12, 0, 0) });
 
@@ -22,7 +22,7 @@ export function advanceClock(clock: FakeClock, milliseconds: number): void {
     clock.milliseconds += milliseconds;
 }
 
-export interface Environment {
+export type Environment = {
     app: Hono;
     store: Store;
     clock: FakeClock;
@@ -38,15 +38,15 @@ export interface Environment {
     /** The URLs the resolver was asked about. */
     resolved: string[];
     admin: User | null;
-}
+};
 
-export interface EnvironmentOptions {
+export type EnvironmentOptions = {
     /** Create the admin account `parent` / `correct horse battery` (the default). Pass false to test first-run setup. */
     withAdmin?: boolean;
     /** Answers admin "add" requests; by default every URL fails to resolve. */
     resolve?: (url: string) => Promise<Resolved>;
     sessionLifetimeMs?: number;
-}
+};
 
 /** A complete app on a temporary database and folders, with fakes for everything outside the process. */
 export async function buildEnvironment(options: EnvironmentOptions = {}): Promise<Environment> {
@@ -94,14 +94,14 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     return { app, store, clock, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
 }
 
-export interface RequestOptions {
+export type RequestOptions = {
     method?: string;
     /** Sent as a url-encoded form body. */
     form?: Record<string, string>;
     headers?: Record<string, string>;
     /** A cookie header value, such as the one returned by `logIn`. */
     cookie?: string;
-}
+};
 
 export function send(environment: Environment, path: string, options: RequestOptions = {}): Promise<Response> {
     const headers = new Headers(options.headers);

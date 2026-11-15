@@ -67,12 +67,12 @@ export function cacheFile(store: Store, youtubeId: VideoId, path: string): void 
     finishCache(store, youtubeId, path);
 }
 
-export interface TestDatabase {
+export type TestDatabase = {
     path: string;
     store: Store;
     /** A second connection for arranging and inspecting state the store does not expose. */
     raw: Database;
-}
+};
 
 export async function openTestDatabase(now?: () => number): Promise<TestDatabase> {
     const path = join(await temporaryDirectory(), "test.db");

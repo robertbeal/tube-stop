@@ -4,7 +4,7 @@ import type { Store } from "../db/store.ts";
 import type { ResolveUrl } from "../ytdlp/types.ts";
 
 /** Everything the web layer needs from the rest of the app. */
-export interface WebDependencies {
+export type WebDependencies = {
     store: Store;
     resolveUrl: ResolveUrl;
     /** Starts a sync of every channel and resolves when it is done. It does not fail. */
@@ -23,11 +23,11 @@ export interface WebDependencies {
     now?: () => number;
     /** Where messages go; the console if omitted. */
     log?: (message: string) => void;
-}
+};
 
 /** The dependencies with defaults filled in, plus the state the web layer keeps itself. */
-export interface Services extends Required<WebDependencies> {
+export type Services = Required<WebDependencies> & {
     sessions: Sessions;
     limiter: LoginLimiter;
     setupCode: SetupCode;
-}
+};

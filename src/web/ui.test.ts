@@ -4,10 +4,10 @@ import { claimDownload, finishDownload, pinVideo } from "../db/store.ts";
 import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
 import { allowPianoVideo, makeCacheReady, videoId } from "./kid-helpers.ts";
 
-interface RenderedPage {
+type RenderedPage = {
     name: string;
     body: string;
-}
+};
 
 /** Renders every kind of page: the child's grid and player, and the login, first-run setup and admin pages. */
 async function allPages(): Promise<RenderedPage[]> {

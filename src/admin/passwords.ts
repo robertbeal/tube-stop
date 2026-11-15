@@ -28,12 +28,12 @@ function costOf(hash: string): number | undefined {
 }
 
 /** The settings for hashing admin passwords with bcrypt. Only the hash is ever stored. */
-export interface PasswordHasher {
+export type PasswordHasher = {
     cost: number;
     // A hash of a password nobody knows. Checking against it makes a login for a non-existent
     // user take as long as one with a wrong password.
     unknownUserHash: Promise<string>;
-}
+};
 
 export function createPasswordHasher(cost: number = defaultCost): PasswordHasher {
     if (!Number.isInteger(cost) || cost < minCost || cost > maxCost) {

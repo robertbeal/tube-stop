@@ -14,7 +14,7 @@ import {
 
 export * from "./types.ts";
 
-interface VideoRow {
+type VideoRow = {
     youtube_id: VideoId;
     channel_yt_id: string;
     channel_name: string;
@@ -33,15 +33,15 @@ interface VideoRow {
     published_at: number;
     channel_allowed: number;
     watchable: number;
-}
+};
 
-interface ChannelRow {
+type ChannelRow = {
     id: number;
     youtube_id: string;
     name: string;
     last_synced_at: number;
     video_count: number;
-}
+};
 
 function toVideo(row: VideoRow): Video {
     return {

@@ -1,11 +1,11 @@
 import type { FC } from "hono/jsx";
 import { Layout } from "../web/layout.tsx";
 
-export interface LoginProps {
+export type LoginProps = {
     next: string;
     username?: string;
     error?: string;
-}
+};
 
 export const LoginPage: FC<LoginProps> = ({ next, username = "", error }) => (
     <Layout title="Admin login · Tube Stop">

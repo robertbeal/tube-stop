@@ -22,7 +22,7 @@ const cacheHeight = 720;
 const pollIntervalMs = 1000;
 const janitorIntervalMs = 60 * 60 * 1000;
 
-export interface DownloadConfig {
+export type DownloadConfig = {
     /** Pinned downloads, one folder per channel. */
     mediaDir: string;
     /** Temporary watch-once copies. */
@@ -33,16 +33,16 @@ export interface DownloadConfig {
     cacheTtlMs: number;
     /** Cache entries are evicted, least recently played first, above this size. */
     cacheMaxBytes: number;
-}
+};
 
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
-export interface DownloadWorker {
+export type DownloadWorker = {
     store: Store;
     downloadToLibrary: Download;
     downloadToCache: Download;
     config: DownloadConfig;
     log: (message: string) => void;
-}
+};
 
 export const createDownloadWorker = (
     store: Store,
@@ -103,10 +103,10 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
     try {
         const path = await worker.downloadToLibrary(id, worker.config.mediaDir, worker.config.keepMaxHeight, signal);
         const kept = finishDownload(worker.store, id, path);
-        if (!kept) {
-            await discard(worker, worker.config.mediaDir, path); // unpinned or removed while downloading
-        } else {
+        if (kept) {
             worker.log(`download: pinned ${id} -> ${path}`);
+        } else {
+            await discard(worker, worker.config.mediaDir, path); // unpinned or removed while downloading
         }
     } catch (error) {
         worker.log(`download: ${id} failed: ${error.message}`);
@@ -189,10 +189,10 @@ async function fileSize(path: string): Promise<number | undefined> {
     );
 }
 
-interface SizedEntry {
+type SizedEntry = {
     video: Video;
     size: number;
-}
+};
 
 /** The entries to evict, from the front of the list (least recently played), to bring the total within the budget. */
 function overBudget(entries: SizedEntry[], maxBytes: number): SizedEntry[] {

@@ -4,7 +4,7 @@ import { humanBytes, timeAgo } from "../web/format.ts";
 import { Layout } from "../web/layout.tsx";
 import type { Pagination } from "../web/paging.ts";
 
-export interface AdminProps {
+export type AdminProps = {
     username: string;
     message: string;
     channels: Channel[];
@@ -14,7 +14,7 @@ export interface AdminProps {
     mediaBytes: number;
     cacheBytes: number;
     nowMs: number;
-}
+};
 
 const PostButton: FC<{ action: string; buttonClass: string; inline?: boolean; label: string }> = ({
     action,
@@ -218,12 +218,12 @@ export const AdminPage: FC<AdminProps> = (props) => (
         <h2 class="h5">
             Videos{" "}
             <small class="text-body-secondary">
-                {props.current !== "" ? (
+                {props.current === "" ? (
+                    "(individual, blocked, pinned)"
+                ) : (
                     <>
                         (channel filter · <a href="/admin">clear</a>)
                     </>
-                ) : (
-                    "(individual, blocked, pinned)"
                 )}
             </small>
         </h2>

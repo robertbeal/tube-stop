@@ -16,6 +16,26 @@
                 "useMediaCaption": "off",
                 "useValidAnchor": "off",
                 "useSemanticElements": "off"
+            },
+            "style": {
+                "useConsistentTypeDefinitions": {
+                    "level": "error",
+                    "options": {
+                        "style": "type"
+                    }
+                },
+                "useBlockStatements": "error",
+                "noNegationElse": "error"
+            },
+            "suspicious": {
+                "noExplicitAny": "error"
+            },
+            "complexity": {
+                "noForEach": "error"
+            },
+            "nursery": {
+                "noFloatingPromises": "error",
+                "noMisusedPromises": "error"
             }
         }
     }
