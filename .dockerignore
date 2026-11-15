@@ -3,8 +3,7 @@ data
 media
 cache
 **/*.test.ts
-src/test-helpers.ts
-src/test-setup.ts
+tests
 bunfig.toml
 src/db/test-helpers.ts
 src/web/harness.ts

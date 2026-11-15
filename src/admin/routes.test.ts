@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import { testVideoId } from "../../tests/helpers.ts";
 import {
   allowVideo,
   claimDownload,
@@ -14,7 +15,6 @@ import {
   markChannelSynced,
   pinVideo,
 } from "../db/store.ts";
-import { testVideoId } from "../test-helpers.ts";
 import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 import {
   allowPianoVideo,

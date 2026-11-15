@@ -1,8 +1,8 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
 import { countUsers } from "../admin/users.ts";
-import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import {
   allowVideo,

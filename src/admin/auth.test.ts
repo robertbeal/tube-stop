@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { testVideoId } from "../../tests/helpers.ts";
 import { getVideo } from "../db/store.ts";
-import { testVideoId } from "../test-helpers.ts";
 import {
   adminPassword,
   adminUsername,

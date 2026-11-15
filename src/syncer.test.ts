@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
+import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "../tests/helpers.ts";
 import {
   blockVideo,
   type Channel,
@@ -14,7 +15,6 @@ import {
   type Store,
 } from "./db/store.ts";
 import { createSyncer, runSync, type Syncer, syncAll } from "./syncer.ts";
-import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "./test-helpers.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
 

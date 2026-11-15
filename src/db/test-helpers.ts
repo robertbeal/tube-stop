@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
-import { randomVideoId, temporaryDirectory } from "../test-helpers.ts";
+import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import {
   claimCache,

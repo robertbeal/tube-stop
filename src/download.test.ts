@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "../tests/helpers.ts";
 import {
   allowVideo,
   claimCache,
@@ -24,7 +25,6 @@ import {
   processPin,
   runDownloads,
 } from "./download.ts";
-import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "./test-helpers.ts";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
 import type { VideoId } from "./ytdlp/types.ts";
 

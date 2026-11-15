@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { testVideoId } from "../../tests/helpers.ts";
 import type { Video } from "../db/store.ts";
 import {
   claimCache,
@@ -12,7 +13,6 @@ import {
   pinVideo,
   requestCache,
 } from "../db/store.ts";
-import { testVideoId } from "../test-helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { allow, type Environment } from "./harness.ts";
 

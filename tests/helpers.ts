@@ -1,8 +1,8 @@
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseVideoId } from "./ytdlp/info.ts";
-import type { VideoId } from "./ytdlp/types.ts";
+import { parseVideoId } from "../src/ytdlp/info.ts";
+import type { VideoId } from "../src/ytdlp/types.ts";
 
 const directories: string[] = [];
 

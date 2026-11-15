@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { utimes } from "node:fs/promises";
 import { join } from "node:path";
-import { temporaryDirectory } from "../test-helpers.ts";
+import { temporaryDirectory } from "../../tests/helpers.ts";
 import { parseRange, serveFile } from "./files.ts";
 
 describe("parseRange", () => {

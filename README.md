@@ -103,7 +103,7 @@ problem. `ADMIN_PASSWORD` is ignored: accounts are created in the browser.
     bun run check      # typecheck + biome lint + tests, for CI
     bun run format     # biome format and fix
 
-Source is in `src/` (`config.ts`, `main.ts`, `admin/` for accounts, login and the admin page, `db/`, `ytdlp/`, `web/`, ...); tests sit next to the code they test (`*.test.ts`).
+Source is in `src/` (`config.ts`, `main.ts`, `admin/` for accounts, login and the admin page, `db/`, `ytdlp/`, `web/`, ...); tests sit next to the code they test (`*.test.ts`), with the shared test setup in `tests/`.
 
 **Changing the schema:** append a new migration in `src/db/`; never edit an existing one.
 

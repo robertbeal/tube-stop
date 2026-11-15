@@ -1,10 +1,10 @@
 import { spyOn } from "bun:test";
 import { join } from "node:path";
 import type { Hono } from "hono";
+import { temporaryDirectory } from "../../tests/helpers.ts";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
-import { temporaryDirectory } from "../test-helpers.ts";
 import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 

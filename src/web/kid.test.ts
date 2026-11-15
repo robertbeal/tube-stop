@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { testVideoId } from "../../tests/helpers.ts";
 import {
   blockVideo,
   claimCache,
@@ -10,7 +11,6 @@ import {
   pinVideo,
   requestCache,
 } from "../db/store.ts";
-import { testVideoId } from "../test-helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { allow, buildEnvironment, logIn, send } from "./harness.ts";
 import {
