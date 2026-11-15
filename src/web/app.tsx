@@ -12,15 +12,15 @@ import { serveFile } from "../user/files.ts";
 import { userRoutes } from "../user/routes.tsx";
 import type { AppOptions, Services } from "./services.ts";
 
-const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
-
 /**
  * Rejects cross-site requests that change something. Browsers say where a request came from:
  * `Sec-Fetch-Site` where they support it, otherwise `Origin`, which must match the host.
  * Requests with neither header do not come from a browser, so they pass.
  */
 const crossOriginProtection = createMiddleware(async (context, next) => {
-    if (safeMethods.has(context.req.method)) {
+    const methods = new Set(["GET", "HEAD", "OPTIONS"]);
+
+    if (methods.has(context.req.method)) {
         return next();
     }
     const site = context.req.header("sec-fetch-site");
@@ -29,6 +29,7 @@ const crossOriginProtection = createMiddleware(async (context, next) => {
         site === undefined
             ? origin === undefined || URL.parse(origin)?.host === context.req.header("host")
             : site === "same-origin" || site === "none";
+
     return sameOrigin ? next() : context.text("cross-origin request rejected", 403);
 });
 
