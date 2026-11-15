@@ -49,26 +49,22 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
         const listed = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
         // Insert oldest first so newer videos get higher ids, and are shown first.
         for (const video of listed.toReversed()) {
-            insertSyncedVideo(syncer, channel, video);
+            try {
+                insertVideo(syncer.database, {
+                    youtubeId: video.id,
+                    channelYoutubeId: channel.youtubeId,
+                    channelName: channel.name,
+                    title: video.title || video.id,
+                    duration: video.duration,
+                    publishedAt: video.publishedAt,
+                });
+            } catch (error) {
+                logger.error(`sync: insert ${video.id}: ${error.message}`);
+            }
         }
         markChannelSynced(syncer.database, channel.youtubeId);
         logger.info(`sync: ${channel.name}: ${listed.length} videos`);
     } catch (error) {
         logger.error(`sync: ${channel.name}: ${error.message}`);
-    }
-}
-
-function insertSyncedVideo(syncer: Syncer, channel: Channel, video: Video): void {
-    try {
-        insertVideo(syncer.database, {
-            youtubeId: video.id,
-            channelYoutubeId: channel.youtubeId,
-            channelName: channel.name,
-            title: video.title || video.id,
-            duration: video.duration,
-            publishedAt: video.publishedAt,
-        });
-    } catch (error) {
-        logger.error(`sync: insert ${video.id}: ${error.message}`);
     }
 }
