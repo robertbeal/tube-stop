@@ -2,18 +2,18 @@
 export type VideoId = string & { readonly brand: "VideoId" };
 
 export interface Channel {
-  id: string;
-  name: string;
+    id: string;
+    name: string;
 }
 
 export interface Video {
-  id: VideoId;
-  title: string;
-  channel: Channel;
-  /** Seconds. */
-  duration: number;
-  /** Upload time in unix seconds, or 0 if unknown. For channel listings it is approximate (accurate to the day). */
-  publishedAt: number;
+    id: VideoId;
+    title: string;
+    channel: Channel;
+    /** Seconds. */
+    duration: number;
+    /** Upload time in unix seconds, or 0 if unknown. For channel listings it is approximate (accurate to the day). */
+    publishedAt: number;
 }
 
 /** What a pasted URL points at. */
@@ -24,9 +24,4 @@ export const isVideo = (resolved: Resolved): resolved is Video => "channel" in r
 
 export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
 
-export type Download = (
-  id: VideoId,
-  directory: string,
-  maxHeight: number,
-  signal: AbortSignal,
-) => Promise<string>;
+export type Download = (id: VideoId, directory: string, maxHeight: number, signal: AbortSignal) => Promise<string>;

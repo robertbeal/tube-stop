@@ -5,7 +5,7 @@ import { removeTemporaryDirectories } from "./helpers.ts";
 // module would only apply to the first test file that imports it.
 
 afterEach(() => {
-  mock.restore();
+    mock.restore();
 });
 
 afterAll(removeTemporaryDirectories);

@@ -4,42 +4,42 @@ import type { VideoId } from "./types.ts";
 
 /** Downloads a video to the path described by an output template and returns the path of the saved file. */
 async function download(
-  binary: string,
-  id: VideoId,
-  template: string,
-  maxHeight: number,
-  signal: AbortSignal,
+    binary: string,
+    id: VideoId,
+    template: string,
+    maxHeight: number,
+    signal: AbortSignal,
 ): Promise<string> {
-  const format = `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/b`;
-  const output = await ytdlp(
-    binary,
-    [
-      "--no-warnings",
-      "--no-playlist",
-      "--windows-filenames",
-      "-f",
-      format,
-      "--merge-output-format",
-      "mp4",
-      "--write-thumbnail",
-      "--convert-thumbnails",
-      "jpg",
-      "-o",
-      template,
-      "--no-simulate",
-      "--print",
-      "after_move:filepath",
-      "--",
-      id,
-    ],
-    signal,
-  );
+    const format = `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/b`;
+    const output = await ytdlp(
+        binary,
+        [
+            "--no-warnings",
+            "--no-playlist",
+            "--windows-filenames",
+            "-f",
+            format,
+            "--merge-output-format",
+            "mp4",
+            "--write-thumbnail",
+            "--convert-thumbnails",
+            "jpg",
+            "-o",
+            template,
+            "--no-simulate",
+            "--print",
+            "after_move:filepath",
+            "--",
+            id,
+        ],
+        signal,
+    );
 
-  const path = output.trim().split("\n").at(-1)?.trim() ?? "";
-  if (path === "") {
-    throw new Error("yt-dlp did not report an output file");
-  }
-  return path;
+    const path = output.trim().split("\n").at(-1)?.trim() ?? "";
+    if (path === "") {
+        throw new Error("yt-dlp did not report an output file");
+    }
+    return path;
 }
 
 /**
@@ -47,16 +47,16 @@ async function download(
  * the saved file. A .jpg thumbnail is written next to it.
  */
 export function downloadToLibrary(
-  binary: string,
-  id: VideoId,
-  directory: string,
-  maxHeight: number,
-  signal: AbortSignal,
+    binary: string,
+    id: VideoId,
+    directory: string,
+    maxHeight: number,
+    signal: AbortSignal,
 ): Promise<string> {
-  const template =
-    "%(channel,uploader|Unknown)s/%(upload_date>%Y-%m-%d|0000-00-00)s - %(title).150B [%(id)s].%(ext)s";
+    const template =
+        "%(channel,uploader|Unknown)s/%(upload_date>%Y-%m-%d|0000-00-00)s - %(title).150B [%(id)s].%(ext)s";
 
-  return download(binary, id, join(directory, template), maxHeight, signal);
+    return download(binary, id, join(directory, template), maxHeight, signal);
 }
 
 /**
@@ -64,13 +64,13 @@ export function downloadToLibrary(
  * file. A .jpg thumbnail is written next to it.
  */
 export function downloadToCache(
-  binary: string,
-  id: VideoId,
-  directory: string,
-  maxHeight: number,
-  signal: AbortSignal,
+    binary: string,
+    id: VideoId,
+    directory: string,
+    maxHeight: number,
+    signal: AbortSignal,
 ): Promise<string> {
-  const template = "%(id)s.%(ext)s";
+    const template = "%(id)s.%(ext)s";
 
-  return download(binary, id, join(directory, template), maxHeight, signal);
+    return download(binary, id, join(directory, template), maxHeight, signal);
 }
