@@ -89,7 +89,7 @@ again (or use something like Watchtower) to get it.
 ### Binary
 
 Each GitHub release has the app compiled into one executable, about 50 MB to download, with a `SHA256SUMS`
-file. Use the `x64` or `arm64` one for your machine, or the `-musl` one on Alpine (after
+file. Use the `amd64` or `arm64` one for your machine, or the `-musl` one on Alpine (after
 `apk add libstdc++ libgcc`). Install `yt-dlp` and `ffmpeg` and put them on `PATH`, then run `./tube-stop`.
 `./tube-stop reset-admin` works too.
 
@@ -152,9 +152,8 @@ Source is in `src/` (`main.ts` and `serve.ts` for startup, `admin/` for accounts
 **Building the image.** The image copies in a compiled app instead of compiling one, so make that first. The
 `yt-dlp` release is a required build argument, so an image always says which one it has:
 
-    mkdir -p dist/image
-    bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/image/amd64
-    bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/image/arm64
+    bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/tube-stop-linux-amd64-musl
+    bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/tube-stop-linux-arm64-musl
     docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
 
 Add `--platform linux/amd64,linux/arm64` with `docker buildx build` for both architectures.

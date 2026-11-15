@@ -8,6 +8,6 @@ src
 tests
 bunfig.toml
 dist/*
-!dist/image
+!dist/tube-stop-linux-*-musl
 Dockerfile
 .dockerignore

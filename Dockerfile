@@ -18,8 +18,8 @@ RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
     && chown -R tubestop:tubestop /app
 COPY --from=ytdlp /yt-dlp /usr/local/bin/yt-dlp
 COPY yt-dlp.conf /etc/yt-dlp.conf
-# The compiled app, one file per architecture: see the README for how to make it.
-COPY --chmod=755 dist/image/${TARGETARCH} /usr/local/bin/tube-stop
+# The compiled app for Alpine, one file per architecture: see the README for how to make it.
+COPY --chmod=755 dist/tube-stop-linux-${TARGETARCH}-musl /usr/local/bin/tube-stop
 
 # Everything the app keeps is under /app, so one mount there is enough.
 WORKDIR /app
