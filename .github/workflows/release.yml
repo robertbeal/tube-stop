@@ -84,7 +84,7 @@ jobs:
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
-      - name: Image tags
+      - name: Image Tags
         id: tags
         uses: docker/metadata-action@v6
         with:
@@ -95,7 +95,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ needs.version.outputs.version }},enable=${{ !startsWith(needs.version.outputs.version, '0.') }}
 
       # The image is started before anything is pushed, so one that cannot run never gets a tag.
-      - name: Build the image to test
+      - name: Build Image
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -104,10 +104,10 @@ jobs:
           tags: tube-stop:test
           cache-from: type=gha
 
-      - name: Test the image
+      - name: Test Image
         run: scripts/test-image.sh tube-stop:test
 
-      - name: Push the image
+      - name: Push Image
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -118,7 +118,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create the release
+      - name: Release
         uses: cycjimmy/semantic-release-action@v8
         with:
           semantic_version: 25
