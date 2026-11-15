@@ -31,8 +31,20 @@ function migrate(database: Database): void {
     });
 }
 
-// Other users (such as a Jellyfin container) need to read the media folders, hence the mode.
-mkdirSync(config.dataDir, { recursive: true, mode: 0o755 });
+function openDatabaseInDataDir(): Database {
+    try {
+        // Other users (such as a Jellyfin container) need to read the media folders, hence the mode.
+        mkdirSync(config.dataDir, { recursive: true, mode: 0o755 });
+        return openDatabase(join(config.dataDir, "tubestop.db"));
+    } catch (error) {
+        const hint =
+            error.code === "EACCES" || error.code === "EPERM"
+                ? "\nThe user the app runs as must be able to write there (the container runs as user 1000)."
+                : "";
+        console.error(`cannot open the database in ${config.dataDir}: ${error.message}${hint}`);
+        process.exit(1);
+    }
+}
 
 /** The app's database. It is opened when this module is first imported, and shared by everything that imports it. */
-export const database = openDatabase(join(config.dataDir, "tubestop.db"));
+export const database = openDatabaseInDataDir();

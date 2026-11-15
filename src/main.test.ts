@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { stubYtDlp, temporaryDirectory } from "../tests/helpers.ts";
 
@@ -130,6 +131,22 @@ describe("main", () => {
         expect(exitCode).not.toBe(0);
         expect(errors).toContain("invalid configuration");
         expect(errors).toContain("PORT");
+    });
+
+    // A root user can write anywhere, so there is nothing to refuse.
+    test.skipIf(process.getuid?.() === 0)("explains briefly when the data folder cannot be written", async () => {
+        const environment = await environmentFor("8080");
+        const readOnly = join(await temporaryDirectory(), "read-only");
+        await mkdir(readOnly);
+        await chmod(readOnly, 0o555);
+        const child = start({ ...environment, DATA_DIR: join(readOnly, "data") });
+
+        const [exitCode, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+
+        expect(exitCode).toBe(1);
+        expect(errors).toContain(`cannot open the database in ${join(readOnly, "data")}`);
+        expect(errors).toContain("must be able to write");
+        expect(errors.split("\n").length).toBeLessThan(6);
     });
 
     test("exits non-zero on an unknown command", async () => {
