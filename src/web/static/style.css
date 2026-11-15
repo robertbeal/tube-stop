@@ -4,12 +4,34 @@
 .video-card {
   transition: transform 0.1s ease-in-out;
 }
-.video-card:hover,
+.video-card {
+  touch-action: manipulation;
+}
 .video-card:focus-visible {
   transform: translateY(-2px);
 }
+@media (hover: hover) {
+  .video-card:hover {
+    transform: translateY(-2px);
+  }
+}
 .video-card img {
   object-fit: cover;
+}
+/* Channel filter: big targets for a finger, and it stays in view while scrolling. */
+.channel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-top: 0.5rem;
+  background: var(--bs-body-bg);
+}
+.channel-bar .nav-link {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding-inline: 1.1rem;
+  font-size: 1.1rem;
 }
 .video-title {
   display: -webkit-box;
@@ -18,13 +40,12 @@
   overflow: hidden;
 }
 
-/* Keep the player within the screen height on wide displays. */
-.player-frame {
-  max-width: calc(75vh * 16 / 9);
-  margin-inline: auto;
-}
-.player-frame video {
-  background: #000;
+/* The back button that replaces the app's name on the watch page: big enough to hit easily. */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
 }
 
 .auth-card {

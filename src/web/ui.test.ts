@@ -45,7 +45,8 @@ describe("every page", () => {
                 'name="viewport"',
                 'name="color-scheme"',
                 'class="navbar ',
-                "navbar-brand",
+                // The watch page has a back button where the other pages have the app's name.
+                page.name === "player" ? "back-button" : "navbar-brand",
             ]) {
                 expect(page.body, `${page.name} page is missing ${wanted}`).toContain(wanted);
             }
@@ -82,6 +83,7 @@ describe("static assets", () => {
         ["/static/theme.js", "text/javascript", "prefers-color-scheme", 100],
         ["/static/style.css", "text/css", ".video-card", 100],
         ["/player.js", "text/javascript", "loopToggle", 500],
+        ["/player.css", "text/css", ".player-controls", 500],
     ])("%s is served as %s", async (path, contentType, mustContain, minimumBytes) => {
         const environment = await buildEnvironment();
 
@@ -136,9 +138,9 @@ describe("the player page", () => {
         allowPianoVideo(videoId, "Song");
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
-        const wanted = [...script.matchAll(/getElementById\(["']([^"']+)["']\)/g)].map((match) => match[1]);
+        const wanted = [...script.matchAll(/byId\(["']([^"']+)["']\)/g)].map((match) => match[1]);
 
-        expect(wanted.length, "the pattern needs updating if player.js changed").toBeGreaterThanOrEqual(8);
+        expect(wanted.length, "the pattern needs updating if player.js changed").toBeGreaterThanOrEqual(15);
         for (const id of wanted) {
             expect(body, `player.js looks for #${id}`).toContain(`id="${id}"`);
         }
@@ -151,6 +153,63 @@ describe("the player page", () => {
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
         expect(body).toContain(`poster="/thumb/${videoId}"`);
+    });
+
+    test("every control has a spoken name", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+        await makeCacheReady(environment, videoId, "data");
+
+        const body = await (await send(environment, `/watch/${videoId}`)).text();
+        const player = body.slice(body.indexOf('id="player"'), body.indexOf('class="watch-details"'));
+
+        const unnamed = [...player.matchAll(/<(button|a)\b([^>]*)>(.*?)<\/\1>/gs)]
+            .filter(([, , attributes]) => !/aria-label="[^"]+"/.test(attributes ?? ""))
+            .filter(([, , , content]) => (content ?? "").replace(/<[^>]*>/g, "").trim() === "")
+            .map(([tag]) => tag);
+        expect(unnamed, "buttons and links with no name").toEqual([]);
+        expect(player).toMatch(/<input[^>]*type="range"[^>]*aria-label="Seek"/);
+        expect(body).toContain('role="region" aria-label="Video player: Song"');
+        for (const name of ["Play", "Back 10 seconds", "Forward 10 seconds", "Full screen", "Back to videos"]) {
+            expect(player, name).toContain(`aria-label="${name}"`);
+        }
+    });
+
+    test("speed and loop open from a button that says whether they are open", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+
+        const body = await (await send(environment, `/watch/${videoId}`)).text();
+
+        expect(body).toMatch(/id="settingsButton"[^>]*aria-expanded="false"[^>]*aria-controls="settings"/);
+        expect(body).toMatch(/id="settings"[^>]*hidden/);
+        expect(body).toContain('aria-pressed="false"');
+        expect(body).toContain('<legend class="h6">Speed</legend>');
+        expect(body.match(/type="radio"[^>]*name="speed"/g)).toHaveLength(5);
+    });
+
+    test("the controls are switched off until the video is ready, and the browser's controls stay without the script", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+
+        const notReady = await (await send(environment, `/watch/${videoId}`)).text();
+        await makeCacheReady(environment, videoId, "data");
+        const ready = await (await send(environment, `/watch/${videoId}`)).text();
+
+        expect(notReady).toMatch(/id="transport"[^>]*inert/);
+        expect(ready).not.toMatch(/id="transport"[^>]*inert/);
+        expect(ready).toMatch(/<video[^>]*controls/);
+        expect(ready).toMatch(/id="controls"[^>]*hidden/);
+    });
+
+    test("the way back is in the top bar, not below the video", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+
+        const body = await (await send(environment, `/watch/${videoId}`)).text();
+
+        expect(navbarOf(body)).toContain('aria-label="Back to videos"');
+        expect(body.slice(body.indexOf('class="watch-details"'))).not.toContain("Back");
     });
 
     test("the title is the video title and is escaped", async () => {

@@ -3,6 +3,7 @@ import type { Channel, Video } from "../shared/db/types.ts";
 import { formatDuration } from "../web/format.ts";
 import { Layout } from "../web/layout.tsx";
 import type { Pagination } from "../web/paging.ts";
+import { Player } from "./video-player.tsx";
 
 const thumbnailUrl = (id: string) => `/thumb/${encodeURIComponent(id)}`;
 
@@ -15,8 +16,9 @@ export type IndexProps = {
 
 export const IndexPage: FC<IndexProps> = ({ videos, channels, current, pages }) => (
     <Layout title="Tube Stop">
+        <h1 class="visually-hidden">Videos</h1>
         {channels.length > 0 && (
-            <ul class="nav nav-pills flex-nowrap overflow-x-auto pb-2 mb-3">
+            <ul class="nav nav-pills flex-nowrap overflow-x-auto pb-2 mb-3 channel-bar">
                 <li class="nav-item">
                     <a class={`nav-link ${current === "" ? "active" : ""}`} href="/">
                         All
@@ -96,67 +98,22 @@ export const IndexPage: FC<IndexProps> = ({ videos, channels, current, pages }) 
 );
 
 export const WatchPage: FC<{ video: Video; ready: boolean }> = ({ video, ready }) => (
-    <Layout title={`${video.title} · Tube Stop`}>
+    <Layout
+        title={`${video.title} · Tube Stop`}
+        back={{ href: "/", label: "Videos" }}
+        head={<link rel="stylesheet" href="/player.css" />}
+    >
         <div class="player-frame">
-            <div class="ratio ratio-16x9 rounded overflow-hidden mb-3">
-                <video
-                    id="v"
-                    poster={thumbnailUrl(video.youtubeId)}
-                    src={ready ? `/video/${encodeURIComponent(video.youtubeId)}` : undefined}
-                    autoplay={ready}
-                    data-id={video.youtubeId}
-                    data-ready={String(ready)}
-                    controls
-                    playsinline
-                    preload="metadata"
-                />
+            <Player
+                video={video}
+                ready={ready}
+                posterUrl={thumbnailUrl(video.youtubeId)}
+                sourceUrl={`/video/${encodeURIComponent(video.youtubeId)}`}
+            />
+            <div class="watch-details">
+                <h1 class="h4">{video.title}</h1>
+                <p class="text-body-secondary">{video.channelName}</p>
             </div>
-            <div id="wait" class="alert alert-info" role="status" hidden={ready}>
-                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
-                Getting this video ready… it will start by itself.
-            </div>
-            <div id="fail" class="alert alert-danger" role="alert" hidden>
-                Something went wrong getting this video.{" "}
-                <a href="#" id="retry" class="alert-link">
-                    Try again
-                </a>
-            </div>
-
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                <label for="speed" class="form-label mb-0">
-                    Speed
-                </label>
-                <select id="speed" class="form-select w-auto">
-                    <option value="0.5">0.5×</option>
-                    <option value="0.75">0.75×</option>
-                    <option value="1" selected>
-                        1×
-                    </option>
-                    <option value="1.25">1.25×</option>
-                    <option value="1.5">1.5×</option>
-                </select>
-                <div class="btn-group" role="group" aria-label="Loop a section">
-                    <button id="markA" type="button" class="btn btn-outline-secondary">
-                        Set A
-                    </button>
-                    <button id="markB" type="button" class="btn btn-outline-secondary">
-                        Set B
-                    </button>
-                    <button id="loopToggle" type="button" class="btn btn-outline-primary" disabled>
-                        Loop off
-                    </button>
-                    <button id="clearLoop" type="button" class="btn btn-outline-secondary">
-                        Clear
-                    </button>
-                </div>
-                <span id="loopInfo" class="text-body-secondary" />
-            </div>
-
-            <h1 class="h4">{video.title}</h1>
-            <p class="text-body-secondary">{video.channelName}</p>
-            <a class="btn btn-outline-secondary" href="/">
-                ← Back
-            </a>
         </div>
         <script src="/player.js" />
     </Layout>

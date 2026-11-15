@@ -11,6 +11,7 @@ import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import { serveFile } from "./files.ts";
+import playerStyles from "./player.css" with { type: "file" };
 import playerScript from "./player.js" with { type: "file" };
 import { IndexPage, WatchPage } from "./views.tsx";
 
@@ -54,8 +55,10 @@ export function userRoutes(): Hono {
         return video?.watchable ? video : null;
     };
 
-    const player = Bun.file(playerScript);
-    routes.get("/player.js", () => new Response(player, { headers: { "Content-Type": player.type } }));
+    const script = Bun.file(playerScript);
+    routes.get("/player.js", () => new Response(script, { headers: { "Content-Type": script.type } }));
+    const styles = Bun.file(playerStyles);
+    routes.get("/player.css", () => new Response(styles, { headers: { "Content-Type": styles.type } }));
 
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";
