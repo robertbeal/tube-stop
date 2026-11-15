@@ -48,8 +48,16 @@ export function createApp(options: AppOptions = {}): Hono {
     const services = withDefaults(options);
     const { routes: signInRoutes, requireLogin } = authRoutes(services);
 
+    const admin = new Hono();
+    admin.use(requireLogin);
+    admin.route("/", adminRoutes(services));
+
     const app = new Hono();
     app.use(crossOriginProtection);
+    app.route("/", userRoutes());
+    app.route("/", signInRoutes);
+    app.route("/admin", admin);
+
     app.onError((error, context) => {
         logger.error(`web: ${error.message}`);
         return context.text("something went wrong", 500);
@@ -61,15 +69,10 @@ export function createApp(options: AppOptions = {}): Hono {
             ? context.notFound()
             : serveFile(context.req.raw, join(import.meta.dir, "static", name));
     });
-    app.route("/", userRoutes());
-    app.route("/", signInRoutes);
-    const admin = new Hono();
-    admin.use(requireLogin);
-    admin.route("/", adminRoutes(services));
-    app.route("/admin", admin);
 
     if (countUsers() === 0) {
         currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
     }
+
     return app;
 }
