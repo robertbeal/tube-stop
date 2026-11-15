@@ -37,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Get yt-dlp version
+      - name: yt-dlp Version
         id: plan
         env:
           EVENT: ${{ github.event_name }}
@@ -56,14 +56,9 @@ jobs:
             done
           done
 
-      - name: Test the binary
+      - name: Smoke Test
         if: steps.plan.outputs.build == 'true'
-        run: |
-          cd "$(mktemp -d)"
-          export DATA_DIR=./data MEDIA_DIR=./media CACHE_DIR=./cache HOST=127.0.0.1 PORT=18080 YTDLP_BIN=true
-          "$GITHUB_WORKSPACE/dist/tube-stop-linux-amd64" > log 2>&1 &
-          trap 'status=$?; kill %1; [ $status -eq 0 ] || cat log; exit $status' EXIT
-          "$GITHUB_WORKSPACE/scripts/smoke-test.sh" http://127.0.0.1:18080
+        run: scripts/test-binary.sh dist/tube-stop-linux-amd64
 
       - uses: docker/setup-qemu-action@v3
         if: steps.plan.outputs.build == 'true'
@@ -84,13 +79,7 @@ jobs:
 
       - name: Test the image
         if: steps.plan.outputs.build == 'true'
-        run: |
-          docker run --rm --entrypoint sh tube-stop:test -c 'yt-dlp --version && ffmpeg -version | head -n 1'
-          docker run -d --name tube-stop-test -p 18081:8080 tube-stop:test
-          trap 'status=$?; [ $status -eq 0 ] || docker logs tube-stop-test; exit $status' EXIT
-          scripts/smoke-test.sh http://127.0.0.1:18081
-          docker exec tube-stop-test tube-stop reset-admin
-          docker exec tube-stop-test sh -c 'touch /app/data/x /app/media/x /app/cache/x'
+        run: scripts/test-image.sh tube-stop:test
 
       - name: Push the image
         if: steps.plan.outputs.build == 'true'

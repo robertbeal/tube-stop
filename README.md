@@ -171,7 +171,7 @@ To build a standalone binary for this machine: `bun build --compile --minify src
 
 `.github/workflows/release.yml` is one job that stops at the first failure: `bun run check`, work out the
 version (`scripts/next-version.sh`), compile the four Linux binaries, test the binary
-(`scripts/smoke-test.sh`), build and test the image, push it to `ghcr.io`, and, for a new version, create the
+(`scripts/test-binary.sh`), build and test the image (`scripts/test-image.sh`), push it to `ghcr.io`, and, for a new version, create the
 `v…` tag and GitHub release with the binaries attached.
 
 Every night it also looks up the newest `yt-dlp`. If the current release has not been built with it yet, the
