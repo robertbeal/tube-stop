@@ -4,25 +4,24 @@ import { basename, dirname, extname, join, resolve, sep } from "node:path";
 /**
  * Deletes a media file and the files that share its name apart from the extension (its
  * thumbnail, for example), then the folder it was in if that is now empty. Paths outside
- * root, including root itself, are ignored. Files that are already gone are not a failure.
+ * root, including root itself, are ignored. Root must be an absolute path. Files that are already gone are not a failure.
  * Returns the failures, so the caller can report them without losing the rest.
  */
 export async function removeMedia(root: string, path: string): Promise<Error[]> {
-    const absoluteRoot = resolve(root);
-    const absolutePath = resolve(absoluteRoot, path); // an empty path gives the root itself, which is ignored
-    if (!absolutePath.startsWith(absoluteRoot + sep)) {
+    const file = resolve(root, path);
+    if (!file.startsWith(join(root, sep))) {
         return [];
     }
-    const directory = dirname(absolutePath);
-    const stem = basename(absolutePath, extname(absolutePath));
+    const directory = dirname(file);
+    const stem = basename(file, extname(file));
     const siblings = await readdir(directory).catch(() => []);
     const targets = [
-        absolutePath,
+        file,
         ...siblings.filter((name) => name.startsWith(`${stem}.`)).map((name) => join(directory, name)),
     ];
 
     const results = await Promise.allSettled(targets.map((target) => rm(target, { force: true })));
-    if (directory !== absoluteRoot) {
+    if (directory !== root) {
         await rmdir(directory).catch(() => undefined); // fails harmlessly when other videos remain in the folder
     }
     return results.filter((result) => result.status === "rejected").map((result) => result.reason);
