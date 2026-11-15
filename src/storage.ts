@@ -9,8 +9,8 @@ import { basename, dirname, extname, join, resolve, sep } from "node:path";
  */
 export async function removeMedia(root: string, path: string): Promise<Error[]> {
     const absoluteRoot = resolve(root);
-    const absolutePath = resolve(path);
-    if (path === "" || !absolutePath.startsWith(absoluteRoot + sep)) {
+    const absolutePath = resolve(absoluteRoot, path); // an empty path gives the root itself, which is ignored
+    if (!absolutePath.startsWith(absoluteRoot + sep)) {
         return [];
     }
     const directory = dirname(absolutePath);
