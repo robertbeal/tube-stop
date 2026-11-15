@@ -1,9 +1,16 @@
 ARG BUN_VERSION=1.4.4
 
-FROM docker.io/oven/bun:${BUN_VERSION}-alpine AS dependencies
+# Compiles the app into one executable. This runs on the build machine's own architecture and
+# cross-compiles for the target, so building for arm64 does not need to emulate it.
+FROM --platform=$BUILDPLATFORM docker.io/oven/bun:${BUN_VERSION}-alpine AS app
+ARG TARGETARCH
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
+COPY tsconfig.json ./
+COPY src ./src
+RUN case "$TARGETARCH" in amd64) target=bun-linux-x64-musl ;; arm64) target=bun-linux-arm64-musl ;; esac \
+    && bun build --compile --minify --target="$target" src/main.ts --outfile /tube-stop
 
 # yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
@@ -16,24 +23,22 @@ RUN test -n "$YTDLP_VERSION" || { echo "pass --build-arg YTDLP_VERSION=<a yt-dlp
     && wget -qO- "${release}/SHA2-256SUMS" | grep " ${asset}\$" | sha256sum -c \
     && install -m 755 "${asset}" /yt-dlp
 
-FROM docker.io/oven/bun:${BUN_VERSION}-alpine
-# QuickJS runs the challenges YouTube sets (see yt-dlp.conf). yt-dlp stopped supporting Bun for this after 1.3.14.
-RUN apk add --no-cache ffmpeg quickjs ca-certificates
+FROM docker.io/alpine:3.23
+# libstdc++ and libgcc are what the compiled app needs. QuickJS runs the challenges YouTube sets (see yt-dlp.conf).
+RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
+    && adduser -D -u 1000 tubestop \
+    && mkdir -p /data /media /cache \
+    && chown tubestop:tubestop /data /media /cache
 COPY --from=ytdlp /yt-dlp /usr/local/bin/yt-dlp
 COPY yt-dlp.conf /etc/yt-dlp.conf
-
-WORKDIR /app
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY package.json tsconfig.json ./
-COPY src ./src
+COPY --from=app /tube-stop /usr/local/bin/tube-stop
 
 ENV DATA_DIR=/data \
     MEDIA_DIR=/media \
     CACHE_DIR=/cache \
     PORT=8080
-RUN mkdir -p /data /media /cache && chown bun:bun /data /media /cache
 VOLUME ["/data", "/media", "/cache"]
 EXPOSE 8080
 
-USER bun
-CMD ["bun", "src/main.ts"]
+USER tubestop
+CMD ["tube-stop"]

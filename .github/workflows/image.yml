@@ -106,3 +106,51 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # Binaries for a release: the app compiled into one executable, with Bun inside. They do not include
+  # yt-dlp or ffmpeg, so those must be installed separately.
+  binaries:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4 # keep in step with BUN_VERSION in the Dockerfile
+
+      - run: bun install --frozen-lockfile --production
+
+      - name: Compile
+        run: |
+          mkdir dist
+          for target in linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl; do
+            bun build --compile --minify --target="bun-$target" src/main.ts --outfile "dist/tube-stop-$target"
+          done
+
+      # The binary has to serve its pages and embedded files from an empty folder.
+      - name: Smoke test
+        run: |
+          cd "$(mktemp -d)"
+          export DATA_DIR=./data MEDIA_DIR=./media CACHE_DIR=./cache HOST=127.0.0.1 PORT=18080 YTDLP_BIN=true
+          "$GITHUB_WORKSPACE/dist/tube-stop-linux-x64" > log 2>&1 &
+          for _ in $(seq 20); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.5; done
+          for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /player.js; do
+            curl -sf -o /dev/null "http://127.0.0.1:18080$path" || { echo "$path failed"; cat log; exit 1; }
+          done
+          kill %1
+
+      - name: Package and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          for target in linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl; do
+            mkdir "tube-stop-$GITHUB_REF_NAME-$target"
+            install -m 755 "tube-stop-$target" "tube-stop-$GITHUB_REF_NAME-$target/tube-stop"
+            cp ../LICENSE "tube-stop-$GITHUB_REF_NAME-$target/"
+            tar -czf "tube-stop-$GITHUB_REF_NAME-$target.tar.gz" "tube-stop-$GITHUB_REF_NAME-$target"
+          done
+          sha256sum ./*.tar.gz > SHA256SUMS
+          gh release upload "$GITHUB_REF_NAME" ./*.tar.gz SHA256SUMS

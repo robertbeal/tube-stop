@@ -58,7 +58,7 @@ updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volume
     docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
     docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
 
-The image has Bun, `ffmpeg`, QuickJS and `yt-dlp`. The `yt-dlp` release is a required build argument, so the
+The image has the app as one compiled executable, `ffmpeg`, QuickJS and `yt-dlp`. The `yt-dlp` release is a required build argument, so the
 image always says exactly which one it has. It builds for `linux/amd64` and `linux/arm64`:
 
     docker buildx build --build-arg YTDLP_VERSION=2026.10.26 --platform linux/amd64,linux/arm64 -t tube-stop .
@@ -82,7 +82,21 @@ workflow rebuilds that release's tag (not `main`) and moves the tags above. Noth
 unreleased code never reaches `latest`. Pull `latest` (for example with Watchtower) to follow along, or pin a
 full tag such as `1.2.3_2026.10.26` to stay put. You can also run the workflow by hand from the Actions tab.
 
-To release: `git tag v1.2.3 && git push origin v1.2.3`.
+### Binaries
+
+Each GitHub release also has the app compiled into one executable (the Bun runtime is inside, so about
+100 MB, or about 50 MB as a download), with a `SHA256SUMS` file:
+
+| File | For |
+|---|---|
+| `tube-stop-<version>-linux-x64.tar.gz`, `-linux-arm64.tar.gz` | most Linux systems |
+| `tube-stop-<version>-linux-x64-musl.tar.gz`, `-linux-arm64-musl.tar.gz` | Alpine and other musl systems (`apk add libstdc++ libgcc` first) |
+
+The binary does not include `yt-dlp` or `ffmpeg`: install them and put them on `PATH`. Configure it with the
+same environment variables as above. `./tube-stop reset-admin` works too. To build one yourself:
+`bun build --compile --minify src/main.ts --outfile tube-stop`.
+
+To release: `git tag v1.2.3 && git push origin v1.2.3`. That builds the image and the binaries, and creates the release.
 
 ## Admin accounts
 
@@ -107,7 +121,7 @@ travels in clear text over plain HTTP, so put the app behind HTTPS (a reverse pr
     bun src/main.ts reset-admin
 
 This deletes the admin account (videos, channels and settings are kept). Open `/admin` again and
-the app prints a fresh setup code. In the container: `docker exec <container> bun src/main.ts reset-admin`.
+the app prints a fresh setup code. In the container: `docker exec <container> tube-stop reset-admin`.
 
 | Env | Default |
 |---|---|
