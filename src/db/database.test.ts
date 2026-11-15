@@ -2,10 +2,9 @@ import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
-import { countUsers } from "../admin/users.ts";
+import { config } from "../config.ts";
 import { openDatabase } from "./database.ts";
-import { newVideo, openTestDatabase, videoOf } from "./test-helpers.ts";
-import { allowVideo } from "./videos.ts";
+import { raw } from "./test-helpers.ts";
 
 function userVersion(path: string): number {
     const raw = new Database(path, { readonly: true });
@@ -15,27 +14,26 @@ function userVersion(path: string): number {
 }
 
 describe("schema versioning", () => {
-    test("a new database is stamped with the schema version", async () => {
-        const { path } = await openTestDatabase();
-        expect(userVersion(path)).toBe(1);
+    test("a new database is stamped with the schema version", () => {
+        expect(userVersion(join(config.dataDir, "tubestop.db"))).toBe(1);
     });
 
     test("reopening keeps data and version", async () => {
         const path = join(await temporaryDirectory(), "test.db");
         const first = openDatabase(path);
-        const video = newVideo("chan");
-        allowVideo(first, video);
+        first.run("INSERT INTO videos (youtube_id, title) VALUES ('abcdefghijk', 'Kept')");
         first.close();
 
         const reopened = openDatabase(path);
-        expect(videoOf(reopened, video.youtubeId).title).toBe(video.title);
+        expect(reopened.query<{ title: string }, []>("SELECT title FROM videos").get()?.title).toBe("Kept");
         expect(userVersion(path)).toBe(1);
+        reopened.close();
     });
 
     test("an in-memory database works", () => {
-        const database = openDatabase(":memory:");
-        allowVideo(database, newVideo("chan"));
-        expect(countUsers(database)).toBe(0);
+        const memory = openDatabase(":memory:");
+        expect(memory.query<{ total: number }, []>("SELECT COUNT(*) AS total FROM users").get()?.total).toBe(0);
+        memory.close();
     });
 
     test("a database from a newer build is refused", async () => {
@@ -49,7 +47,6 @@ describe("schema versioning", () => {
 
 describe("schema constraints", () => {
     test("every status and rule is accepted", async () => {
-        const { raw } = await openTestDatabase();
         const statuses = ["none", "queued", "downloading", "ready", "failed"];
         const rules = ["allow", "block", "inherit"];
         for (const status of statuses) {
@@ -64,7 +61,6 @@ describe("schema constraints", () => {
     });
 
     test("an unknown status is rejected", async () => {
-        const { raw } = await openTestDatabase();
         expect(() =>
             raw
                 .query("INSERT INTO videos (youtube_id, title, download_status) VALUES (?, 't', 'bogus')")
@@ -73,7 +69,6 @@ describe("schema constraints", () => {
     });
 
     test("an unknown rule is rejected", async () => {
-        const { raw } = await openTestDatabase();
         expect(() =>
             raw.query("INSERT INTO videos (youtube_id, title, rule) VALUES (?, 't', 'bogus')").run(randomVideoId()),
         ).toThrow();

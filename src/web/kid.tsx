@@ -7,11 +7,10 @@ import type { Video } from "../db/types.ts";
 import { getVideo, getWatchableVideos, recordPlay } from "../db/videos.ts";
 import { requestCache } from "../downloads/queue.ts";
 import { logger } from "../logger.ts";
-import { downloadThumbnail } from "../thumbnails.ts";
+import { downloadThumbnail, thumbnailDir } from "../thumbnails.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
-import type { Services } from "./services.ts";
 import { IndexPage, WatchPage } from "./views.tsx";
 
 async function exists(path: string): Promise<boolean> {
@@ -46,14 +45,13 @@ async function pinnedThumbnail(video: Video): Promise<string> {
 const staticDirectory = join(import.meta.dir, "static");
 
 /** The child-facing pages: browse, watch, and the endpoints the player script uses. */
-export function kidRoutes(services: Services): Hono {
-    const { database } = services;
+export function kidRoutes(): Hono {
     const routes = new Hono();
 
     /** The video for the `:id` path value, or null if it is unknown or hidden from the child. */
     const watchableVideo = (context: Context): Video | null => {
         const id = parseVideoId(context.req.param("id"));
-        const video = id === undefined ? null : getVideo(database, id);
+        const video = id === undefined ? null : getVideo(id);
         return video?.watchable ? video : null;
     };
 
@@ -67,13 +65,13 @@ export function kidRoutes(services: Services): Hono {
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";
         const { videos, pages } = loadPage(
-            (page) => getWatchableVideos(database, channel, page),
+            (page) => getWatchableVideos(channel, page),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink("/", channel),
         );
         return context.html(
-            <IndexPage videos={videos} channels={getWatchableChannels(database)} current={channel} pages={pages} />,
+            <IndexPage videos={videos} channels={getWatchableChannels()} current={channel} pages={pages} />,
         );
     });
 
@@ -92,7 +90,7 @@ export function kidRoutes(services: Services): Hono {
             return context.notFound();
         }
         if ((await playablePath(video)) === "") {
-            requestCache(database, video.youtubeId);
+            requestCache(video.youtubeId);
         }
         return context.body(null, 202);
     });
@@ -102,7 +100,7 @@ export function kidRoutes(services: Services): Hono {
         if (video === null) {
             return context.notFound();
         }
-        recordPlay(database, video.youtubeId);
+        recordPlay(video.youtubeId);
         return context.body(null, 204);
     });
 
@@ -129,9 +127,9 @@ export function kidRoutes(services: Services): Hono {
             return context.notFound();
         }
         try {
-            const path = (await pinnedThumbnail(video)) || join(services.thumbnailDir, `${video.youtubeId}.jpg`);
+            const path = (await pinnedThumbnail(video)) || join(thumbnailDir, `${video.youtubeId}.jpg`);
             if (!(await exists(path))) {
-                await downloadThumbnail(services.thumbnailDir, video.youtubeId, context.req.raw.signal);
+                await downloadThumbnail(video.youtubeId, context.req.raw.signal);
             }
             return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
         } catch (error) {

@@ -11,17 +11,18 @@ type RenderedPage = {
 
 /** Renders every kind of page: the child's grid and player, and the login, first-run setup and admin pages. */
 async function allPages(): Promise<RenderedPage[]> {
-    const environment = await buildEnvironment();
-    allowPianoVideo(environment, videoId, "Song");
-    const fresh = await buildEnvironment({ withAdmin: false });
-    const cookie = await logIn(environment);
     const render = async (source: Environment, path: string, pageCookie?: string) =>
         (await send(source, path, { cookie: pageCookie })).text();
+    // The database is shared, so the setup page has to be rendered before the admin account exists.
+    const setupBody = await render(await buildEnvironment({ withAdmin: false }), "/admin/setup");
+    const environment = await buildEnvironment();
+    allowPianoVideo(videoId, "Song");
+    const cookie = await logIn(environment);
     return [
         { name: "child grid", body: await render(environment, "/") },
         { name: "player", body: await render(environment, `/watch/${videoId}`) },
         { name: "login", body: await render(environment, "/admin/login") },
-        { name: "setup", body: await render(fresh, "/admin/setup") },
+        { name: "setup", body: setupBody },
         { name: "admin", body: await render(environment, "/admin", cookie) },
     ];
 }
@@ -104,7 +105,7 @@ describe("static assets", () => {
 describe("the child's navbar", () => {
     test("offers only the home link", async () => {
         const environment = await buildEnvironment();
-        allowPianoVideo(environment, videoId, "Song");
+        allowPianoVideo(videoId, "Song");
 
         for (const path of ["/", `/watch/${videoId}`]) {
             const navbar = navbarOf(await (await send(environment, path)).text());
@@ -132,7 +133,7 @@ describe("the player page", () => {
     test("contains every element the player script looks for", async () => {
         const script = await Bun.file(join(import.meta.dir, "static/player.js")).text();
         const environment = await buildEnvironment();
-        allowPianoVideo(environment, videoId, "Song");
+        allowPianoVideo(videoId, "Song");
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
         const wanted = [...script.matchAll(/getElementById\(["']([^"']+)["']\)/g)].map((match) => match[1]);
@@ -145,7 +146,7 @@ describe("the player page", () => {
 
     test("shows the local thumbnail as the poster while the video loads", async () => {
         const environment = await buildEnvironment();
-        allowPianoVideo(environment, videoId, "Song");
+        allowPianoVideo(videoId, "Song");
 
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
@@ -154,7 +155,7 @@ describe("the player page", () => {
 
     test("the title is the video title and is escaped", async () => {
         const environment = await buildEnvironment();
-        allow(environment, { youtubeId: videoId, title: "Tom & <b>Jerry</b>", channelName: "Cartoons" });
+        allow({ youtubeId: videoId, title: "Tom & <b>Jerry</b>", channelName: "Cartoons" });
 
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
@@ -164,7 +165,7 @@ describe("the player page", () => {
 
     test("the waiting and failure messages are hidden until needed", async () => {
         const environment = await buildEnvironment();
-        allowPianoVideo(environment, videoId, "Song");
+        allowPianoVideo(videoId, "Song");
 
         const notReady = await (await send(environment, `/watch/${videoId}`)).text();
         await makeCacheReady(environment, videoId, "data");
@@ -180,10 +181,10 @@ describe("the player page", () => {
 describe("video cards", () => {
     test("shows the duration and a star for saved videos", async () => {
         const environment = await buildEnvironment();
-        allow(environment, { youtubeId: videoId, title: "Song", duration: 3661 });
-        pinVideo(environment.database, videoId);
-        claimDownload(environment.database);
-        finishDownload(environment.database, videoId, join(environment.mediaDir, "song.mp4"));
+        allow({ youtubeId: videoId, title: "Song", duration: 3661 });
+        pinVideo(videoId);
+        claimDownload();
+        finishDownload(videoId, join(environment.mediaDir, "song.mp4"));
 
         const body = await (await send(environment, "/")).text();
 

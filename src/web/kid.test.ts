@@ -1,6 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
 import { testVideoId } from "../../tests/helpers.ts";
+import * as videoQueries from "../db/videos.ts";
 import { blockVideo } from "../db/videos.ts";
 import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
@@ -20,13 +21,13 @@ import {
 
 async function environmentWithSong() {
     const environment = await buildEnvironment();
-    allowPianoVideo(environment, videoId, "Song");
+    allowPianoVideo(videoId, "Song");
     return environment;
 }
 
 async function environmentWithBlockedSong() {
     const environment = await environmentWithSong();
-    blockVideo(environment.database, videoId);
+    blockVideo(videoId);
     return environment;
 }
 
@@ -47,9 +48,9 @@ describe("ids that are not YouTube video ids", () => {
 describe("browsing", () => {
     test("the index lists allowed videos and hides blocked ones", async () => {
         const environment = await buildEnvironment();
-        allowPianoVideo(environment, testVideoId("aaaaaaaaaaa"), "Twinkle Twinkle");
-        allowPianoVideo(environment, testVideoId("bbbbbbbbbbb"), "Scary Video");
-        blockVideo(environment.database, testVideoId("bbbbbbbbbbb"));
+        allowPianoVideo(testVideoId("aaaaaaaaaaa"), "Twinkle Twinkle");
+        allowPianoVideo(testVideoId("bbbbbbbbbbb"), "Scary Video");
+        blockVideo(testVideoId("bbbbbbbbbbb"));
 
         const response = await send(environment, "/");
         const body = await response.text();
@@ -61,13 +62,13 @@ describe("browsing", () => {
 
     test("the channel filter shows only that channel", async () => {
         const environment = await buildEnvironment();
-        allow(environment, {
+        allow({
             youtubeId: testVideoId("aaaaaaaaaaa"),
             title: "From A",
             channelYoutubeId: "UCa",
             channelName: "A",
         });
-        allow(environment, {
+        allow({
             youtubeId: testVideoId("bbbbbbbbbbb"),
             title: "From B",
             channelYoutubeId: "UCb",
@@ -128,7 +129,7 @@ describe("watching", () => {
             await send(environment, path);
         }
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(video.playCount).toBe(0);
         expect(video.cacheStatus).toBe("none");
         expect(video.lastPlayedAt).toBe(0);
@@ -145,7 +146,7 @@ describe("prepare and played", () => {
         const response = await send(environment, prepare(videoId), { method: "POST" });
 
         expect(response.status).toBe(202);
-        expect(loadVideo(environment, videoId).cacheStatus).toBe("queued");
+        expect(loadVideo(videoId).cacheStatus).toBe("queued");
     });
 
     test("prepare does nothing when a file is already ready", async () => {
@@ -155,18 +156,18 @@ describe("prepare and played", () => {
         const response = await send(environment, prepare(videoId), { method: "POST" });
 
         expect(response.status).toBe(202);
-        expect(loadVideo(environment, videoId).cacheStatus).toBe("ready");
+        expect(loadVideo(videoId).cacheStatus).toBe("ready");
     });
 
     test("prepare retries a failed download", async () => {
         const environment = await environmentWithSong();
-        requestCache(environment.database, videoId);
-        claimCache(environment.database);
-        failCache(environment.database, videoId, "network");
+        requestCache(videoId);
+        claimCache();
+        failCache(videoId, "network");
 
         await send(environment, prepare(videoId), { method: "POST" });
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(video.cacheStatus).toBe("queued");
         expect(video.cacheError).toBe("");
     });
@@ -179,7 +180,7 @@ describe("prepare and played", () => {
             expect((await send(environment, played(id), { method: "POST" })).status).toBe(404);
         }
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(video.cacheStatus).toBe("none");
         expect(video.playCount).toBe(0);
     });
@@ -190,7 +191,7 @@ describe("prepare and played", () => {
         const response = await send(environment, played(videoId), { method: "POST" });
         await send(environment, played(videoId), { method: "POST" });
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(response.status).toBe(204);
         expect(video.playCount).toBe(2);
         expect(video.lastPlayedAt).toBeGreaterThan(0);
@@ -212,7 +213,7 @@ describe("prepare and played", () => {
         });
 
         expect(response.status).toBe(403);
-        expect(loadVideo(environment, videoId).playCount).toBe(0);
+        expect(loadVideo(videoId).playCount).toBe(0);
     });
 
     test("a post from a page on another origin is rejected", async () => {
@@ -242,9 +243,9 @@ describe("status", () => {
 
     test("reports a failed download", async () => {
         const environment = await environmentWithSong();
-        requestCache(environment.database, videoId);
-        claimCache(environment.database);
-        failCache(environment.database, videoId, "network");
+        requestCache(videoId);
+        claimCache();
+        failCache(videoId, "network");
 
         expect(await (await send(environment, `/status/${videoId}`)).json()).toEqual({
             ready: false,
@@ -273,7 +274,7 @@ describe("video bytes", () => {
     test("prefers the pinned file over the cached copy", async () => {
         const environment = await environmentWithSong();
         await makeCacheReady(environment, videoId, "cached");
-        await makePinnedFile(environment, videoId, join(environment.mediaDir, "pinned.mp4"), "pinned");
+        await makePinnedFile(videoId, join(environment.mediaDir, "pinned.mp4"), "pinned");
 
         expect(await (await send(environment, `/video/${videoId}`)).text()).toBe("pinned");
     });
@@ -281,9 +282,9 @@ describe("video bytes", () => {
     test("falls back to the cache when the pinned file went missing", async () => {
         const environment = await environmentWithSong();
         await makeCacheReady(environment, videoId, "cached");
-        pinVideo(environment.database, videoId);
-        claimDownload(environment.database);
-        finishDownload(environment.database, videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
+        pinVideo(videoId);
+        claimDownload();
+        finishDownload(videoId, join(environment.mediaDir, "deleted-by-hand.mp4"));
 
         expect(await (await send(environment, `/video/${videoId}`)).text()).toBe("cached");
     });
@@ -296,7 +297,7 @@ describe("video bytes", () => {
     test("a blocked or unknown video is never served", async () => {
         const environment = await environmentWithSong();
         await makeCacheReady(environment, videoId, "secret bytes");
-        blockVideo(environment.database, videoId);
+        blockVideo(videoId);
 
         for (const id of [videoId, unknownVideoId]) {
             const response = await send(environment, `/video/${id}`);
@@ -309,7 +310,7 @@ describe("video bytes", () => {
 describe("paging", () => {
     test("the index shows twenty-four videos at a time with a more videos link", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 30);
+        addPublished(30);
 
         const body = await (await send(environment, "/")).text();
 
@@ -321,7 +322,7 @@ describe("paging", () => {
 
     test("the second page has the rest and a link back", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 30);
+        addPublished(30);
 
         const body = await (await send(environment, "/?page=2")).text();
 
@@ -333,7 +334,7 @@ describe("paging", () => {
 
     test("videos are shown newest published first across pages", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 30);
+        addPublished(30);
 
         const first = await (await send(environment, "/")).text();
         const last = await (await send(environment, "/?page=2")).text();
@@ -347,7 +348,7 @@ describe("paging", () => {
 
     test("exactly one page of videos has no pager", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 24);
+        addPublished(24);
 
         const body = await (await send(environment, "/")).text();
 
@@ -365,7 +366,7 @@ describe("paging", () => {
         ["?page=99999999999999999999", 6],
     ])("the page number %p is handled gracefully", async (query, expectedCards) => {
         const environment = await buildEnvironment();
-        addPublished(environment, 30);
+        addPublished(30);
 
         const response = await send(environment, `/${query}`);
 
@@ -375,7 +376,7 @@ describe("paging", () => {
 
     test("pager links keep the channel filter", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 30);
+        addPublished(30);
 
         const body = await (await send(environment, "/?channel=UC1")).text();
 
@@ -409,7 +410,7 @@ describe("thumbnails", () => {
         const environment = await environmentWithSong();
         const video = join(environment.mediaDir, "Chan", `Song [${videoId}].mp4`);
         await writeFileWithFolders(video.replace(/\.mp4$/, ".jpg"), "PINNED-JPEG");
-        await makePinnedFile(environment, videoId, video, "v");
+        await makePinnedFile(videoId, video, "v");
 
         const response = await send(environment, `/thumb/${videoId}`);
 
@@ -439,7 +440,7 @@ describe("thumbnails", () => {
 
     test("pages never make the browser contact YouTube for images", async () => {
         const environment = await buildEnvironment();
-        addPublished(environment, 3);
+        addPublished(3);
 
         const body = await (await send(environment, "/")).text();
 
@@ -453,7 +454,12 @@ describe("database failures", () => {
     test("return a generic 500 without leaking details", async () => {
         const environment = await environmentWithSong();
         const cookie = await logIn(environment);
-        environment.database.close();
+        spyOn(videoQueries, "getWatchableVideos").mockImplementation(() => {
+            throw new Error("database is closed");
+        });
+        spyOn(videoQueries, "getVideo").mockImplementation(() => {
+            throw new Error("database is closed");
+        });
 
         const requests = [
             { method: "GET", path: "/" },

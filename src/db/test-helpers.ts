@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
-import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
+import { randomVideoId } from "../../tests/helpers.ts";
+import { config } from "../config.ts";
 import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { getChannels } from "./channels.ts";
-import { openDatabase } from "./database.ts";
 import type { NewVideo, Video } from "./types.ts";
 import { getVideo } from "./videos.ts";
 
@@ -22,8 +22,8 @@ export function newVideo(channelYoutubeId: string, overrides: Partial<NewVideo> 
     };
 }
 
-export function videoOf(database: Database, youtubeId: VideoId): Video {
-    const video = getVideo(database, youtubeId);
+export function videoOf(youtubeId: VideoId): Video {
+    const video = getVideo(youtubeId);
     if (video === null) {
         throw new Error(`video ${youtubeId} does not exist`);
     }
@@ -34,8 +34,8 @@ export function idsOf(videos: readonly Pick<Video, "youtubeId">[]): VideoId[] {
     return videos.map((video) => video.youtubeId);
 }
 
-export function channelIdOf(database: Database, youtubeId: VideoId): number {
-    const channel = getChannels(database).find((candidate) => candidate.youtubeId === youtubeId);
+export function channelIdOf(youtubeId: VideoId): number {
+    const channel = getChannels().find((candidate) => candidate.youtubeId === youtubeId);
     if (channel === undefined) {
         throw new Error(`channel ${youtubeId} does not exist`);
     }
@@ -43,28 +43,18 @@ export function channelIdOf(database: Database, youtubeId: VideoId): number {
 }
 
 /** Pins a video and completes its download. */
-export function keepFile(database: Database, youtubeId: VideoId, path: string): void {
-    pinVideo(database, youtubeId);
-    claimDownload(database);
-    finishDownload(database, youtubeId, path);
+export function keepFile(youtubeId: VideoId, path: string): void {
+    pinVideo(youtubeId);
+    claimDownload();
+    finishDownload(youtubeId, path);
 }
 
 /** Requests a watch-once copy and completes its download. */
-export function cacheFile(database: Database, youtubeId: VideoId, path: string): void {
-    requestCache(database, youtubeId);
-    claimCache(database);
-    finishCache(database, youtubeId, path);
+export function cacheFile(youtubeId: VideoId, path: string): void {
+    requestCache(youtubeId);
+    claimCache();
+    finishCache(youtubeId, path);
 }
 
-export type TestDatabase = {
-    path: string;
-    database: Database;
-    /** A second connection for arranging and inspecting state the database does not expose. */
-    raw: Database;
-};
-
-export async function openTestDatabase(): Promise<TestDatabase> {
-    const path = join(await temporaryDirectory(), "test.db");
-    const database = openDatabase(path);
-    return { path, database, raw: new Database(path, { strict: true }) };
-}
+/** A second connection to the app's database, for arranging and inspecting state its functions do not expose. */
+export const raw = new Database(join(config.dataDir, "tubestop.db"), { strict: true });

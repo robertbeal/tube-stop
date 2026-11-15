@@ -1,19 +1,9 @@
-import type { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
 import { claimDownload, finishDownload, pinVideo } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { deleteChannel, getWatchableChannels, insertChannel } from "./channels.ts";
-import {
-    cacheFile,
-    channelIdOf,
-    everything,
-    idsOf,
-    keepFile,
-    newVideo,
-    openTestDatabase,
-    videoOf,
-} from "./test-helpers.ts";
+import { cacheFile, channelIdOf, everything, idsOf, keepFile, newVideo, videoOf } from "./test-helpers.ts";
 import { NotFoundError } from "./types.ts";
 import {
     allowVideo,
@@ -29,168 +19,151 @@ import {
 
 describe("what the child may watch", () => {
     test("a video from an allowed channel is visible", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        expect(idsOf(getWatchableVideos(database, "", everything).videos)).toContain(video.youtubeId);
+        insertVideo(video);
+        expect(idsOf(getWatchableVideos("", everything).videos)).toContain(video.youtubeId);
     });
 
     test("a video from an unlisted channel is hidden", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        insertVideo(database, video);
-        expect(videoOf(database, video.youtubeId).watchable).toBe(false);
+        insertVideo(video);
+        expect(videoOf(video.youtubeId).watchable).toBe(false);
     });
 
     test("an individually allowed video needs no channel", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        expect(videoOf(database, video.youtubeId).watchable).toBe(true);
+        allowVideo(video);
+        expect(videoOf(video.youtubeId).watchable).toBe(true);
     });
 
     test("a blocked video is hidden even in an allowed channel", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        blockVideo(database, video.youtubeId);
-        expect(videoOf(database, video.youtubeId).watchable).toBe(false);
+        insertVideo(video);
+        blockVideo(video.youtubeId);
+        expect(videoOf(video.youtubeId).watchable).toBe(false);
     });
 
     test("blocking an unknown video reports not found", async () => {
-        const { database } = await openTestDatabase();
-        expect(() => blockVideo(database, randomVideoId())).toThrow(NotFoundError);
+        expect(() => blockVideo(randomVideoId())).toThrow(NotFoundError);
     });
 
     test("removing a channel hides its inherited videos", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        deleteChannel(database, channelIdOf(database, channel));
-        expect(videoOf(database, video.youtubeId).watchable).toBe(false);
+        insertVideo(video);
+        deleteChannel(channelIdOf(channel));
+        expect(videoOf(video.youtubeId).watchable).toBe(false);
     });
 
     test("removing a channel keeps individually allowed videos", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        allowVideo(database, video);
-        deleteChannel(database, channelIdOf(database, channel));
-        expect(videoOf(database, video.youtubeId).watchable).toBe(true);
+        allowVideo(video);
+        deleteChannel(channelIdOf(channel));
+        expect(videoOf(video.youtubeId).watchable).toBe(true);
     });
 
     test("watchable videos can be filtered by channel", async () => {
-        const { database } = await openTestDatabase();
         const [channelA, channelB] = [randomVideoId(), randomVideoId()];
-        insertChannel(database, channelA, "A");
-        insertChannel(database, channelB, "B");
+        insertChannel(channelA, "A");
+        insertChannel(channelB, "B");
         const videoA = newVideo(channelA);
-        insertVideo(database, videoA);
-        insertVideo(database, newVideo(channelB));
-        expect(idsOf(getWatchableVideos(database, channelA, everything).videos)).toEqual([videoA.youtubeId]);
+        insertVideo(videoA);
+        insertVideo(newVideo(channelB));
+        expect(idsOf(getWatchableVideos(channelA, everything).videos)).toEqual([videoA.youtubeId]);
     });
 
     test("syncing again does not overwrite an explicit decision", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        blockVideo(database, video.youtubeId);
-        insertVideo(database, video);
-        expect(videoOf(database, video.youtubeId).rule).toBe("block");
+        insertVideo(video);
+        blockVideo(video.youtubeId);
+        insertVideo(video);
+        expect(videoOf(video.youtubeId).rule).toBe("block");
     });
 
     test("unblocking returns to the channel rule when the channel is allowed", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano");
+        insertChannel(channel, "Piano");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        blockVideo(database, video.youtubeId);
-        unblockVideo(database, video.youtubeId);
-        const unblocked = videoOf(database, video.youtubeId);
+        insertVideo(video);
+        blockVideo(video.youtubeId);
+        unblockVideo(video.youtubeId);
+        const unblocked = videoOf(video.youtubeId);
         expect([unblocked.rule, unblocked.watchable]).toEqual(["inherit", true]);
     });
 
     test("unblocking keeps the video visible when its channel is not allowed", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        blockVideo(database, video.youtubeId);
-        unblockVideo(database, video.youtubeId);
-        const unblocked = videoOf(database, video.youtubeId);
+        allowVideo(video);
+        blockVideo(video.youtubeId);
+        unblockVideo(video.youtubeId);
+        const unblocked = videoOf(video.youtubeId);
         expect([unblocked.rule, unblocked.watchable]).toEqual(["allow", true]);
     });
 
     test("watchable channels lists only channels with visible videos", async () => {
-        const { database } = await openTestDatabase();
         const [withVideo, empty] = [randomVideoId(), randomVideoId()];
-        insertChannel(database, withVideo, "Has videos");
-        insertChannel(database, empty, "No videos");
-        insertVideo(database, newVideo(withVideo));
-        expect(getWatchableChannels(database)).toEqual([{ youtubeId: withVideo, name: `Channel ${withVideo}` }]);
+        insertChannel(withVideo, "Has videos");
+        insertChannel(empty, "No videos");
+        insertVideo(newVideo(withVideo));
+        expect(getWatchableChannels()).toEqual([{ youtubeId: withVideo, name: `Channel ${withVideo}` }]);
     });
 
     test("an unknown video is null", async () => {
-        const { database } = await openTestDatabase();
-        expect(getVideo(database, randomVideoId())).toBeNull();
+        expect(getVideo(randomVideoId())).toBeNull();
     });
 });
 
 describe("recording plays", () => {
     test("plays are counted and the time is stamped", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        recordPlay(database, video.youtubeId);
-        recordPlay(database, video.youtubeId);
-        const played = videoOf(database, video.youtubeId);
+        allowVideo(video);
+        recordPlay(video.youtubeId);
+        recordPlay(video.youtubeId);
+        const played = videoOf(video.youtubeId);
         expect([played.playCount, played.lastPlayedAt]).toEqual([2, testStartSeconds]);
     });
 });
 
 describe("removing a video", () => {
-    function allowedChannelVideo(database: Database) {
+    function allowedChannelVideo() {
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano Guy");
+        insertChannel(channel, "Piano Guy");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        keepFile(database, video.youtubeId, "/media/kept.mp4");
-        cacheFile(database, video.youtubeId, "/cache/copy.mp4");
+        insertVideo(video);
+        keepFile(video.youtubeId, "/media/kept.mp4");
+        cacheFile(video.youtubeId, "/cache/copy.mp4");
         return video;
     }
 
     test("removing returns both paths for cleanup", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        keepFile(database, video.youtubeId, "/media/a.mp4");
-        cacheFile(database, video.youtubeId, "/cache/a.mp4");
-        expect(deleteVideo(database, video.youtubeId)).toMatchObject({
+        allowVideo(video);
+        keepFile(video.youtubeId, "/media/a.mp4");
+        cacheFile(video.youtubeId, "/cache/a.mp4");
+        expect(deleteVideo(video.youtubeId)).toMatchObject({
             filePath: "/media/a.mp4",
             cachePath: "/cache/a.mp4",
         });
     });
 
     test("removing an unknown video reports not found", async () => {
-        const { database } = await openTestDatabase();
-        expect(() => deleteVideo(database, randomVideoId())).toThrow(NotFoundError);
+        expect(() => deleteVideo(randomVideoId())).toThrow(NotFoundError);
     });
 
     test("removing a video of an allowed channel blocks it instead of deleting", async () => {
-        const { database } = await openTestDatabase();
-        const video = allowedChannelVideo(database);
-        const removal = deleteVideo(database, video.youtubeId);
+        const video = allowedChannelVideo();
+        const removal = deleteVideo(video.youtubeId);
         expect(removal).toEqual({ filePath: "/media/kept.mp4", cachePath: "/cache/copy.mp4", blocked: true });
-        expect(videoOf(database, video.youtubeId)).toMatchObject({
+        expect(videoOf(video.youtubeId)).toMatchObject({
             rule: "block",
             watchable: false,
             pinned: false,
@@ -202,117 +175,103 @@ describe("removing a video", () => {
     });
 
     test("a removed video stays hidden when the channel syncs again", async () => {
-        const { database } = await openTestDatabase();
-        const video = allowedChannelVideo(database);
-        deleteVideo(database, video.youtubeId);
-        insertVideo(database, video);
-        expect(videoOf(database, video.youtubeId)).toMatchObject({ rule: "block", watchable: false });
+        const video = allowedChannelVideo();
+        deleteVideo(video.youtubeId);
+        insertVideo(video);
+        expect(videoOf(video.youtubeId)).toMatchObject({ rule: "block", watchable: false });
     });
 
     test("removing an individually allowed video in an allowed channel still hides it", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano Guy");
+        insertChannel(channel, "Piano Guy");
         const video = newVideo(channel);
-        allowVideo(database, video);
-        deleteVideo(database, video.youtubeId);
-        expect(videoOf(database, video.youtubeId).watchable).toBe(false);
+        allowVideo(video);
+        deleteVideo(video.youtubeId);
+        expect(videoOf(video.youtubeId).watchable).toBe(false);
     });
 
     test("removing a video outside any allowed channel deletes it", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        expect(deleteVideo(database, video.youtubeId).blocked).toBe(false);
-        expect(getVideo(database, video.youtubeId)).toBeNull();
+        allowVideo(video);
+        expect(deleteVideo(video.youtubeId).blocked).toBe(false);
+        expect(getVideo(video.youtubeId)).toBeNull();
     });
 
     test("removing while downloading deletes a video outside any allowed channel", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        allowVideo(database, video);
-        pinVideo(database, video.youtubeId);
-        claimDownload(database);
-        deleteVideo(database, video.youtubeId);
-        expect(getVideo(database, video.youtubeId)).toBeNull();
+        allowVideo(video);
+        pinVideo(video.youtubeId);
+        claimDownload();
+        deleteVideo(video.youtubeId);
+        expect(getVideo(video.youtubeId)).toBeNull();
     });
 
     test("removing leaves an in-flight download for the worker to discard", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Piano Guy");
+        insertChannel(channel, "Piano Guy");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        pinVideo(database, video.youtubeId);
-        claimDownload(database);
-        deleteVideo(database, video.youtubeId);
-        expect(videoOf(database, video.youtubeId)).toMatchObject({ pinned: false, downloadStatus: "downloading" });
-        expect(finishDownload(database, video.youtubeId, "/media/late.mp4")).toBe(false);
+        insertVideo(video);
+        pinVideo(video.youtubeId);
+        claimDownload();
+        deleteVideo(video.youtubeId);
+        expect(videoOf(video.youtubeId)).toMatchObject({ pinned: false, downloadStatus: "downloading" });
+        expect(finishDownload(video.youtubeId, "/media/late.mp4")).toBe(false);
     });
 });
 
 describe("paging and ordering", () => {
-    function addNumberedVideos(database: Database, channel: string, count: number) {
-        insertChannel(database, channel, "Channel");
+    function addNumberedVideos(channel: string, count: number) {
+        insertChannel(channel, "Channel");
         return Array.from({ length: count }, (_, index) => {
             const video = newVideo(channel, { publishedAt: 1_000_001 + index });
-            insertVideo(database, video);
+            insertVideo(video);
             return video;
         });
     }
 
     test("watchable returns the requested page and the total", async () => {
-        const { database } = await openTestDatabase();
-        const videos = addNumberedVideos(database, randomVideoId(), 10);
-        const page = getWatchableVideos(database, "", { limit: 4, offset: 4 });
+        const videos = addNumberedVideos(randomVideoId(), 10);
+        const page = getWatchableVideos("", { limit: 4, offset: 4 });
         expect(page.total).toBe(10);
         expect(idsOf(page.videos)).toEqual([5, 4, 3, 2].map((index) => videos[index]?.youtubeId) as VideoId[]);
     });
 
     test("a page beyond the end is empty but the total is reported", async () => {
-        const { database } = await openTestDatabase();
-        addNumberedVideos(database, randomVideoId(), 3);
-        expect(getWatchableVideos(database, "", { limit: 10, offset: 50 })).toEqual({ videos: [], total: 3 });
+        addNumberedVideos(randomVideoId(), 3);
+        expect(getWatchableVideos("", { limit: 10, offset: 50 })).toEqual({ videos: [], total: 3 });
     });
 
     test("the total respects the channel filter", async () => {
-        const { database } = await openTestDatabase();
         const channelB = randomVideoId();
-        addNumberedVideos(database, randomVideoId(), 5);
-        addNumberedVideos(database, channelB, 2);
-        expect(getWatchableVideos(database, channelB, { limit: 10, offset: 0 }).total).toBe(2);
+        addNumberedVideos(randomVideoId(), 5);
+        addNumberedVideos(channelB, 2);
+        expect(getWatchableVideos(channelB, { limit: 10, offset: 0 }).total).toBe(2);
     });
 
     test("videos are ordered by publish date, not by when they were synced", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Channel");
+        insertChannel(channel, "Channel");
         const synced = [300, 900, 600].map((publishedAt) => newVideo(channel, { publishedAt }));
         for (const video of synced) {
-            insertVideo(database, video);
+            insertVideo(video);
         }
         const [oldest, newest, middle] = synced.map((video) => video.youtubeId);
         expect([oldest, newest, middle]).not.toContain(undefined);
-        expect(idsOf(getWatchableVideos(database, "", everything).videos)).toEqual([
-            newest,
-            middle,
-            oldest,
-        ] as VideoId[]);
+        expect(idsOf(getWatchableVideos("", everything).videos)).toEqual([newest, middle, oldest] as VideoId[]);
     });
 
     test("videos without a date follow dated ones, latest synced first", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Channel");
+        insertChannel(channel, "Channel");
         const [undatedFirst, dated, undatedSecond] = [
             newVideo(channel),
             newVideo(channel, { publishedAt: 500 }),
             newVideo(channel),
         ];
         for (const video of [undatedFirst, dated, undatedSecond]) {
-            insertVideo(database, video);
+            insertVideo(video);
         }
-        expect(idsOf(getWatchableVideos(database, "", everything).videos)).toEqual([
+        expect(idsOf(getWatchableVideos("", everything).videos)).toEqual([
             dated.youtubeId,
             undatedSecond.youtubeId,
             undatedFirst.youtubeId,
@@ -320,68 +279,61 @@ describe("paging and ordering", () => {
     });
 
     test("admin videos page and count the listed videos", async () => {
-        const { database } = await openTestDatabase();
         for (const video of Array.from({ length: 7 }, () => newVideo(randomVideoId()))) {
-            allowVideo(database, video);
+            allowVideo(video);
         }
-        insertVideo(database, newVideo(randomVideoId()));
-        const page = getAdminVideos(database, "", { limit: 5, offset: 5 });
+        insertVideo(newVideo(randomVideoId()));
+        const page = getAdminVideos("", { limit: 5, offset: 5 });
         expect([page.videos.length, page.total]).toEqual([2, 7]);
     });
 
     test("admin videos for a channel list every video of that channel", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
         const synced = newVideo(channel);
-        insertVideo(database, synced);
-        insertVideo(database, newVideo(randomVideoId()));
-        expect(idsOf(getAdminVideos(database, channel, everything).videos)).toEqual([synced.youtubeId]);
+        insertVideo(synced);
+        insertVideo(newVideo(randomVideoId()));
+        expect(idsOf(getAdminVideos(channel, everything).videos)).toEqual([synced.youtubeId]);
     });
 
     test("admin videos include pinned and downloading videos", async () => {
-        const { database } = await openTestDatabase();
         const synced = newVideo(randomVideoId());
-        insertVideo(database, synced);
-        pinVideo(database, synced.youtubeId);
-        expect(idsOf(getAdminVideos(database, "", everything).videos)).toEqual([synced.youtubeId]);
+        insertVideo(synced);
+        pinVideo(synced.youtubeId);
+        expect(idsOf(getAdminVideos("", everything).videos)).toEqual([synced.youtubeId]);
     });
 });
 
 describe("publish dates", () => {
     test("syncing fills in a missing publish date without changing the rule", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Channel");
+        insertChannel(channel, "Channel");
         const video = newVideo(channel);
-        insertVideo(database, video);
-        blockVideo(database, video.youtubeId);
-        insertVideo(database, { ...video, publishedAt: 1234 });
-        expect(videoOf(database, video.youtubeId)).toMatchObject({ publishedAt: 1234, rule: "block" });
+        insertVideo(video);
+        blockVideo(video.youtubeId);
+        insertVideo({ ...video, publishedAt: 1234 });
+        expect(videoOf(video.youtubeId)).toMatchObject({ publishedAt: 1234, rule: "block" });
     });
 
     test("syncing never replaces a known date with an unknown one", async () => {
-        const { database } = await openTestDatabase();
         const channel = randomVideoId();
-        insertChannel(database, channel, "Channel");
+        insertChannel(channel, "Channel");
         const video = newVideo(channel, { publishedAt: 777 });
-        insertVideo(database, video);
-        insertVideo(database, { ...video, publishedAt: 0 });
-        expect(videoOf(database, video.youtubeId).publishedAt).toBe(777);
+        insertVideo(video);
+        insertVideo({ ...video, publishedAt: 0 });
+        expect(videoOf(video.youtubeId).publishedAt).toBe(777);
     });
 
     test("allowing keeps a known publish date when the new one is unknown", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId(), { publishedAt: 555 });
-        allowVideo(database, video);
-        allowVideo(database, { ...video, publishedAt: 0 });
-        expect(videoOf(database, video.youtubeId).publishedAt).toBe(555);
+        allowVideo(video);
+        allowVideo({ ...video, publishedAt: 0 });
+        expect(videoOf(video.youtubeId).publishedAt).toBe(555);
     });
 
     test("allowing an already synced video makes it explicitly allowed", async () => {
-        const { database } = await openTestDatabase();
         const video = newVideo(randomVideoId());
-        insertVideo(database, video);
-        allowVideo(database, { ...video, title: "Renamed" });
-        expect(videoOf(database, video.youtubeId)).toMatchObject({ rule: "allow", title: "Renamed" });
+        insertVideo(video);
+        allowVideo({ ...video, title: "Renamed" });
+        expect(videoOf(video.youtubeId)).toMatchObject({ rule: "allow", title: "Renamed" });
     });
 });

@@ -53,7 +53,7 @@ export function authRoutes(services: Services): {
     routes: Hono;
     requireLogin: ReturnType<typeof createMiddleware<AuthEnv>>;
 } {
-    const { database, hasher, sessions, limiter, setupCode } = services;
+    const { hasher, sessions, limiter, setupCode } = services;
     const routes = new Hono();
 
     /** The admin the request is logged in as, or null if there is no session or its account has since been deleted. */
@@ -63,7 +63,7 @@ export function authRoutes(services: Services): {
         if (token === undefined || userId === undefined) {
             return null;
         }
-        const user = getUserById(database, userId);
+        const user = getUserById(userId);
         if (user === null) {
             removeSession(sessions, token); // the account was removed, for example by reset-admin
         }
@@ -95,7 +95,7 @@ export function authRoutes(services: Services): {
             context.set("user", user);
             return next();
         }
-        if (countUsers(database) === 0) {
+        if (countUsers() === 0) {
             return context.redirect(setupPath, 303);
         }
         // A GET remembers where the visitor was going; other methods cannot be replayed after logging in.
@@ -108,7 +108,7 @@ export function authRoutes(services: Services): {
     });
 
     routes.get(loginPath, (context) => {
-        if (countUsers(database) === 0) {
+        if (countUsers() === 0) {
             return context.redirect(setupPath, 303);
         }
         const next = safeNext(context.req.query("next") ?? "");
@@ -116,7 +116,7 @@ export function authRoutes(services: Services): {
     });
 
     routes.post(loginPath, async (context) => {
-        if (countUsers(database) === 0) {
+        if (countUsers() === 0) {
             return context.redirect(setupPath, 303);
         }
         const field = await formFields(context);
@@ -130,7 +130,7 @@ export function authRoutes(services: Services): {
             return rejected(429, tooManyAttempts);
         }
         const password = field("password");
-        const user = getUserByUsername(database, username);
+        const user = getUserByUsername(username);
         if (user === null) {
             await spendTimeVerifying(hasher, password); // an unknown username must cost the same time as a wrong password
         } else if (await verifyPassword(user.passwordHash, password)) {
@@ -147,7 +147,7 @@ export function authRoutes(services: Services): {
             return;
         }
         try {
-            updatePassword(database, user.id, await hashPassword(hasher, password));
+            updatePassword(user.id, await hashPassword(hasher, password));
         } catch (error) {
             logger.error(`web: upgrade password hash of "${user.username}": ${error.message}`);
         }
@@ -164,7 +164,7 @@ export function authRoutes(services: Services): {
 
     // Once an account exists, the setup pages answer 404, so they do not even reveal that they exist.
     routes.get(setupPath, (context) => {
-        if (countUsers(database) > 0) {
+        if (countUsers() > 0) {
             return context.notFound();
         }
         currentSetupCode(setupCode); // make sure a code has been printed to the log
@@ -172,7 +172,7 @@ export function authRoutes(services: Services): {
     });
 
     routes.post(setupPath, async (context) => {
-        if (countUsers(database) > 0) {
+        if (countUsers() > 0) {
             return context.notFound();
         }
         const field = await formFields(context);
@@ -197,7 +197,7 @@ export function authRoutes(services: Services): {
             return rejected(422, "The two passwords do not match.");
         }
         try {
-            const user = createFirstUser(database, username, await hashPassword(hasher, password));
+            const user = createFirstUser(username, await hashPassword(hasher, password));
             clearSetupCode(setupCode);
             return startSession(context, user.id, "/admin");
         } catch (error) {
@@ -216,7 +216,7 @@ export function authRoutes(services: Services): {
 
 /** Lets the logged-in admin set a new password. Every other session is ended, so a stolen or forgotten login stops working. */
 export function changePassword(services: Services) {
-    const { database, hasher, sessions, limiter } = services;
+    const { hasher, sessions, limiter } = services;
     return async (context: Context<AuthEnv>): Promise<Response> => {
         const user = context.get("user");
         if (isLoginBlocked(limiter)) {
@@ -232,7 +232,7 @@ export function changePassword(services: Services) {
             return redirectWithMessage(context, "The two new passwords do not match.");
         }
         try {
-            updatePassword(database, user.id, await hashPassword(hasher, newPassword));
+            updatePassword(user.id, await hashPassword(hasher, newPassword));
         } catch (error) {
             if (error instanceof PasswordRuleError) {
                 return redirectWithMessage(context, `${capitalise(error.message)}.`);

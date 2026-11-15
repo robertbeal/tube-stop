@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 export type Config = {
     host: string;
     port: number;
@@ -122,3 +124,22 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
         sessionLifetimeMs: unwrap(sessionLifetimeDays) * millisecondsPerDay,
     };
 }
+
+function loadFromEnvironment(): Config {
+    try {
+        const loaded = loadConfig(process.env);
+        // Paths are stored in the database, so they must not depend on where the app was started from.
+        return {
+            ...loaded,
+            dataDir: resolve(loaded.dataDir),
+            mediaDir: resolve(loaded.mediaDir),
+            cacheDir: resolve(loaded.cacheDir),
+        };
+    } catch (error) {
+        console.error(`invalid configuration:\n${error.message}`);
+        process.exit(1);
+    }
+}
+
+/** The app's settings, read from the environment once, when this module is first imported. */
+export const config: Config = loadFromEnvironment();

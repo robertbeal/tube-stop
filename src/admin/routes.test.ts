@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
 import { getChannels, insertChannel, markChannelSynced } from "../db/channels.ts";
+import * as videoQueries from "../db/videos.ts";
 import { allowVideo, getVideo, getWatchableVideos, insertVideo } from "../db/videos.ts";
 import { claimDownload, failDownload, pinVideo } from "../downloads/queue.ts";
 import { allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
@@ -39,7 +40,7 @@ async function adminPage(environment: Environment, query = ""): Promise<string> 
 
 async function environmentWithSong() {
     const environment = await buildEnvironment();
-    allowPianoVideo(environment, videoId, "Song");
+    allowPianoVideo(videoId, "Song");
     return environment;
 }
 
@@ -63,13 +64,15 @@ describe("access control", () => {
         });
 
         expect(response.status).toBe(403);
-        expect(loadVideo(environment, videoId).pinned).toBe(false);
+        expect(loadVideo(videoId).pinned).toBe(false);
     });
 
     test("a database failure returns a generic 500 without leaking details", async () => {
         const environment = await buildEnvironment();
         const cookie = await logIn(environment);
-        environment.database.close();
+        spyOn(videoQueries, "getAdminVideos").mockImplementation(() => {
+            throw new Error("database is closed");
+        });
 
         const response = await send(environment, "/admin", { cookie });
 
@@ -93,7 +96,7 @@ describe("video actions", () => {
 
         const response = await adminPost(environment, `/admin/videos/${videoId}/pin`);
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(redirectMessage(response)).toBe("Done");
         expect(video.pinned).toBe(true);
         expect(video.downloadStatus).toBe("queued");
@@ -102,35 +105,35 @@ describe("video actions", () => {
     test("unpin deletes the file and its folder", async () => {
         const environment = await environmentWithSong();
         const folder = join(environment.mediaDir, "Piano Guy");
-        await makePinnedFile(environment, videoId, join(folder, `Song [${videoId}].mp4`), "x");
+        await makePinnedFile(videoId, join(folder, `Song [${videoId}].mp4`), "x");
 
         redirectMessage(await adminPost(environment, `/admin/videos/${videoId}/unpin`));
 
         expect(await exists(folder)).toBe(false);
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(video.pinned).toBe(false);
         expect(video.filePath).toBe("");
     });
 
     test("unpin while downloading really unpins", async () => {
         const environment = await environmentWithSong();
-        pinVideo(environment.database, videoId);
-        claimDownload(environment.database);
+        pinVideo(videoId);
+        claimDownload();
 
         redirectMessage(await adminPost(environment, `/admin/videos/${videoId}/unpin`));
 
-        expect(loadVideo(environment, videoId).pinned).toBe(false);
+        expect(loadVideo(videoId).pinned).toBe(false);
     });
 
     test("retry requeues a failed download", async () => {
         const environment = await environmentWithSong();
-        pinVideo(environment.database, videoId);
-        claimDownload(environment.database);
-        failDownload(environment.database, videoId, "HTTP Error 403");
+        pinVideo(videoId);
+        claimDownload();
+        failDownload(videoId, "HTTP Error 403");
 
         await adminPost(environment, `/admin/videos/${videoId}/retry`);
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(video.downloadStatus).toBe("queued");
         expect(video.downloadError).toBe("");
     });
@@ -151,7 +154,7 @@ describe("video actions", () => {
 
         redirectMessage(await adminPost(environment, `/admin/videos/${videoId}/remove`));
 
-        expect(getVideo(environment.database, videoId)).toBeNull();
+        expect(getVideo(videoId)).toBeNull();
         expect(await exists(cached)).toBe(false);
     });
 
@@ -170,7 +173,7 @@ describe("video actions", () => {
 
     test("removing a channel video keeps it blocked and says so", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UC1", "Piano Guy");
+        insertChannel("UC1", "Piano Guy");
         const synced = {
             youtubeId: videoId,
             channelYoutubeId: "UC1",
@@ -179,10 +182,10 @@ describe("video actions", () => {
             duration: 0,
             publishedAt: 0,
         };
-        insertVideo(environment.database, synced);
+        insertVideo(synced);
 
         const message = redirectMessage(await adminPost(environment, `/admin/videos/${videoId}/remove`));
-        insertVideo(environment.database, synced); // the next hourly sync
+        insertVideo(synced); // the next hourly sync
 
         expect(message).toBe("Removed. It stays blocked so syncing the channel cannot bring it back.");
         expect((await send(environment, `/watch/${videoId}`)).status).toBe(404);
@@ -208,9 +211,9 @@ describe("video actions", () => {
 describe("the admin page", () => {
     test("shows download errors, a retry button and disk usage", async () => {
         const environment = await environmentWithSong();
-        pinVideo(environment.database, videoId);
-        claimDownload(environment.database);
-        failDownload(environment.database, videoId, "HTTP Error 403");
+        pinVideo(videoId);
+        claimDownload();
+        failDownload(videoId, "HTTP Error 403");
         await writeFileWithFolders(join(environment.cacheDir, "x.bin"), new Uint8Array(2048));
 
         const body = await adminPage(environment);
@@ -229,13 +232,13 @@ describe("the admin page", () => {
 
     test("the remove button says when the video will stay hidden", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UC1", "Piano Guy");
-        allow(environment, {
+        insertChannel("UC1", "Piano Guy");
+        allow({
             youtubeId: testVideoId("inchannel01"),
             channelYoutubeId: "UC1",
             title: "In an allowed channel",
         });
-        allow(environment, {
+        allow({
             youtubeId: testVideoId("standalone1"),
             channelYoutubeId: "UC9",
             title: "On its own",
@@ -249,7 +252,7 @@ describe("the admin page", () => {
     test("lists one hundred videos per page and says where you are", async () => {
         const environment = await buildEnvironment();
         for (const number of Array.from({ length: 150 }, (_, index) => index + 1)) {
-            allow(environment, {
+            allow({
                 youtubeId: numberedId(number),
                 title: `Listed ${String(number).padStart(3, "0")}`,
             });
@@ -270,8 +273,8 @@ describe("the admin page", () => {
 
     test("lists channels with their video counts and last sync", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UC1", "Piano Guy");
-        insertVideo(environment.database, {
+        insertChannel("UC1", "Piano Guy");
+        insertVideo({
             youtubeId: videoId,
             channelYoutubeId: "UC1",
             channelName: "Piano Guy",
@@ -279,7 +282,7 @@ describe("the admin page", () => {
             duration: 0,
             publishedAt: 0,
         });
-        markChannelSynced(environment.database, "UC1");
+        markChannelSynced("UC1");
         advanceTime(2 * 60 * 60 * 1000);
 
         const body = await adminPage(environment);
@@ -290,8 +293,8 @@ describe("the admin page", () => {
 
     test("the channel filter lists that channel's videos", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UCa", "A");
-        insertVideo(environment.database, {
+        insertChannel("UCa", "A");
+        insertVideo({
             youtubeId: testVideoId("aaaaaaaaaaa"),
             channelYoutubeId: "UCa",
             channelName: "A",
@@ -299,7 +302,7 @@ describe("the admin page", () => {
             duration: 0,
             publishedAt: 0,
         });
-        allow(environment, {
+        allow({
             youtubeId: testVideoId("bbbbbbbbbbb"),
             title: "Standalone B",
             channelYoutubeId: "UCb",
@@ -321,7 +324,7 @@ describe("adding by URL", () => {
             await adminPost(environment, "/admin/add", { url: `https://youtu.be/${videoId}` }),
         );
 
-        const video = loadVideo(environment, videoId);
+        const video = loadVideo(videoId);
         expect(message).toBe("Allowed video Moonlight");
         expect(video.watchable).toBe(true);
         expect(video.title).toBe("Moonlight");
@@ -338,7 +341,7 @@ describe("adding by URL", () => {
         );
 
         expect(message).toBe("Allowed channel Piano Guy (syncing videos…)");
-        expect(getChannels(environment.database).map(({ youtubeId, name }) => ({ youtubeId, name }))).toEqual([
+        expect(getChannels().map(({ youtubeId, name }) => ({ youtubeId, name }))).toEqual([
             { youtubeId: "UC1", name: "Piano Guy" },
         ]);
         expect(environment.triggers.sync).toBe(1);
@@ -363,7 +366,7 @@ describe("adding by URL", () => {
         );
 
         expect(message).toBe("Could not read that URL: Unsupported URL");
-        expect(getWatchableVideos(environment.database, "", { limit: 1000, offset: 0 }).videos).toEqual([]);
+        expect(getWatchableVideos("", { limit: 1000, offset: 0 }).videos).toEqual([]);
         expect(environment.triggers.sync).toBe(0);
     });
 });
@@ -371,8 +374,8 @@ describe("adding by URL", () => {
 describe("channels", () => {
     test("removing a channel hides its videos", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UC1", "Piano Guy");
-        insertVideo(environment.database, {
+        insertChannel("UC1", "Piano Guy");
+        insertVideo({
             youtubeId: videoId,
             channelYoutubeId: "UC1",
             channelName: "Piano Guy",
@@ -380,7 +383,7 @@ describe("channels", () => {
             duration: 0,
             publishedAt: 0,
         });
-        const [channel] = getChannels(environment.database);
+        const [channel] = getChannels();
 
         redirectMessage(await adminPost(environment, `/admin/channels/${channel?.id}/remove`));
 
@@ -389,16 +392,16 @@ describe("channels", () => {
 
     test("removing a channel deletes cached copies but keeps pinned and individually allowed videos", async () => {
         const environment = await buildEnvironment();
-        insertChannel(environment.database, "UC1", "Piano Guy");
+        insertChannel("UC1", "Piano Guy");
         const base = { channelYoutubeId: "UC1", channelName: "Piano Guy", duration: 0, publishedAt: 0 };
-        insertVideo(environment.database, { ...base, youtubeId: testVideoId("inherited01"), title: "Inherited" });
-        allowVideo(environment.database, { ...base, youtubeId: testVideoId("individual1"), title: "Individual" });
-        insertVideo(environment.database, { ...base, youtubeId: testVideoId("pinnedvid01"), title: "Pinned" });
+        insertVideo({ ...base, youtubeId: testVideoId("inherited01"), title: "Inherited" });
+        allowVideo({ ...base, youtubeId: testVideoId("individual1"), title: "Individual" });
+        insertVideo({ ...base, youtubeId: testVideoId("pinnedvid01"), title: "Pinned" });
         const inheritedCache = await makeCacheReady(environment, testVideoId("inherited01"), "x");
         const individualCache = await makeCacheReady(environment, testVideoId("individual1"), "x");
         const pinnedFile = join(environment.mediaDir, "kept.mp4");
-        await makePinnedFile(environment, testVideoId("pinnedvid01"), pinnedFile, "x");
-        const [channel] = getChannels(environment.database);
+        await makePinnedFile(testVideoId("pinnedvid01"), pinnedFile, "x");
+        const [channel] = getChannels();
 
         const message = redirectMessage(await adminPost(environment, `/admin/channels/${channel?.id}/remove`));
 

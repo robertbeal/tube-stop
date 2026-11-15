@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite";
+import { database } from "./database.ts";
 import { type Channel, NotFoundError } from "./types.ts";
 import { watchableExpression } from "./videos.ts";
 
@@ -11,7 +11,7 @@ type ChannelRow = {
 };
 
 /** Allows a channel, or renames it if it is already allowed. */
-export function insertChannel(database: Database, youtubeId: string, name: string): void {
+export function insertChannel(youtubeId: string, name: string): void {
     database.run(
         `INSERT INTO channels (youtube_id, name) VALUES (?, ?)
      ON CONFLICT(youtube_id) DO UPDATE SET name = excluded.name`,
@@ -20,7 +20,7 @@ export function insertChannel(database: Database, youtubeId: string, name: strin
 }
 
 /** Allowed channels by name, with the number of non-blocked videos known for each. */
-export function getChannels(database: Database): Channel[] {
+export function getChannels(): Channel[] {
     return database
         .query<ChannelRow, []>(`SELECT c.id, c.youtube_id, c.name, c.last_synced_at,
        (SELECT COUNT(*) FROM videos v WHERE v.channel_yt_id = c.youtube_id AND v.rule != 'block') AS video_count
@@ -40,7 +40,7 @@ export function getChannels(database: Database): Channel[] {
  * watch-once cache entries are cleared: the returned paths are the cache files for the
  * caller to delete. Pinned files are left alone.
  */
-export function deleteChannel(database: Database, id: number): string[] {
+export function deleteChannel(id: number): string[] {
     return database
         .transaction(() => {
             const channel = database
@@ -67,7 +67,7 @@ export function deleteChannel(database: Database, id: number): string[] {
         .immediate();
 }
 
-export function markChannelSynced(database: Database, youtubeId: string): void {
+export function markChannelSynced(youtubeId: string): void {
     database.run("UPDATE channels SET last_synced_at = ? WHERE youtube_id = ?", [
         Math.floor(Date.now() / 1000),
         youtubeId,
@@ -75,7 +75,7 @@ export function markChannelSynced(database: Database, youtubeId: string): void {
 }
 
 /** Channels that have at least one watchable video. */
-export function getWatchableChannels(database: Database): Pick<Channel, "youtubeId" | "name">[] {
+export function getWatchableChannels(): Pick<Channel, "youtubeId" | "name">[] {
     return database
         .query<
             { channel_yt_id: string; channel_name: string },

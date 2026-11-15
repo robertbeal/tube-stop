@@ -1,14 +1,13 @@
-import type { Database } from "bun:sqlite";
 import { describe, expect, setSystemTime, spyOn, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { randomVideoId, temporaryDirectory, testStart, stubYtDlp as writeStub } from "../../tests/helpers.ts";
-import { openDatabase } from "../db/database.ts";
+import { randomVideoId, testStart, stubYtDlp as writeStub } from "../../tests/helpers.ts";
+import { config } from "../config.ts";
 import { allowVideo, deleteVideo, getVideo } from "../db/videos.ts";
 import * as downloads from "../ytdlp/download.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache, unpinVideo } from "./queue.ts";
-import { type DownloadConfig, type DownloadWorker, janitor, processCache, processPin, runDownloads } from "./worker.ts";
+import { janitor, processCache, processPin, runDownloads } from "./worker.ts";
 
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;
@@ -77,31 +76,15 @@ function gatedDownloads(pathFor: (call: FetchCall) => string) {
     return { calls, started: started.promise, release: () => gate.resolve() };
 }
 
-type Fixture = {
-    database: Database;
-    config: DownloadConfig;
-    workerWith(overrides?: Partial<DownloadConfig>): DownloadWorker;
-};
-
-async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fixture> {
-    const database = openDatabase(join(await temporaryDirectory(), "tubestop.db"));
-    const config: DownloadConfig = {
-        ytdlpBinary: "yt-dlp-not-installed",
-        mediaDir: await temporaryDirectory(),
-        cacheDir: await temporaryDirectory(),
-        keepMaxHeight: 1080,
-        cacheTtlMs,
-        cacheMaxBytes,
-    };
-    return {
-        database,
-        config,
-        workerWith: (overrides = {}) => ({ database, config: { ...config, ...overrides } }),
-    };
+/** The app's settings, with the cache limits this test wants. The setup puts them back after the test. */
+function useCacheLimits(cacheTtlMs: number, cacheMaxBytes: number): void {
+    config.keepMaxHeight = 1080;
+    config.cacheTtlMs = cacheTtlMs;
+    config.cacheMaxBytes = cacheMaxBytes;
 }
 
-function addVideo(database: Database, youtubeId: VideoId): void {
-    allowVideo(database, {
+function addVideo(youtubeId: VideoId): void {
+    allowVideo({
         youtubeId,
         channelYoutubeId: "",
         channelName: "",
@@ -112,108 +95,108 @@ function addVideo(database: Database, youtubeId: VideoId): void {
 }
 
 /** Adds a watchable video with a ready cache file of the given size, last played `playedAgoMs` ago. */
-async function addCached(fixture: Fixture, size: number, playedAgoMs: number) {
+async function addCached(size: number, playedAgoMs: number) {
     const id = randomVideoId();
-    const path = join(fixture.config.cacheDir, `${id}.mp4`);
+    const path = join(config.cacheDir, `${id}.mp4`);
     await writeFile(path, size);
-    addVideo(fixture.database, id);
+    addVideo(id);
     setSystemTime(new Date(testStart.getTime() - playedAgoMs));
-    requestCache(fixture.database, id);
-    claimCache(fixture.database);
-    finishCache(fixture.database, id, path);
+    requestCache(id);
+    claimCache();
+    finishCache(id, path);
     setSystemTime(testStart);
     return { id, path };
 }
 
-const cacheStatus = (fixture: Fixture, id: VideoId) => getVideo(fixture.database, id)?.cacheStatus;
+const cacheStatus = (id: VideoId) => getVideo(id)?.cacheStatus;
 
 describe("janitor", () => {
     test("keeps recent files under the budget", async () => {
-        const fixture = await newFixture(7 * day, 1 << 20);
-        const { id, path } = await addCached(fixture, 100, hour);
+        useCacheLimits(7 * day, 1 << 20);
+        const { id, path } = await addCached(100, hour);
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
         expect(await exists(path)).toBe(true);
-        expect(cacheStatus(fixture, id)).toBe("ready");
+        expect(cacheStatus(id)).toBe("ready");
     });
 
     test("evicts files not played within the TTL", async () => {
-        const fixture = await newFixture(7 * day, 1 << 20);
-        const stale = await addCached(fixture, 100, 8 * day);
-        const fresh = await addCached(fixture, 100, 6 * day);
+        useCacheLimits(7 * day, 1 << 20);
+        const stale = await addCached(100, 8 * day);
+        const fresh = await addCached(100, 6 * day);
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
         expect(await exists(stale.path)).toBe(false);
-        expect(cacheStatus(fixture, stale.id)).toBe("none");
+        expect(cacheStatus(stale.id)).toBe("none");
         expect(await exists(fresh.path)).toBe(true);
-        expect(cacheStatus(fixture, fresh.id)).toBe("ready");
+        expect(cacheStatus(fresh.id)).toBe("ready");
     });
 
     test("over budget evicts the least recently played first and stops when under", async () => {
-        const fixture = await newFixture(30 * day, 250);
-        const oldest = await addCached(fixture, 100, 3 * hour);
-        const middle = await addCached(fixture, 100, 2 * hour);
-        const newest = await addCached(fixture, 100, hour);
+        useCacheLimits(30 * day, 250);
+        const oldest = await addCached(100, 3 * hour);
+        const middle = await addCached(100, 2 * hour);
+        const newest = await addCached(100, hour);
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
         expect(await exists(oldest.path)).toBe(false);
-        expect(cacheStatus(fixture, oldest.id)).toBe("none");
+        expect(cacheStatus(oldest.id)).toBe("none");
         expect(await exists(middle.path)).toBe(true);
         expect(await exists(newest.path)).toBe(true);
-        expect(cacheStatus(fixture, middle.id)).toBe("ready");
-        expect(cacheStatus(fixture, newest.id)).toBe("ready");
+        expect(cacheStatus(middle.id)).toBe("ready");
+        expect(cacheStatus(newest.id)).toBe("ready");
     });
 
     test("drops the cached copy once the video is pinned and downloaded", async () => {
-        const fixture = await newFixture(7 * day, 1 << 20);
-        const { id, path } = await addCached(fixture, 100, 60_000);
-        pinVideo(fixture.database, id);
-        claimDownload(fixture.database);
-        finishDownload(fixture.database, id, join(fixture.config.mediaDir, "kept.mp4"));
+        useCacheLimits(7 * day, 1 << 20);
+        const { id, path } = await addCached(100, 60_000);
+        pinVideo(id);
+        claimDownload();
+        finishDownload(id, join(config.mediaDir, "kept.mp4"));
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
         expect(await exists(path)).toBe(false);
-        expect(cacheStatus(fixture, id)).toBe("none");
+        expect(cacheStatus(id)).toBe("none");
     });
 
     test("keeps the cached copy while the pinned download is still pending", async () => {
-        const fixture = await newFixture(7 * day, 1 << 20);
-        const { id, path } = await addCached(fixture, 100, 60_000);
-        pinVideo(fixture.database, id);
+        useCacheLimits(7 * day, 1 << 20);
+        const { id, path } = await addCached(100, 60_000);
+        pinVideo(id);
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
         expect(await exists(path)).toBe(true);
-        expect(cacheStatus(fixture, id)).toBe("ready");
+        expect(cacheStatus(id)).toBe("ready");
     });
 
     test("forgets entries whose file has vanished", async () => {
-        const fixture = await newFixture(7 * day, 1 << 20);
-        const { id, path } = await addCached(fixture, 100, 60_000);
+        useCacheLimits(7 * day, 1 << 20);
+        const { id, path } = await addCached(100, 60_000);
         await rm(path);
 
-        await janitor(fixture.workerWith());
+        await janitor();
 
-        expect(cacheStatus(fixture, id)).toBe("none");
+        expect(cacheStatus(id)).toBe("none");
     });
 });
 
 describe("processCache", () => {
     test("stores the file and marks the video ready", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        const outputPath = join(fixture.config.cacheDir, `${id}.mp4`);
-        addVideo(fixture.database, id);
-        requestCache(fixture.database, id);
+        const outputPath = join(config.cacheDir, `${id}.mp4`);
+        addVideo(id);
+        requestCache(id);
         writingDownloads(() => outputPath);
 
-        const didWork = await processCache(fixture.workerWith(), neverAborted);
+        const didWork = await processCache(neverAborted);
 
-        const video = getVideo(fixture.database, id);
+        const video = getVideo(id);
         expect(didWork).toBe(true);
         expect(video?.cacheStatus).toBe("ready");
         expect(video?.cachePath).toBe(outputPath);
@@ -221,35 +204,35 @@ describe("processCache", () => {
     });
 
     test("records a failure so it can be retried", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        requestCache(fixture.database, id);
+        addVideo(id);
+        requestCache(id);
         failingDownloads();
 
-        await processCache(fixture.workerWith(), neverAborted);
+        await processCache(neverAborted);
 
-        const video = getVideo(fixture.database, id);
+        const video = getVideo(id);
         expect(video?.cacheStatus).toBe("failed");
         expect(video?.cacheError).toContain("boom");
     });
 
     test("reports no work when nothing is queued", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
-        expect(await processCache(fixture.workerWith(), neverAborted)).toBe(false);
+        useCacheLimits(hour, 1 << 30);
+        expect(await processCache(neverAborted)).toBe(false);
     });
 
     test("discards the file if the video is removed during the download", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        const outputPath = join(fixture.config.cacheDir, `${id}.mp4`);
-        addVideo(fixture.database, id);
-        requestCache(fixture.database, id);
+        const outputPath = join(config.cacheDir, `${id}.mp4`);
+        addVideo(id);
+        requestCache(id);
         const { started, release } = gatedDownloads(() => outputPath);
 
-        const processing = processCache(fixture.workerWith(), neverAborted);
+        const processing = processCache(neverAborted);
         await started;
-        deleteVideo(fixture.database, id);
+        deleteVideo(id);
         release();
         await processing;
 
@@ -257,148 +240,149 @@ describe("processCache", () => {
     });
 
     test("does not record a failure when the download was cancelled", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        requestCache(fixture.database, id);
+        addVideo(id);
+        requestCache(id);
         const controller = new AbortController();
         fakeDownloads(async () => {
             controller.abort();
             throw new Error("cancelled");
         });
 
-        const keepGoing = await processCache(fixture.workerWith(), controller.signal);
+        const keepGoing = await processCache(controller.signal);
 
         expect(keepGoing).toBe(false);
-        expect(cacheStatus(fixture, id)).toBe("downloading");
+        expect(cacheStatus(id)).toBe("downloading");
     });
 });
 
 describe("processPin", () => {
-    const pinnedPath = (fixture: Fixture, id: VideoId) => join(fixture.config.mediaDir, "Chan", `video [${id}].mp4`);
+    const pinnedPath = (id: VideoId) => join(config.mediaDir, "Chan", `video [${id}].mp4`);
 
     test("keeps the downloaded file in the media folder", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
-        writingDownloads(() => pinnedPath(fixture, id));
+        addVideo(id);
+        pinVideo(id);
+        writingDownloads(() => pinnedPath(id));
 
-        await processPin(fixture.workerWith(), neverAborted);
+        await processPin(neverAborted);
 
-        const video = getVideo(fixture.database, id);
+        const video = getVideo(id);
         expect(video?.downloadStatus).toBe("ready");
-        expect(video?.filePath).toBe(pinnedPath(fixture, id));
-        expect(await exists(pinnedPath(fixture, id))).toBe(true);
+        expect(video?.filePath).toBe(pinnedPath(id));
+        expect(await exists(pinnedPath(id))).toBe(true);
     });
 
     test("unpinned during the download discards the file", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
-        const { started, release } = gatedDownloads(() => pinnedPath(fixture, id));
+        addVideo(id);
+        pinVideo(id);
+        const { started, release } = gatedDownloads(() => pinnedPath(id));
 
-        const processing = processPin(fixture.workerWith(), neverAborted);
+        const processing = processPin(neverAborted);
         await started;
-        unpinVideo(fixture.database, id);
+        unpinVideo(id);
         release();
         await processing;
 
-        const video = getVideo(fixture.database, id);
-        expect(await exists(pinnedPath(fixture, id))).toBe(false);
+        const video = getVideo(id);
+        expect(await exists(pinnedPath(id))).toBe(false);
         expect(video?.pinned).toBe(false);
         expect(video?.filePath).toBe("");
         expect(video?.downloadStatus).toBe("none");
     });
 
     test("re-pinned during the download keeps the file", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
-        const { started, release } = gatedDownloads(() => pinnedPath(fixture, id));
+        addVideo(id);
+        pinVideo(id);
+        const { started, release } = gatedDownloads(() => pinnedPath(id));
 
-        const processing = processPin(fixture.workerWith(), neverAborted);
+        const processing = processPin(neverAborted);
         await started;
-        unpinVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
+        unpinVideo(id);
+        pinVideo(id);
         release();
         await processing;
 
-        const video = getVideo(fixture.database, id);
-        expect(await exists(pinnedPath(fixture, id))).toBe(true);
+        const video = getVideo(id);
+        expect(await exists(pinnedPath(id))).toBe(true);
         expect(video?.pinned).toBe(true);
         expect(video?.downloadStatus).toBe("ready");
     });
 
     test("records a failure without losing the pin", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
+        addVideo(id);
+        pinVideo(id);
         failingDownloads();
 
-        await processPin(fixture.workerWith(), neverAborted);
+        await processPin(neverAborted);
 
-        const video = getVideo(fixture.database, id);
+        const video = getVideo(id);
         expect(video?.downloadStatus).toBe("failed");
         expect(video?.pinned).toBe(true);
         expect(video?.downloadError).toContain("boom");
     });
 
     test("reports no work when nothing is queued", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
-        expect(await processPin(fixture.workerWith(), neverAborted)).toBe(false);
+        useCacheLimits(hour, 1 << 30);
+        expect(await processPin(neverAborted)).toBe(false);
     });
 });
 
 describe("with a stub yt-dlp", () => {
     test("a pinned download lands in the media folder through the real client", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        const outputPath = join(fixture.config.mediaDir, "Chan", `video [${id}].mp4`);
+        const outputPath = join(config.mediaDir, "Chan", `video [${id}].mp4`);
         const stub = await writeStub(
             `mkdir -p "$(dirname '${outputPath}')"\necho data > '${outputPath}'\necho '${outputPath}'`,
         );
         await chmod(stub.binary, 0o755); // Bun.write ignores its mode option on some versions
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
+        addVideo(id);
+        pinVideo(id);
 
-        await processPin(fixture.workerWith({ ytdlpBinary: stub.binary }), neverAborted);
+        config.ytdlpBin = stub.binary;
+        await processPin(neverAborted);
 
-        expect(getVideo(fixture.database, id)?.filePath).toBe(outputPath);
+        expect(getVideo(id)?.filePath).toBe(outputPath);
         expect(await exists(outputPath)).toBe(true);
     });
 });
 
 describe("what the workers ask for", () => {
     test("pins go to the library at the keep quality and caches get a fixed 720p", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const { calls } = failingDownloads();
         const [pinned, watched] = [randomVideoId(), randomVideoId()];
-        addVideo(fixture.database, pinned);
-        addVideo(fixture.database, watched);
-        pinVideo(fixture.database, pinned);
-        requestCache(fixture.database, watched);
-        const worker = fixture.workerWith({ keepMaxHeight: 1440 });
+        addVideo(pinned);
+        addVideo(watched);
+        pinVideo(pinned);
+        requestCache(watched);
+        config.keepMaxHeight = 1440;
 
-        await processPin(worker, neverAborted);
-        await processCache(worker, neverAborted);
+        await processPin(neverAborted);
+        await processCache(neverAborted);
 
         expect(calls).toEqual([
-            { kind: "library", id: pinned, directory: fixture.config.mediaDir, maxHeight: 1440 },
-            { kind: "cache", id: watched, directory: fixture.config.cacheDir, maxHeight: 720 },
+            { kind: "library", id: pinned, directory: config.mediaDir, maxHeight: 1440 },
+            { kind: "cache", id: watched, directory: config.cacheDir, maxHeight: 720 },
         ]);
     });
 });
 
 describe("run", () => {
     test("stops promptly when the signal is aborted", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const controller = new AbortController();
 
-        const running = runDownloads(fixture.workerWith(), controller.signal);
+        const running = runDownloads(controller.signal);
         await Bun.sleep(50);
         controller.abort();
 
@@ -406,11 +390,11 @@ describe("run", () => {
     });
 
     test("requeues downloads interrupted by a restart", async () => {
-        const fixture = await newFixture(hour, 1 << 30);
+        useCacheLimits(hour, 1 << 30);
         const id = randomVideoId();
-        addVideo(fixture.database, id);
-        pinVideo(fixture.database, id);
-        claimDownload(fixture.database); // "downloading" when the previous process died
+        addVideo(id);
+        pinVideo(id);
+        claimDownload(); // "downloading" when the previous process died
         const fetched = Promise.withResolvers<void>();
         fakeDownloads(async () => {
             fetched.resolve();
@@ -418,7 +402,7 @@ describe("run", () => {
         });
         const controller = new AbortController();
 
-        const running = runDownloads(fixture.workerWith(), controller.signal);
+        const running = runDownloads(controller.signal);
         await fetched.promise;
         controller.abort();
 

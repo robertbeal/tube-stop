@@ -1,15 +1,13 @@
-import type { Database } from "bun:sqlite";
 import { spyOn } from "bun:test";
-import { join } from "node:path";
 import type { Hono } from "hono";
-import { temporaryDirectory } from "../../tests/helpers.ts";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
-import { openDatabase } from "../db/database.ts";
+import { config } from "../config.ts";
 import type { NewVideo, User } from "../db/types.ts";
 import { allowVideo } from "../db/videos.ts";
 import { logger } from "../logger.ts";
 import * as syncerModule from "../syncer.ts";
+import { thumbnailDir } from "../thumbnails.ts";
 import * as resolveModule from "../ytdlp/resolve.ts";
 import type { Resolved, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
@@ -19,7 +17,6 @@ export const adminPassword = "correct horse battery";
 
 export type Environment = {
     app: Hono;
-    database: Database;
     mediaDir: string;
     cacheDir: string;
     thumbDir: string;
@@ -42,18 +39,11 @@ export type EnvironmentOptions = {
     sessionLifetimeMs?: number;
 };
 
-/** A complete app on a temporary database and folders, with fakes for everything outside the process. */
+/** A complete app on the test database and folders, with fakes for everything outside the process. */
 export async function buildEnvironment(options: EnvironmentOptions = {}): Promise<Environment> {
-    const directory = await temporaryDirectory();
-    const mediaDir = join(directory, "media");
-    const cacheDir = join(directory, "cache");
-    const thumbDir = join(directory, "thumbs");
-    const database = openDatabase(join(directory, "tubestop.db"));
     const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
     const admin =
-        options.withAdmin === false
-            ? null
-            : createFirstUser(database, adminUsername, await hashPassword(hasher, adminPassword));
+        options.withAdmin === false ? null : createFirstUser(adminUsername, await hashPassword(hasher, adminPassword));
 
     const logs: string[] = [];
     spyOn(logger, "info").mockImplementation((message) => void logs.push(message));
@@ -75,17 +65,18 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
             : new Response("JPEG", { headers: { "content-type": "image/jpeg" } });
     }) as typeof fetch);
 
-    const app = createApp({
-        database,
-        ytdlpBinary: "yt-dlp-not-installed",
-        shutdown: new AbortController().signal,
-        thumbnailDir: thumbDir,
-        mediaDir,
-        cacheDir,
-        hasher,
-        sessionLifetimeMs: options.sessionLifetimeMs,
-    });
-    return { app, database, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
+    const app = createApp({ hasher, sessionLifetimeMs: options.sessionLifetimeMs });
+    return {
+        app,
+        mediaDir: config.mediaDir,
+        cacheDir: config.cacheDir,
+        thumbDir: thumbnailDir,
+        logs,
+        triggers,
+        imageServer,
+        resolved,
+        admin,
+    };
 }
 
 export type RequestOptions = {
@@ -133,8 +124,8 @@ export async function logIn(environment: Environment): Promise<string> {
 }
 
 /** Adds a video the child may watch. */
-export function allow(environment: Environment, video: Partial<NewVideo> & { youtubeId: VideoId }): void {
-    allowVideo(environment.database, {
+export function allow(video: Partial<NewVideo> & { youtubeId: VideoId }): void {
+    allowVideo({
         channelYoutubeId: "",
         channelName: "",
         title: "A video",

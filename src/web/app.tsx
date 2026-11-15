@@ -5,11 +5,11 @@ import { authRoutes } from "../admin/auth-routes.tsx";
 import { createPasswordHasher } from "../admin/passwords.ts";
 import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
+import { config } from "../config.ts";
 import { logger } from "../logger.ts";
 import { kidRoutes } from "./kid.tsx";
-import type { Services, WebDependencies } from "./services.ts";
+import type { AppOptions, Services } from "./services.ts";
 
-const defaultSessionLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
@@ -30,20 +30,20 @@ const crossOriginProtection = createMiddleware(async (context, next) => {
     return sameOrigin ? next() : context.text("cross-origin request rejected", 403);
 });
 
-function withDefaults(dependencies: WebDependencies): Services {
+function withDefaults(options: AppOptions): Services {
+    const sessionLifetimeMs = options.sessionLifetimeMs ?? config.sessionLifetimeMs;
     return {
-        ...dependencies,
-        hasher: dependencies.hasher ?? createPasswordHasher(),
-        sessionLifetimeMs: dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs,
-        sessions: createSessions(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs),
+        hasher: options.hasher ?? createPasswordHasher(),
+        sessionLifetimeMs,
+        sessions: createSessions(sessionLifetimeMs),
         limiter: createLoginLimiter(),
         setupCode: { code: "" },
     };
 }
 
 /** Builds the Tube Stop web app: the child-facing pages and the admin area. */
-export function createApp(dependencies: WebDependencies): Hono {
-    const services = withDefaults(dependencies);
+export function createApp(options: AppOptions = {}): Hono {
+    const services = withDefaults(options);
     const { routes: signInRoutes, requireLogin } = authRoutes(services);
 
     const app = new Hono();
@@ -53,14 +53,14 @@ export function createApp(dependencies: WebDependencies): Hono {
         return context.text("something went wrong", 500);
     });
 
-    app.route("/", kidRoutes(services));
+    app.route("/", kidRoutes());
     app.route("/", signInRoutes);
     const admin = new Hono();
     admin.use(requireLogin);
     admin.route("/", adminRoutes(services));
     app.route("/admin", admin);
 
-    if (countUsers(services.database) === 0) {
+    if (countUsers() === 0) {
         currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
     }
     return app;

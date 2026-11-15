@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
+import { config } from "./config.ts";
 import { getChannels, markChannelSynced } from "./db/channels.ts";
 import type { Channel } from "./db/types.ts";
 import { insertVideo } from "./db/videos.ts";
@@ -11,46 +11,41 @@ const recentVideos = 50;
 const perChannelTimeoutMs = 3 * 60 * 1000;
 
 /** Syncs once straight away, then on every interval, until `signal` aborts. */
-export async function runSync(
-    database: Database,
-    binary: string,
-    intervalMs: number,
-    signal: AbortSignal,
-): Promise<void> {
-    await syncChannels(database, binary, signal);
+export async function runSync(signal: AbortSignal): Promise<void> {
+    await syncChannels(signal);
     while (!signal.aborted) {
-        await delay(intervalMs, undefined, { signal }).catch(() => undefined);
-        await syncChannels(database, binary, signal);
+        await delay(config.syncIntervalMs, undefined, { signal }).catch(() => undefined);
+        await syncChannels(signal);
     }
 }
 
 /** Syncs every channel. It never rejects, because it also runs on its own when the admin asks for a sync. */
-export async function syncChannels(database: Database, binary: string, signal: AbortSignal): Promise<void> {
+export async function syncChannels(signal: AbortSignal): Promise<void> {
     if (signal.aborted) {
         return;
     }
 
     try {
-        for (const channel of getChannels(database)) {
+        for (const channel of getChannels()) {
             if (signal.aborted) {
                 return;
             }
-            await syncChannel(database, binary, channel, signal);
+            await syncChannel(channel, signal);
         }
     } catch (error) {
         logger.error(`sync: ${error.message}`);
     }
 }
 
-async function syncChannel(database: Database, binary: string, channel: Channel, signal: AbortSignal): Promise<void> {
+async function syncChannel(channel: Channel, signal: AbortSignal): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
 
     try {
-        const videos = await getChannelVideos(binary, channel.youtubeId, recentVideos, timeout);
+        const videos = await getChannelVideos(config.ytdlpBin, channel.youtubeId, recentVideos, timeout);
 
         for (const video of videos.toReversed()) {
             try {
-                insertVideo(database, {
+                insertVideo({
                     youtubeId: video.id,
                     channelYoutubeId: channel.youtubeId,
                     channelName: channel.name,
@@ -62,7 +57,7 @@ async function syncChannel(database: Database, binary: string, channel: Channel,
                 logger.error(`sync: insert ${video.id}: ${error.message}`);
             }
         }
-        markChannelSynced(database, channel.youtubeId);
+        markChannelSynced(channel.youtubeId);
         logger.info(`sync: ${channel.name}: ${videos.length} videos`);
     } catch (error) {
         logger.error(`sync: ${channel.name}: ${error.message}`);

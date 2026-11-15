@@ -20,10 +20,10 @@ describe("changing the password", () => {
 
     test("stores a new bcrypt hash, never the password", async () => {
         const environment = await buildEnvironment();
-        const before = getUserByUsername(environment.database, adminUsername)?.passwordHash;
+        const before = getUserByUsername(adminUsername)?.passwordHash;
         const cookie = await logIn(environment);
         await changePassword(environment, cookie, changeForm(adminPassword, replacementPassword, replacementPassword));
-        const hash = getUserByUsername(environment.database, adminUsername)?.passwordHash ?? "";
+        const hash = getUserByUsername(adminUsername)?.passwordHash ?? "";
         expect(hash).not.toBe(before);
         expect(hash).not.toContain("passphrase");
         expect(await Bun.password.verify(replacementPassword, hash)).toBe(true);

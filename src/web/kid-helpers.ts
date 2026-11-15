@@ -12,31 +12,26 @@ export const videoId = testVideoId("abcdefghijk");
 export const unknownVideoId = testVideoId("zzzzzzzzzzz");
 
 /** Allows a video of the channel "Piano Guy" (UC1). */
-export function allowPianoVideo(environment: Environment, youtubeId: VideoId, title: string): void {
-    allow(environment, { youtubeId, title, channelYoutubeId: "UC1", channelName: "Piano Guy" });
+export function allowPianoVideo(youtubeId: VideoId, title: string): void {
+    allow({ youtubeId, title, channelYoutubeId: "UC1", channelName: "Piano Guy" });
 }
 
 /** Gives a video a playable watch-once copy with known contents, and returns its path. */
 export async function makeCacheReady(environment: Environment, youtubeId: VideoId, contents: string): Promise<string> {
     const path = join(environment.cacheDir, `${youtubeId}.mp4`);
     await writeFileWithFolders(path, contents);
-    requestCache(environment.database, youtubeId);
-    claimCache(environment.database);
-    finishCache(environment.database, youtubeId, path);
+    requestCache(youtubeId);
+    claimCache();
+    finishCache(youtubeId, path);
     return path;
 }
 
 /** Pins a video and records a finished download at `path`, which is created with `contents`. */
-export async function makePinnedFile(
-    environment: Environment,
-    youtubeId: VideoId,
-    path: string,
-    contents: string,
-): Promise<void> {
+export async function makePinnedFile(youtubeId: VideoId, path: string, contents: string): Promise<void> {
     await writeFileWithFolders(path, contents);
-    pinVideo(environment.database, youtubeId);
-    claimDownload(environment.database);
-    finishDownload(environment.database, youtubeId, path);
+    pinVideo(youtubeId);
+    claimDownload();
+    finishDownload(youtubeId, path);
 }
 
 export async function writeFileWithFolders(path: string, contents: string | Uint8Array): Promise<void> {
@@ -44,8 +39,8 @@ export async function writeFileWithFolders(path: string, contents: string | Uint
     await Bun.write(path, contents);
 }
 
-export function loadVideo(environment: Environment, youtubeId: VideoId): Video {
-    const video = getVideo(environment.database, youtubeId);
+export function loadVideo(youtubeId: VideoId): Video {
+    const video = getVideo(youtubeId);
     if (video === null) {
         throw new Error(`no video ${youtubeId}`);
     }
@@ -67,10 +62,10 @@ export function numberedId(number: number): VideoId {
 }
 
 /** Adds `count` watchable videos to channel UC1; a higher number is a newer video. */
-export function addPublished(environment: Environment, count: number): void {
-    insertChannel(environment.database, "UC1", "Piano Guy");
+export function addPublished(count: number): void {
+    insertChannel("UC1", "Piano Guy");
     for (const number of Array.from({ length: count }, (_, index) => index + 1)) {
-        insertVideo(environment.database, {
+        insertVideo({
             youtubeId: numberedId(number),
             channelYoutubeId: "UC1",
             channelName: "Piano Guy",

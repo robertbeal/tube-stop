@@ -1,7 +1,9 @@
 import { Hono } from "hono";
+import { config } from "../config.ts";
 import { deleteChannel, getChannels, insertChannel } from "../db/channels.ts";
 import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../db/videos.ts";
 import { pinVideo, unpinVideo } from "../downloads/queue.ts";
+import { shutdown } from "../shutdown.ts";
 import { directorySize, removeMedia } from "../storage.ts";
 import { syncChannels } from "../syncer.ts";
 import { removeThumbnail } from "../thumbnails.ts";
@@ -27,26 +29,25 @@ function messageFrom<Result>(change: () => Result): { ok: true; value: Result } 
 
 /** The password-protected admin pages. Mount them behind the login middleware. */
 export function adminRoutes(services: Services): Hono<AuthEnv> {
-    const { database } = services;
     const routes = new Hono<AuthEnv>();
 
     routes.get("/", async (context) => {
         const channel = context.req.query("channel") ?? "";
         const { videos, pages } = loadPage(
-            (page) => getAdminVideos(database, channel, page),
+            (page) => getAdminVideos(channel, page),
             requestedPage(context.req.query("page")),
             adminPageSize,
             listLink("/admin", channel),
         );
         const [mediaBytes, cacheBytes] = await Promise.all([
-            directorySize(services.mediaDir),
-            directorySize(services.cacheDir),
+            directorySize(config.mediaDir),
+            directorySize(config.cacheDir),
         ]);
         return context.html(
             <AdminPage
                 username={context.get("user").username}
                 message={context.req.query("msg") ?? ""}
-                channels={getChannels(database)}
+                channels={getChannels()}
                 videos={videos}
                 current={channel}
                 pages={pages}
@@ -62,7 +63,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             return redirectWithMessage(context, "Enter a URL");
         }
         const signal = AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(resolveTimeoutMs)]);
-        const resolved = await resolveUrl(services.ytdlpBinary, url, signal).then(
+        const resolved = await resolveUrl(config.ytdlpBin, url, signal).then(
             (value) => ({ ok: true as const, value }),
             (error) => ({ ok: false as const, message: error.message }),
         );
@@ -71,16 +72,16 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         }
         const { value } = resolved;
         if (!isVideo(value)) {
-            const added = messageFrom(() => insertChannel(database, value.id, value.name));
+            const added = messageFrom(() => insertChannel(value.id, value.name));
             if (!added.ok) {
                 return redirectWithMessage(context, added.message);
             }
-            void syncChannels(services.database, services.ytdlpBinary, services.shutdown);
+            void syncChannels(shutdown.signal);
             return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
         }
         const video = value;
         const allowed = messageFrom(() =>
-            allowVideo(database, {
+            allowVideo({
                 youtubeId: video.id,
                 channelYoutubeId: video.channel.id,
                 channelName: video.channel.name,
@@ -97,11 +98,11 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         if (id === undefined) {
             return context.notFound();
         }
-        const removed = messageFrom(() => deleteChannel(database, id));
+        const removed = messageFrom(() => deleteChannel(id));
         if (!removed.ok) {
             return redirectWithMessage(context, removed.message);
         }
-        const failures = (await Promise.all(removed.value.map((path) => removeMedia(services.cacheDir, path)))).flat();
+        const failures = (await Promise.all(removed.value.map((path) => removeMedia(config.cacheDir, path)))).flat();
         return redirectWithMessage(
             context,
             failures.length > 0
@@ -111,7 +112,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     });
 
     routes.post("/sync", (context) => {
-        void syncChannels(services.database, services.ytdlpBinary, services.shutdown);
+        void syncChannels(shutdown.signal);
         return redirectWithMessage(context, "Sync started");
     });
 
@@ -122,7 +123,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         if (id === undefined) {
             return context.notFound();
         }
-        const outcome = await videoAction(services, context.req.param("action"), id);
+        const outcome = await videoAction(context.req.param("action"), id);
         return outcome === "unknown-action" ? context.notFound() : redirectWithMessage(context, outcome.message);
     });
 
@@ -137,16 +138,16 @@ function withFileFailures(message: string, failures: Error[]): string {
         : message;
 }
 
-async function videoAction(services: Services, action: string, id: VideoId): Promise<ActionOutcome> {
-    const { database, mediaDir, cacheDir } = services;
+async function videoAction(action: string, id: VideoId): Promise<ActionOutcome> {
+    const { mediaDir, cacheDir } = config;
     switch (action) {
         case "pin":
         case "retry": {
-            const pinned = messageFrom(() => pinVideo(database, id));
+            const pinned = messageFrom(() => pinVideo(id));
             return { message: pinned.ok ? "Done" : pinned.message };
         }
         case "unpin": {
-            const unpinned = messageFrom(() => unpinVideo(database, id));
+            const unpinned = messageFrom(() => unpinVideo(id));
             return {
                 message: unpinned.ok
                     ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value))
@@ -154,15 +155,15 @@ async function videoAction(services: Services, action: string, id: VideoId): Pro
             };
         }
         case "block": {
-            const blocked = messageFrom(() => blockVideo(database, id));
+            const blocked = messageFrom(() => blockVideo(id));
             return { message: blocked.ok ? "Done" : blocked.message };
         }
         case "unblock": {
-            const unblocked = messageFrom(() => unblockVideo(database, id));
+            const unblocked = messageFrom(() => unblockVideo(id));
             return { message: unblocked.ok ? "Done" : unblocked.message };
         }
         case "remove": {
-            const removal = messageFrom(() => deleteVideo(database, id));
+            const removal = messageFrom(() => deleteVideo(id));
             if (!removal.ok) {
                 return { message: removal.message };
             }
@@ -172,7 +173,7 @@ async function videoAction(services: Services, action: string, id: VideoId): Pro
                 ...(await removeMedia(cacheDir, cachePath)),
                 ...(blocked
                     ? []
-                    : await removeThumbnail(services.thumbnailDir, id).then(
+                    : await removeThumbnail(id).then(
                           () => [],
                           (error) => [error],
                       )),

@@ -1,21 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
 import { temporaryDirectory, testVideoId } from "../../tests/helpers.ts";
+import { config } from "../config.ts";
 import { getChannels, insertChannel } from "../db/channels.ts";
-import { openDatabase } from "../db/database.ts";
 import { allowVideo, getVideo } from "../db/videos.ts";
 import { resetAdmin } from "./reset.ts";
 import { countUsers, createFirstUser, getUserByUsername } from "./users.ts";
 
 const videoId = testVideoId("abcdefghijk");
 
-async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
-    const dataDir = await temporaryDirectory();
-    const database = openDatabase(join(dataDir, "tubestop.db"));
-    createFirstUser(database, "parent", "some-hash");
-    insertChannel(database, "UCchannelchannelchannelaa", "Music");
-    allowVideo(database, {
+function addOneAdminAndOneVideo(): void {
+    createFirstUser("parent", "some-hash");
+    insertChannel("UCchannelchannelchannelaa", "Music");
+    allowVideo({
         youtubeId: videoId,
         channelYoutubeId: "UCchannelchannelchannelaa",
         channelName: "Music",
@@ -23,8 +20,6 @@ async function dataDirectoryWithOneAdminAndOneVideo(): Promise<string> {
         duration: 60,
         publishedAt: 0,
     });
-    database.close();
-    return dataDir;
 }
 
 function collectOutput(): { lines: string[]; output: (line: string) => void } {
@@ -34,53 +29,51 @@ function collectOutput(): { lines: string[]; output: (line: string) => void } {
 
 describe("resetAdmin", () => {
     test("removes the account and reports what was kept", async () => {
-        const dataDir = await dataDirectoryWithOneAdminAndOneVideo();
+        addOneAdminAndOneVideo();
         const { lines, output } = collectOutput();
 
-        resetAdmin(dataDir, output);
+        await resetAdmin(output);
 
         const text = lines.join("\n");
         expect(text).toContain("Removed the admin account");
         expect(text).toContain("kept");
         expect(text).toContain("setup code");
-        const database = openDatabase(join(dataDir, "tubestop.db"));
-        expect(countUsers(database)).toBe(0);
-        expect(getUserByUsername(database, "parent")).toBeNull();
-        database.close();
+        expect(countUsers()).toBe(0);
+        expect(getUserByUsername("parent")).toBeNull();
     });
 
     test("keeps videos and channels", async () => {
-        const dataDir = await dataDirectoryWithOneAdminAndOneVideo();
+        addOneAdminAndOneVideo();
 
-        resetAdmin(dataDir, () => {});
+        await resetAdmin(() => {});
 
-        const database = openDatabase(join(dataDir, "tubestop.db"));
-        expect(getVideo(database, videoId)?.title).toBe("Song");
-        expect(getChannels(database).map((channel) => channel.name)).toEqual(["Music"]);
-        database.close();
+        expect(getVideo(videoId)?.title).toBe("Song");
+        expect(getChannels().map((channel) => channel.name)).toEqual(["Music"]);
     });
 
     test("says so when there is no account left to remove", async () => {
-        const dataDir = await dataDirectoryWithOneAdminAndOneVideo();
-        resetAdmin(dataDir, () => {});
+        addOneAdminAndOneVideo();
+        await resetAdmin(() => {});
         const { lines, output } = collectOutput();
 
-        resetAdmin(dataDir, output);
+        await resetAdmin(output);
 
         expect(lines.join("\n")).toContain("no admin account");
     });
 
     test("explains where it looked when there is no database", async () => {
         const dataDir = await temporaryDirectory();
+        config.dataDir = dataDir;
 
-        expect(() => resetAdmin(dataDir, () => {})).toThrow(/DATA_DIR/);
-        expect(() => resetAdmin(dataDir, () => {})).toThrow(dataDir);
+        await expect(resetAdmin(() => {})).rejects.toThrow(/DATA_DIR/);
+        await expect(resetAdmin(() => {})).rejects.toThrow(dataDir);
     });
 
     test("does not create a database as a side effect", async () => {
         const dataDir = await temporaryDirectory();
+        config.dataDir = dataDir;
 
-        expect(() => resetAdmin(dataDir, () => {})).toThrow();
+        await expect(resetAdmin(() => {})).rejects.toThrow();
 
         expect(await readdir(dataDir)).toEqual([]);
     });

@@ -1,4 +1,7 @@
 import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { config } from "../config.ts";
 import { migrations } from "./schema.ts";
 
 /** Opens (creating if needed) the database file and brings its schema up to date. */
@@ -27,3 +30,9 @@ function migrate(database: Database): void {
             .immediate();
     });
 }
+
+// Other users (such as a Jellyfin container) need to read the media folders, hence the mode.
+mkdirSync(config.dataDir, { recursive: true, mode: 0o755 });
+
+/** The app's database. It is opened when this module is first imported, and shared by everything that imports it. */
+export const database = openDatabase(join(config.dataDir, "tubestop.db"));

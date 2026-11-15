@@ -1,5 +1,6 @@
-import type { Database, SQLQueryBindings } from "bun:sqlite";
+import type { SQLQueryBindings } from "bun:sqlite";
 import type { VideoId } from "../ytdlp/types.ts";
+import { database } from "./database.ts";
 import { type NewVideo, NotFoundError, type Page, type Removal, type Video, type VideoPage } from "./types.ts";
 
 export type VideoRow = {
@@ -69,7 +70,7 @@ export const videoColumns = `v.youtube_id, v.channel_yt_id, v.channel_name, v.ti
 const newestFirst = "ORDER BY v.published_at DESC, v.id DESC";
 
 /** Adds a video found by channel sync. An existing video keeps its rule and details; only a previously unknown publish date is filled in. */
-export function insertVideo(database: Database, video: NewVideo): void {
+export function insertVideo(video: NewVideo): void {
     database.run(
         `INSERT INTO videos (youtube_id, channel_yt_id, channel_name, title, duration, published_at, rule)
      VALUES (?, ?, ?, ?, ?, ?, 'inherit')
@@ -80,7 +81,7 @@ export function insertVideo(database: Database, video: NewVideo): void {
 }
 
 /** Explicitly allows a single video, regardless of its channel. */
-export function allowVideo(database: Database, video: NewVideo): void {
+export function allowVideo(video: NewVideo): void {
     database.run(
         `INSERT INTO videos (youtube_id, channel_yt_id, channel_name, title, duration, published_at, rule)
      VALUES (?, ?, ?, ?, ?, ?, 'allow')
@@ -92,7 +93,7 @@ export function allowVideo(database: Database, video: NewVideo): void {
 }
 
 /** Hides a video from the child, even if its channel is allowed. */
-export function blockVideo(database: Database, youtubeId: VideoId): void {
+export function blockVideo(youtubeId: VideoId): void {
     const changes = database.run("UPDATE videos SET rule = 'block' WHERE youtube_id = ?", [youtubeId]).changes;
     if (changes === 0) {
         throw new NotFoundError();
@@ -100,7 +101,7 @@ export function blockVideo(database: Database, youtubeId: VideoId): void {
 }
 
 /** Reverses `block`: back to the channel's rule, or to an explicit allow if its channel is not allowed. */
-export function unblockVideo(database: Database, youtubeId: VideoId): void {
+export function unblockVideo(youtubeId: VideoId): void {
     database.run(
         `UPDATE videos SET rule = CASE
        WHEN EXISTS (SELECT 1 FROM channels c WHERE c.youtube_id = videos.channel_yt_id) THEN 'inherit' ELSE 'allow' END
@@ -109,14 +110,14 @@ export function unblockVideo(database: Database, youtubeId: VideoId): void {
     );
 }
 
-export function getVideo(database: Database, youtubeId: VideoId): Video | null {
+export function getVideo(youtubeId: VideoId): Video | null {
     const row = database
         .query<VideoRow, [VideoId]>(`SELECT ${videoColumns} FROM videos v WHERE v.youtube_id = ?`)
         .get(youtubeId);
     return row === null ? null : toVideo(row);
 }
 
-function queryPage(database: Database, where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
+function queryPage(where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
     const total = database
         .query<{ total: number }, SQLQueryBindings[]>(`SELECT COUNT(*) AS total FROM videos v WHERE ${where}`)
         .get(...parameters);
@@ -129,24 +130,24 @@ function queryPage(database: Database, where: string, parameters: SQLQueryBindin
 }
 
 /** One page of the videos the child may watch, newest published first, optionally for one channel. */
-export function getWatchableVideos(database: Database, channelYoutubeId: string, page: Page): VideoPage {
+export function getWatchableVideos(channelYoutubeId: string, page: Page): VideoPage {
     return channelYoutubeId === ""
-        ? queryPage(database, watchableExpression, [], page)
-        : queryPage(database, `${watchableExpression} AND v.channel_yt_id = ?`, [channelYoutubeId], page);
+        ? queryPage(watchableExpression, [], page)
+        : queryPage(`${watchableExpression} AND v.channel_yt_id = ?`, [channelYoutubeId], page);
 }
 
 /**
  * One page of the videos an admin needs to see. Without a channel filter these are videos
  * that are explicitly allowed, blocked, pinned or downloading; with one, every video of that channel.
  */
-export function getAdminVideos(database: Database, channelYoutubeId: string, page: Page): VideoPage {
+export function getAdminVideos(channelYoutubeId: string, page: Page): VideoPage {
     return channelYoutubeId === ""
-        ? queryPage(database, "(v.rule != 'inherit' OR v.pinned = 1 OR v.download_status != 'none')", [], page)
-        : queryPage(database, "v.channel_yt_id = ?", [channelYoutubeId], page);
+        ? queryPage("(v.rule != 'inherit' OR v.pinned = 1 OR v.download_status != 'none')", [], page)
+        : queryPage("v.channel_yt_id = ?", [channelYoutubeId], page);
 }
 
 /** Counts a play and stamps the last-played time used for cache eviction. */
-export function recordPlay(database: Database, youtubeId: VideoId): void {
+export function recordPlay(youtubeId: VideoId): void {
     database.run("UPDATE videos SET play_count = play_count + 1, last_played_at = ? WHERE youtube_id = ?", [
         Math.floor(Date.now() / 1000),
         youtubeId,
@@ -158,7 +159,7 @@ export function recordPlay(database: Database, youtubeId: VideoId): void {
  * its files cleared) so channel sync cannot bring it back; any other video is deleted
  * outright. A download in flight is discarded by the worker when it finishes.
  */
-export function deleteVideo(database: Database, youtubeId: VideoId): Removal {
+export function deleteVideo(youtubeId: VideoId): Removal {
     return database
         .transaction(() => {
             const row = database

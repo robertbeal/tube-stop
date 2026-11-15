@@ -78,16 +78,7 @@ function expectRedirect(response: Response): void {
 
 /** The same app and database, but served by a differently configured password hasher. */
 export function withHasher(environment: Environment, hasher: PasswordHasher): Environment {
-    const app = createApp({
-        database: environment.database,
-        ytdlpBinary: "yt-dlp-not-installed",
-        shutdown: new AbortController().signal,
-        thumbnailDir: environment.thumbDir,
-        mediaDir: environment.mediaDir,
-        cacheDir: environment.cacheDir,
-        hasher,
-    });
-    return { ...environment, app };
+    return { ...environment, app: createApp({ hasher }) };
 }
 
 export function sessionCookieHeader(response: Response): string | undefined {
