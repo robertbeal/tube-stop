@@ -163,6 +163,27 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
+      # Starts the image before anything is pushed, so one that cannot run never gets a tag.
+      - name: Build and test the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          build-args: YTDLP_VERSION=${{ needs.plan.outputs.ytdlp }}
+          tags: tube-stop:test
+          cache-from: type=gha
+      - name: Run the image
+        run: |
+          docker run --rm --entrypoint sh tube-stop:test -c 'yt-dlp --version && ffmpeg -version | head -n 1'
+          docker run -d --name tube-stop-test -p 18080:8080 tube-stop:test
+          for _ in $(seq 20); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.5; done
+          for path in / /admin/setup /static/style.css /player.js; do
+            curl -sf -o /dev/null "http://127.0.0.1:18080$path" || { echo "$path failed"; docker logs tube-stop-test; exit 1; }
+          done
+          docker exec tube-stop-test tube-stop reset-admin
+          docker exec tube-stop-test sh -c 'touch /app/data/x /app/media/x /app/cache/x'
+
       - uses: docker/build-push-action@v6
         with:
           context: .
