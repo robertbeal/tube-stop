@@ -5,10 +5,8 @@ import { loadConfig } from "./config.ts";
 import { openDatabase } from "./db/database.ts";
 import { type DownloadWorker, runDownloads } from "./downloads/worker.ts";
 import { logger } from "./logger.ts";
-import { runSync, syncChannels } from "./syncer.ts";
+import { runSync } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
-import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
-import { resolveUrl } from "./ytdlp/resolve.ts";
 
 async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     // Other users (such as a Jellyfin container) need to read the media folders.
@@ -24,9 +22,8 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     const binary = config.ytdlpBin;
     const downloads: DownloadWorker = {
         database,
-        downloadToLibrary: downloadToLibrary.bind(null, binary),
-        downloadToCache: downloadToCache.bind(null, binary),
         config: {
+            ytdlpBinary: binary,
             mediaDir,
             cacheDir,
             keepMaxHeight: config.keepMaxHeight,
@@ -37,8 +34,8 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
     const stopping = new AbortController();
     const app = createApp({
         database,
-        resolveUrl: resolveUrl.bind(null, binary),
-        syncNow: syncChannels.bind(null, database, binary, stopping.signal),
+        ytdlpBinary: binary,
+        shutdown: stopping.signal,
         thumbnailDir: join(config.dataDir, "thumbs"),
         mediaDir,
         cacheDir,

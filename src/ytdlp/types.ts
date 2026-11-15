@@ -21,7 +21,3 @@ export type Resolved = Video | Channel;
 
 /** A video is the one with a channel of its own; a channel is just an id and a name. */
 export const isVideo = (resolved: Resolved): resolved is Video => "channel" in resolved;
-
-export type ResolveUrl = (url: string, signal: AbortSignal) => Promise<Resolved>;
-
-export type Download = (id: VideoId, directory: string, maxHeight: number, signal: AbortSignal) => Promise<string>;

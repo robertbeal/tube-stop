@@ -4,7 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { Video } from "../db/types.ts";
 import { logger } from "../logger.ts";
 import { removeMedia } from "../storage.ts";
-import type { Download } from "../ytdlp/types.ts";
+import { downloadToCache, downloadToLibrary } from "../ytdlp/download.ts";
 import {
     claimCache,
     claimDownload,
@@ -24,6 +24,8 @@ const pollIntervalMs = 1000;
 const janitorIntervalMs = 60 * 60 * 1000;
 
 export type DownloadConfig = {
+    /** The yt-dlp program to run. */
+    ytdlpBinary: string;
     /** Pinned downloads, one folder per channel. */
     mediaDir: string;
     /** Temporary watch-once copies. */
@@ -39,8 +41,6 @@ export type DownloadConfig = {
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
 export type DownloadWorker = {
     database: Database;
-    downloadToLibrary: Download;
-    downloadToCache: Download;
     config: DownloadConfig;
 };
 
@@ -87,7 +87,13 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
     }
     logger.info(`download: pinning ${id}`);
     try {
-        const path = await worker.downloadToLibrary(id, worker.config.mediaDir, worker.config.keepMaxHeight, signal);
+        const path = await downloadToLibrary(
+            worker.config.ytdlpBinary,
+            id,
+            worker.config.mediaDir,
+            worker.config.keepMaxHeight,
+            signal,
+        );
         const kept = finishDownload(worker.database, id, path);
         if (kept) {
             logger.info(`download: pinned ${id} -> ${path}`);
@@ -115,7 +121,7 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
     }
     logger.info(`cache: fetching ${id}`);
     try {
-        const path = await worker.downloadToCache(id, worker.config.cacheDir, cacheHeight, signal);
+        const path = await downloadToCache(worker.config.ytdlpBinary, id, worker.config.cacheDir, cacheHeight, signal);
         const stored = finishCache(worker.database, id, path);
         if (!stored) {
             await discard(worker.config.cacheDir, path); // removed while downloading

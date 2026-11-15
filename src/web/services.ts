@@ -1,14 +1,14 @@
 import type { Database } from "bun:sqlite";
 import type { LoginLimiter, Sessions, SetupCode } from "../admin/auth.ts";
 import type { PasswordHasher } from "../admin/passwords.ts";
-import type { ResolveUrl } from "../ytdlp/types.ts";
 
 /** Everything the web layer needs from the rest of the app. */
 export type WebDependencies = {
     database: Database;
-    resolveUrl: ResolveUrl;
-    /** Starts a sync of every channel and resolves when it is done. It does not fail. */
-    syncNow: () => Promise<void>;
+    /** The yt-dlp program to run. */
+    ytdlpBinary: string;
+    /** Aborts when the app is shutting down, which stops syncs the admin started. */
+    shutdown: AbortSignal;
     /** Saved thumbnails. */
     thumbnailDir: string;
     /** Pinned downloads. */

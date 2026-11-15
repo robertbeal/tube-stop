@@ -3,10 +3,12 @@ import { deleteChannel, getChannels, insertChannel } from "../db/channels.ts";
 import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../db/videos.ts";
 import { pinVideo, unpinVideo } from "../downloads/queue.ts";
 import { directorySize, removeMedia } from "../storage.ts";
+import { syncChannels } from "../syncer.ts";
 import { removeThumbnail } from "../thumbnails.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import type { Services } from "../web/services.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
+import { resolveUrl } from "../ytdlp/resolve.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { isVideo } from "../ytdlp/types.ts";
 import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
@@ -60,7 +62,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             return redirectWithMessage(context, "Enter a URL");
         }
         const signal = AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(resolveTimeoutMs)]);
-        const resolved = await services.resolveUrl(url, signal).then(
+        const resolved = await resolveUrl(services.ytdlpBinary, url, signal).then(
             (value) => ({ ok: true as const, value }),
             (error) => ({ ok: false as const, message: error.message }),
         );
@@ -73,7 +75,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             if (!added.ok) {
                 return redirectWithMessage(context, added.message);
             }
-            void services.syncNow();
+            void syncChannels(services.database, services.ytdlpBinary, services.shutdown);
             return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
         }
         const video = value;
@@ -109,7 +111,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     });
 
     routes.post("/sync", (context) => {
-        void services.syncNow();
+        void syncChannels(services.database, services.ytdlpBinary, services.shutdown);
         return redirectWithMessage(context, "Sync started");
     });
 

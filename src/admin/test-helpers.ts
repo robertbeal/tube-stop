@@ -80,8 +80,8 @@ function expectRedirect(response: Response): void {
 export function withHasher(environment: Environment, hasher: PasswordHasher): Environment {
     const app = createApp({
         database: environment.database,
-        resolveUrl: () => Promise.reject(new Error("no resolver in this test")),
-        syncNow: async () => undefined,
+        ytdlpBinary: "yt-dlp-not-installed",
+        shutdown: new AbortController().signal,
         thumbnailDir: environment.thumbDir,
         mediaDir: environment.mediaDir,
         cacheDir: environment.cacheDir,

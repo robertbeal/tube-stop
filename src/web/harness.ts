@@ -9,7 +9,9 @@ import { openDatabase } from "../db/database.ts";
 import type { NewVideo, User } from "../db/types.ts";
 import { allowVideo } from "../db/videos.ts";
 import { logger } from "../logger.ts";
-import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
+import * as syncerModule from "../syncer.ts";
+import * as resolveModule from "../ytdlp/resolve.ts";
+import type { Resolved, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
 export const adminUsername = "parent";
@@ -59,10 +61,13 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     const triggers = { sync: 0 };
     const imageServer = { requests: [] as string[], failing: false };
     const resolved: string[] = [];
-    const resolveUrl: ResolveUrl = (url) => {
+    spyOn(resolveModule, "resolveUrl").mockImplementation(async (_binary, url) => {
         resolved.push(url);
         return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
-    };
+    });
+    spyOn(syncerModule, "syncChannels").mockImplementation(async () => {
+        triggers.sync += 1;
+    });
     spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
         imageServer.requests.push(String(input));
         return imageServer.failing
@@ -72,10 +77,8 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
 
     const app = createApp({
         database,
-        resolveUrl,
-        syncNow: async () => {
-            triggers.sync += 1;
-        },
+        ytdlpBinary: "yt-dlp-not-installed",
+        shutdown: new AbortController().signal,
         thumbnailDir: thumbDir,
         mediaDir,
         cacheDir,
