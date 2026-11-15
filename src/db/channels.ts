@@ -1,5 +1,5 @@
 import { database } from "./database.ts";
-import { type Channel, NotFoundError } from "./types.ts";
+import { type Channel, type ChannelId, NotFoundError } from "./types.ts";
 import { watchableExpression } from "./videos.ts";
 
 type ChannelRow = {
@@ -9,6 +9,11 @@ type ChannelRow = {
     last_synced_at: number;
     video_count: number;
 };
+
+/** The one way to make a `ChannelId` from text: anything that is not a whole number gives undefined. */
+export function parseChannelId(value: string | undefined): ChannelId | undefined {
+    return value !== undefined && /^\d+$/.test(value) ? (Number(value) as ChannelId) : undefined;
+}
 
 /** Allows a channel, or renames it if it is already allowed. */
 export function insertChannel(youtubeId: string, name: string): void {
@@ -27,7 +32,7 @@ export function getChannels(): Channel[] {
      FROM channels c ORDER BY c.name COLLATE NOCASE`)
         .all()
         .map((row) => ({
-            id: row.id,
+            id: row.id as ChannelId,
             youtubeId: row.youtube_id,
             name: row.name,
             lastSyncedAt: row.last_synced_at,
@@ -40,7 +45,7 @@ export function getChannels(): Channel[] {
  * watch-once cache entries are cleared: the returned paths are the cache files for the
  * caller to delete. Pinned files are left alone.
  */
-export function deleteChannel(id: number): string[] {
+export function deleteChannel(id: ChannelId): string[] {
     return database
         .transaction(() => {
             const channel = database

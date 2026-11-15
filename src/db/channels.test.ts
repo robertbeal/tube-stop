@@ -3,7 +3,7 @@ import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
 import { claimCache, finishCache, requestCache } from "../downloads/queue.ts";
 import { deleteChannel, getChannels, insertChannel, markChannelSynced } from "./channels.ts";
 import { cacheFile, channelIdOf, keepFile, newVideo, videoOf } from "./test-helpers.ts";
-import { NotFoundError } from "./types.ts";
+import { type ChannelId, NotFoundError } from "./types.ts";
 import { allowVideo, blockVideo, insertVideo } from "./videos.ts";
 
 describe("channels", () => {
@@ -81,6 +81,6 @@ describe("removing a channel", () => {
     });
 
     test("an unknown channel reports not found", async () => {
-        expect(() => deleteChannel(424242)).toThrow(NotFoundError);
+        expect(() => deleteChannel(424242 as ChannelId)).toThrow(NotFoundError);
     });
 });

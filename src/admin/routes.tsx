@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { config } from "../config.ts";
-import { deleteChannel, getChannels, insertChannel } from "../db/channels.ts";
+import { deleteChannel, getChannels, insertChannel, parseChannelId } from "../db/channels.ts";
 import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../db/videos.ts";
 import { pinVideo, unpinVideo } from "../downloads/queue.ts";
 import { shutdown } from "../shutdown.ts";
@@ -94,7 +94,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     });
 
     routes.post("/channels/:id/remove", async (context) => {
-        const id = /^\d+$/.test(context.req.param("id")) ? Number(context.req.param("id")) : undefined;
+        const id = parseChannelId(context.req.param("id"));
         if (id === undefined) {
             return context.notFound();
         }

@@ -5,8 +5,11 @@ export type Status = "none" | "queued" | "downloading" | "ready" | "failed";
 /** How a video's visibility is decided: allowed on its own, blocked, or following its channel. */
 export type Rule = "allow" | "block" | "inherit";
 
+/** The database row number of an allowed channel, as used in admin URLs. */
+export type ChannelId = number & { readonly brand: "ChannelId" };
+
 export type Channel = {
-    id: number;
+    id: ChannelId;
     youtubeId: string;
     name: string;
     /** Unix seconds, 0 if never synced. */

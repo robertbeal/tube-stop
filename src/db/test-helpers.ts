@@ -5,7 +5,7 @@ import { config } from "../config.ts";
 import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { getChannels } from "./channels.ts";
-import type { NewVideo, Video } from "./types.ts";
+import type { ChannelId, NewVideo, Video } from "./types.ts";
 import { getVideo } from "./videos.ts";
 
 export const everything = { limit: 1000, offset: 0 };
@@ -34,7 +34,7 @@ export function idsOf(videos: readonly Pick<Video, "youtubeId">[]): VideoId[] {
     return videos.map((video) => video.youtubeId);
 }
 
-export function channelIdOf(youtubeId: VideoId): number {
+export function channelIdOf(youtubeId: VideoId): ChannelId {
     const channel = getChannels().find((candidate) => candidate.youtubeId === youtubeId);
     if (channel === undefined) {
         throw new Error(`channel ${youtubeId} does not exist`);
