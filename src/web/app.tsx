@@ -1,4 +1,3 @@
-import { basename, join } from "node:path";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { createLoginLimiter, createSessions, currentSetupCode } from "../admin/auth.ts";
@@ -8,9 +7,20 @@ import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
 import { config } from "../shared/config.ts";
 import { logger } from "../shared/logger.ts";
-import { serveFile } from "../user/files.ts";
 import { userRoutes } from "../user/routes.tsx";
 import type { AppOptions, Services } from "./services.ts";
+import bootstrapStyles from "./static/bootstrap.min.css" with { type: "file" };
+import bootstrapLicense from "./static/bootstrap-LICENSE.txt" with { type: "file" };
+import siteStyles from "./static/style.css" with { type: "file" };
+import themeScript from "./static/theme.js" with { type: "file" };
+
+/** The files the pages load. Importing them embeds them, so they are also inside a compiled binary. */
+const staticFiles = {
+    "/static/bootstrap-LICENSE.txt": bootstrapLicense,
+    "/static/bootstrap.min.css": bootstrapStyles,
+    "/static/style.css": siteStyles,
+    "/static/theme.js": themeScript,
+};
 
 /**
  * Rejects cross-site requests that change something. Browsers say where a request came from:
@@ -64,12 +74,10 @@ export function createApp(options: AppOptions = {}): Hono {
         return context.text("something went wrong", 500);
     });
 
-    app.get("/static/*", (context) => {
-        const name = context.req.path.slice("/static/".length);
-        return name === "" || name !== basename(name) || name.startsWith(".")
-            ? context.notFound()
-            : serveFile(context.req.raw, join(import.meta.dir, "static", name));
-    });
+    for (const [route, path] of Object.entries(staticFiles)) {
+        const file = Bun.file(path);
+        app.get(route, () => new Response(file, { headers: { "Content-Type": file.type } }));
+    }
 
     if (countUsers() === 0) {
         currentSetupCode(services.setupCode); // print the setup code at startup, where the admin will look
