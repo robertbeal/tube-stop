@@ -58,18 +58,17 @@ http://localhost:8080/admin. Settings are environment variables, listed under [S
         ports:
           - "8080:8080"
         volumes:
-          - ./data:/data      # database and thumbnails
-          - ./media:/media    # pinned videos, in one folder per channel (point Jellyfin here, read-only)
-          - cache:/cache      # watch-once copies, deleted automatically
+          - ./tube-stop:/tube-stop
         environment:
           CACHE_MAX_GB: 20
           KEEP_MAX_HEIGHT: 1080
 
-    volumes:
-      cache:
+Everything is kept under `/tube-stop`: `data/` (the database and thumbnails), `media/` (pinned videos, one
+folder per channel: point Jellyfin here, read-only) and `cache/` (watch-once copies, deleted automatically).
+To put one somewhere else, mount it over its folder, for example `./videos:/tube-stop/media`.
 
-The container runs as user 1000, so folders you mount from the host (`./data` and `./media` above) must be
-writable by it: `chown 1000 data media`.
+The container runs as user 1000, so a folder you mount from the host must be writable by it:
+`chown 1000 tube-stop`.
 
 The image has the app, `ffmpeg` and `yt-dlp`, for `amd64` and `arm64`. Pick a tag:
 
