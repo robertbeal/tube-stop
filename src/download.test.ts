@@ -17,7 +17,6 @@ import {
     unpinVideo,
 } from "./db/store.ts";
 import {
-    createDownloadWorker,
     type DownloadConfig,
     type DownloadWorker,
     janitor,
@@ -120,14 +119,13 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
         store,
         config,
         logs,
-        workerWith: (fetcher, overrides = {}) =>
-            createDownloadWorker(
-                store,
-                fetcher.downloadToLibrary,
-                fetcher.downloadToCache,
-                { ...config, ...overrides },
-                (message) => logs.push(message),
-            ),
+        workerWith: (fetcher, overrides = {}) => ({
+            store,
+            downloadToLibrary: fetcher.downloadToLibrary,
+            downloadToCache: fetcher.downloadToCache,
+            config: { ...config, ...overrides },
+            log: (message) => void logs.push(message),
+        }),
         setTime: (unixSeconds) => {
             clock.now = unixSeconds;
         },

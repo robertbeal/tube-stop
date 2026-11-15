@@ -14,13 +14,6 @@ export type Syncer = {
     log: (message: string) => void;
 };
 
-export const createSyncer = (
-    store: Store,
-    getChannelVideos: Syncer["getChannelVideos"],
-    intervalMs: number,
-    log: (message: string) => void = console.log,
-): Syncer => ({ store, getChannelVideos, intervalMs, log });
-
 /** Syncs once straight away, then on every interval, until `signal` aborts. */
 export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
     await syncAll(syncer, signal);

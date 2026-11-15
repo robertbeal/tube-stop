@@ -3,8 +3,8 @@ import { join, resolve } from "node:path";
 import { resetAdmin } from "./admin/reset.ts";
 import { loadConfig } from "./config.ts";
 import { closeStore, openStore } from "./db/store.ts";
-import { createDownloadWorker, runDownloads } from "./download.ts";
-import { createSyncer, runSync, syncAll } from "./syncer.ts";
+import { type DownloadWorker, runDownloads } from "./download.ts";
+import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
 import { getChannelVideos, resolveUrl } from "./ytdlp/resolve.ts";
@@ -21,19 +21,25 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
 
     const store = openStore(join(config.dataDir, "tubestop.db"));
     const binary = config.ytdlpBin;
-    const syncer = createSyncer(store, getChannelVideos.bind(null, binary), config.syncIntervalMs);
-    const downloads = createDownloadWorker(
+    const syncer: Syncer = {
         store,
-        downloadToLibrary.bind(null, binary),
-        downloadToCache.bind(null, binary),
-        {
+        getChannelVideos: getChannelVideos.bind(null, binary),
+        intervalMs: config.syncIntervalMs,
+        log: console.log,
+    };
+    const downloads: DownloadWorker = {
+        store,
+        downloadToLibrary: downloadToLibrary.bind(null, binary),
+        downloadToCache: downloadToCache.bind(null, binary),
+        config: {
             mediaDir,
             cacheDir,
             keepMaxHeight: config.keepMaxHeight,
             cacheTtlMs: config.cacheTtlMs,
             cacheMaxBytes: config.cacheMaxBytes,
         },
-    );
+        log: console.log,
+    };
     const stopping = new AbortController();
     const app = createApp({
         store,

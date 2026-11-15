@@ -44,20 +44,6 @@ export type DownloadWorker = {
     log: (message: string) => void;
 };
 
-export const createDownloadWorker = (
-    store: Store,
-    downloadToLibrary: Download,
-    downloadToCache: Download,
-    config: DownloadConfig,
-    log: (message: string) => void = console.log,
-): DownloadWorker => ({
-    store,
-    downloadToLibrary,
-    downloadToCache,
-    config,
-    log,
-});
-
 /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
 export async function runDownloads(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
     resetDownloading(worker.store);

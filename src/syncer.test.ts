@@ -14,7 +14,7 @@ import {
     openStore,
     type Store,
 } from "./db/store.ts";
-import { createSyncer, runSync, type Syncer, syncAll } from "./syncer.ts";
+import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
 
@@ -41,7 +41,7 @@ async function ytDlpPrinting(body: string) {
 const printing = (json: string) => `cat <<'EOF'\n${json}\nEOF`;
 
 function syncerFor(store: Store, getChannelVideos: Syncer["getChannelVideos"]): Syncer {
-    return createSyncer(store, getChannelVideos, hour, () => undefined);
+    return { store, getChannelVideos, intervalMs: hour, log: () => undefined };
 }
 
 function fakeLister(videos: Video[] = []) {
@@ -182,7 +182,12 @@ describe("syncAll", () => {
         closeStore(brokenStore);
 
         const messages: string[] = [];
-        const syncer = createSyncer(brokenStore, lister, hour, (message) => void messages.push(message));
+        const syncer: Syncer = {
+            store: brokenStore,
+            getChannelVideos: lister,
+            intervalMs: hour,
+            log: (message) => void messages.push(message),
+        };
         await syncAll(syncer, neverAborted);
 
         expect(messages).toHaveLength(1);
@@ -240,7 +245,7 @@ describe("run", () => {
         const store = await newStore();
         insertChannel(store, "UC1", "Piano Guy");
         const { lister, calls } = fakeLister();
-        const syncer = createSyncer(store, lister, 20, () => undefined);
+        const syncer: Syncer = { store, getChannelVideos: lister, intervalMs: 20, log: () => undefined };
 
         const controller = new AbortController();
         const running = runSync(syncer, controller.signal);
