@@ -21,8 +21,6 @@ export type WebDependencies = {
     sessionLifetimeMs?: number;
     /** The current time in milliseconds; the real clock if omitted. Tests replace it. */
     now?: () => number;
-    /** Where messages go; the console if omitted. */
-    log?: (message: string) => void;
 };
 
 /** The dependencies with defaults filled in, plus the state the web layer keeps itself. */

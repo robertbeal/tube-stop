@@ -4,6 +4,7 @@ import { resetAdmin } from "./admin/reset.ts";
 import { loadConfig } from "./config.ts";
 import { closeStore, openStore } from "./db/store.ts";
 import { type DownloadWorker, runDownloads } from "./download.ts";
+import { logInfo } from "./log.ts";
 import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { createApp } from "./web/app.tsx";
 import { downloadToCache, downloadToLibrary } from "./ytdlp/download.ts";
@@ -25,7 +26,6 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
         store,
         getChannelVideos: getChannelVideos.bind(null, binary),
         intervalMs: config.syncIntervalMs,
-        log: console.log,
     };
     const downloads: DownloadWorker = {
         store,
@@ -38,7 +38,6 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
             cacheTtlMs: config.cacheTtlMs,
             cacheMaxBytes: config.cacheMaxBytes,
         },
-        log: console.log,
     };
     const stopping = new AbortController();
     const app = createApp({
@@ -58,7 +57,7 @@ async function serve(config: ReturnType<typeof loadConfig>): Promise<void> {
         fetch: app.fetch,
         idleTimeout: 120, // resolving a pasted URL can take a while without sending anything
     });
-    console.log(`listening on ${server.url} (media: ${mediaDir})`);
+    logInfo(`listening on ${server.url} (media: ${mediaDir})`);
 
     const stopped = new Promise<void>((done) => {
         for (const signal of ["SIGINT", "SIGTERM"] as const) {

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { createLoginLimiter, createSessions, createSetupCode, currentSetupCode } from "../admin/auth.ts";
+import { createLoginLimiter, createSessions, currentSetupCode } from "../admin/auth.ts";
 import { authRoutes } from "../admin/auth-routes.tsx";
 import { createPasswordHasher } from "../admin/passwords.ts";
 import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
+import { logError } from "../log.ts";
 import { kidRoutes } from "./kid.tsx";
 import type { Services, WebDependencies } from "./services.ts";
 
@@ -31,16 +32,14 @@ const crossOriginProtection = createMiddleware(async (context, next) => {
 
 function withDefaults(dependencies: WebDependencies): Services {
     const now = dependencies.now ?? Date.now;
-    const log = dependencies.log ?? console.log;
     return {
         ...dependencies,
         hasher: dependencies.hasher ?? createPasswordHasher(),
         sessionLifetimeMs: dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs,
         now,
-        log,
         sessions: createSessions(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs, now),
         limiter: createLoginLimiter(now),
-        setupCode: createSetupCode(log),
+        setupCode: { code: "" },
     };
 }
 
@@ -52,7 +51,7 @@ export function createApp(dependencies: WebDependencies): Hono {
     const app = new Hono();
     app.use(crossOriginProtection);
     app.onError((error, context) => {
-        services.log(`web: ${error.message}`);
+        logError(`web: ${error.message}`);
         return context.text("something went wrong", 500);
     });
 

@@ -98,7 +98,6 @@ type Fetcher = ReturnType<typeof fakeFetcher>["fetcher"];
 type Fixture = {
     store: Store;
     config: DownloadConfig;
-    logs: string[];
     workerWith(fetcher: Fetcher, overrides?: Partial<DownloadConfig>): DownloadWorker;
     /** Moves the store's clock, which stamps cache requests as played. */
     setTime(unixSeconds: number): void;
@@ -114,17 +113,14 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
         cacheTtlMs,
         cacheMaxBytes,
     };
-    const logs: string[] = [];
     return {
         store,
         config,
-        logs,
         workerWith: (fetcher, overrides = {}) => ({
             store,
             downloadToLibrary: fetcher.downloadToLibrary,
             downloadToCache: fetcher.downloadToCache,
             config: { ...config, ...overrides },
-            log: (message) => void logs.push(message),
         }),
         setTime: (unixSeconds) => {
             clock.now = unixSeconds;

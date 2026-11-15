@@ -1,6 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import * as log from "../log.ts";
 import { advanceClock, buildEnvironment, send, sessionCookie } from "../web/harness.ts";
-import { clearSetupCode, createSetupCode, currentSetupCode, setupCodeMatches } from "./auth.ts";
+import { clearSetupCode, currentSetupCode, type SetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./test-helpers.ts";
 import { countUsers, deleteUsers, getUserByUsername } from "./users.ts";
 
@@ -38,14 +39,14 @@ describe("the setup code", () => {
     });
 
     test("is created once and then reused until cleared", () => {
-        const messages: string[] = [];
-        const setupCode = createSetupCode((message) => void messages.push(message));
+        const logged = spyOn(log, "logInfo");
+        const setupCode: SetupCode = { code: "" };
         const first = currentSetupCode(setupCode);
         expect(currentSetupCode(setupCode)).toBe(first);
-        expect(messages).toHaveLength(1);
+        expect(logged.mock.calls).toHaveLength(1);
         clearSetupCode(setupCode);
         expect(setupCodeMatches(setupCode, first)).toBe(false);
-        expect(messages).toHaveLength(2);
+        expect(logged.mock.calls).toHaveLength(2);
     });
 });
 

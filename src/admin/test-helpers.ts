@@ -87,7 +87,6 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
         cacheDir: environment.cacheDir,
         hasher,
         now: () => environment.clock.milliseconds,
-        log: (message) => void environment.logs.push(message),
     });
     return { ...environment, app };
 }

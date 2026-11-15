@@ -13,6 +13,7 @@ import {
     type Store,
     type Video,
 } from "./db/store.ts";
+import { logError, logInfo } from "./log.ts";
 import { removeMedia } from "./storage.ts";
 import type { Download } from "./ytdlp/types.ts";
 
@@ -41,31 +42,30 @@ export type DownloadWorker = {
     downloadToLibrary: Download;
     downloadToCache: Download;
     config: DownloadConfig;
-    log: (message: string) => void;
 };
 
 /** Runs the pin and cache loops and the hourly janitor until `signal` aborts and the loops have stopped. */
 export async function runDownloads(worker: DownloadWorker, signal: AbortSignal): Promise<void> {
     resetDownloading(worker.store);
     await Promise.all([
-        loop(worker, signal, () => processPin(worker, signal)),
-        loop(worker, signal, () => processCache(worker, signal)),
+        loop(signal, () => processPin(worker, signal)),
+        loop(signal, () => processCache(worker, signal)),
         janitorLoop(worker, signal),
     ]);
 }
 
 /** Keeps processing while there is work, then waits a moment before looking again. */
-async function loop(worker: DownloadWorker, signal: AbortSignal, processNext: () => Promise<boolean>): Promise<void> {
+async function loop(signal: AbortSignal, processNext: () => Promise<boolean>): Promise<void> {
     while (!signal.aborted) {
-        while (await processNext().catch((error) => logFailure(worker, error))) {
+        while (await processNext().catch((error) => logFailure(error))) {
             // more work is queued
         }
         await delay(pollIntervalMs, undefined, { signal }).catch(() => undefined);
     }
 }
 
-function logFailure(worker: DownloadWorker, error: Error): false {
-    worker.log(`download: ${error.message}`);
+function logFailure(error: Error): false {
+    logError(`download: ${error.message}`);
     return false;
 }
 
@@ -85,17 +85,17 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
     if (id === null) {
         return false;
     }
-    worker.log(`download: pinning ${id}`);
+    logInfo(`download: pinning ${id}`);
     try {
         const path = await worker.downloadToLibrary(id, worker.config.mediaDir, worker.config.keepMaxHeight, signal);
         const kept = finishDownload(worker.store, id, path);
         if (kept) {
-            worker.log(`download: pinned ${id} -> ${path}`);
+            logInfo(`download: pinned ${id} -> ${path}`);
         } else {
-            await discard(worker, worker.config.mediaDir, path); // unpinned or removed while downloading
+            await discard(worker.config.mediaDir, path); // unpinned or removed while downloading
         }
     } catch (error) {
-        worker.log(`download: ${id} failed: ${error.message}`);
+        logError(`download: ${id} failed: ${error.message}`);
         if (signal.aborted) {
             return false;
         }
@@ -113,15 +113,15 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
     if (id === null) {
         return false;
     }
-    worker.log(`cache: fetching ${id}`);
+    logInfo(`cache: fetching ${id}`);
     try {
         const path = await worker.downloadToCache(id, worker.config.cacheDir, cacheHeight, signal);
         const stored = finishCache(worker.store, id, path);
         if (!stored) {
-            await discard(worker, worker.config.cacheDir, path); // removed while downloading
+            await discard(worker.config.cacheDir, path); // removed while downloading
         }
     } catch (error) {
-        worker.log(`cache: ${id} failed: ${error.message}`);
+        logError(`cache: ${id} failed: ${error.message}`);
         if (signal.aborted) {
             return false;
         }
@@ -130,10 +130,10 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
     return true;
 }
 
-async function discard(worker: DownloadWorker, root: string, path: string): Promise<void> {
+async function discard(root: string, path: string): Promise<void> {
     const failures = await removeMedia(root, path);
     for (const failure of failures) {
-        worker.log(`download: delete ${path}: ${failure.message}`);
+        logError(`download: delete ${path}: ${failure.message}`);
     }
 }
 
@@ -163,8 +163,8 @@ const isStale = (worker: DownloadWorker, video: Video, now: number): boolean =>
     now - video.lastPlayedAt * 1000 > worker.config.cacheTtlMs;
 
 async function evict(worker: DownloadWorker, video: Video): Promise<void> {
-    worker.log(`janitor: evicting ${video.youtubeId}`);
-    await discard(worker, worker.config.cacheDir, video.cachePath);
+    logInfo(`janitor: evicting ${video.youtubeId}`);
+    await discard(worker.config.cacheDir, video.cachePath);
     clearCache(worker.store, video.youtubeId);
 }
 

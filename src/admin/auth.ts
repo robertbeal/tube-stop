@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { logInfo } from "../log.ts";
 
 export const sessionCookieName = "tubestop_admin";
 export const loginPath = "/admin/login";
@@ -107,10 +108,7 @@ export function normaliseCode(typed: string): string {
  */
 export type SetupCode = {
     code: string;
-    log: (message: string) => void;
 };
-
-export const createSetupCode = (log: (message: string) => void): SetupCode => ({ code: "", log });
 
 /** The setup code, created (and printed to the log) if there is none. */
 export function currentSetupCode(setupCode: SetupCode): string {
@@ -119,7 +117,7 @@ export function currentSetupCode(setupCode: SetupCode): string {
             crypto.getRandomValues(new Uint8Array(8)),
             (byte) => codeAlphabet[byte % codeAlphabet.length],
         ).join("");
-        setupCode.log(
+        logInfo(
             `No admin account exists yet. Open /admin and enter this setup code: ${setupCode.code.slice(0, 4)}-${setupCode.code.slice(4)}`,
         );
     }

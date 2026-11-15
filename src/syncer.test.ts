@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "../tests/helpers.ts";
@@ -14,6 +14,7 @@ import {
     openStore,
     type Store,
 } from "./db/store.ts";
+import * as log from "./log.ts";
 import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
@@ -41,7 +42,7 @@ async function ytDlpPrinting(body: string) {
 const printing = (json: string) => `cat <<'EOF'\n${json}\nEOF`;
 
 function syncerFor(store: Store, getChannelVideos: Syncer["getChannelVideos"]): Syncer {
-    return { store, getChannelVideos, intervalMs: hour, log: () => undefined };
+    return { store, getChannelVideos, intervalMs: hour };
 }
 
 function fakeLister(videos: Video[] = []) {
@@ -181,17 +182,12 @@ describe("syncAll", () => {
         const brokenStore = await newStore();
         closeStore(brokenStore);
 
-        const messages: string[] = [];
-        const syncer: Syncer = {
-            store: brokenStore,
-            getChannelVideos: lister,
-            intervalMs: hour,
-            log: (message) => void messages.push(message),
-        };
+        const errors = spyOn(log, "logError");
+        const syncer: Syncer = { store: brokenStore, getChannelVideos: lister, intervalMs: hour };
         await syncAll(syncer, neverAborted);
 
-        expect(messages).toHaveLength(1);
-        expect(messages[0]).toStartWith("sync: ");
+        expect(errors.mock.calls).toHaveLength(1);
+        expect(errors.mock.calls[0]?.[0]).toStartWith("sync: ");
         expect(calls).toEqual([]);
     });
 
@@ -245,7 +241,7 @@ describe("run", () => {
         const store = await newStore();
         insertChannel(store, "UC1", "Piano Guy");
         const { lister, calls } = fakeLister();
-        const syncer: Syncer = { store, getChannelVideos: lister, intervalMs: 20, log: () => undefined };
+        const syncer: Syncer = { store, getChannelVideos: lister, intervalMs: 20 };
 
         const controller = new AbortController();
         const running = runSync(syncer, controller.signal);
