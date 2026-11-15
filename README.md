@@ -46,71 +46,56 @@ Opening a page never changes anything; the page's script asks for the download
 
 ## Run
 
-    bun install
-    bun src/main.ts      # or: bun start
+Once it is running, the child's view is at http://localhost:8080/ and the admin area at
+http://localhost:8080/admin. Settings are environment variables, listed under [Settings](#settings).
 
-Child UI: http://localhost:8080/  Admin: http://localhost:8080/admin
+### Docker
 
-Requires [Bun](https://bun.sh), `yt-dlp` and `ffmpeg` on `PATH`. YouTube changes often, so keep `yt-dlp`
-updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volumes for `/data`,
-`/media` and `/cache`:
+    services:
+      tube-stop:
+        image: ghcr.io/robertbeal/tube-stop:latest
+        restart: unless-stopped
+        ports:
+          - "8080:8080"
+        volumes:
+          - ./data:/data      # database and thumbnails
+          - ./media:/media    # pinned videos, in one folder per channel (point Jellyfin here, read-only)
+          - cache:/cache      # watch-once copies, deleted automatically
+        environment:
+          CACHE_MAX_GB: 20
+          KEEP_MAX_HEIGHT: 1080
 
-    mkdir -p dist/image
-    bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/image/amd64
-    bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/image/arm64
-    docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
-    docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
+    volumes:
+      cache:
 
-The image does not compile anything. It copies in the compiled app (one file per architecture, made by the
-first commands: add `--platform` to `docker build` to pick one), plus `ffmpeg`, QuickJS and `yt-dlp`. The
-`yt-dlp` release is a required build argument, so the image always says exactly which one it has. It builds for
-`linux/amd64` and `linux/arm64`: use `docker buildx build --platform linux/amd64,linux/arm64`.
+The container runs as user 1000, so folders you mount from the host (`./data` and `./media` above) must be
+writable by it: `chown 1000 data media`.
 
-### Published images
+The image has the app, `ffmpeg` and `yt-dlp`, for `amd64` and `arm64`. Pick a tag:
 
-`.github/workflows/release.yml` publishes to GitHub's container registry (`ghcr.io/<owner>/<repo>`) for both
-architectures. Releases are git tags like `v1.2.3`. Pushing one builds it with the newest `yt-dlp` and creates a
-GitHub release. The version of the image is the app's version and the `yt-dlp` inside it:
-
-| Tag | Meaning | Moves? |
-|---|---|---|
-| `1.2.3_2026.10.26` | app 1.2.3 with that `yt-dlp` | never |
-| `1.2.3` | app 1.2.3 with the newest `yt-dlp` | when `yt-dlp` updates |
-| `1.2`, `1` | the newest release in that line (no `0` tag for `0.x`) | with new releases and `yt-dlp` updates |
-| `latest` | the newest release | with new releases and `yt-dlp` updates |
-| `edge` | the latest `main`, unreleased | on every push to `main` |
-
-Every night the workflow looks up the newest `yt-dlp`. If the newest release has not been built with it, the
-workflow rebuilds that release's tag (not `main`) and moves the tags above. Nothing happens otherwise, and
-unreleased code never reaches `latest`. Pull `latest` (for example with Watchtower) to follow along, or pin a
-full tag such as `1.2.3_2026.10.26` to stay put. You can also run the workflow by hand from the Actions tab.
-
-### Binaries
-
-Each GitHub release also has the app compiled into one executable (the Bun runtime is inside, so about
-100 MB, or about 50 MB as a download), with a `SHA256SUMS` file:
-
-| File | For |
+| Tag | Use it to |
 |---|---|
-| `tube-stop-<version>-linux-x64.tar.gz`, `-linux-arm64.tar.gz` | most Linux systems |
-| `tube-stop-<version>-linux-x64-musl.tar.gz`, `-linux-arm64-musl.tar.gz` | Alpine and other musl systems (`apk add libstdc++ libgcc` first) |
+| `latest` | follow the newest release |
+| `1.2.3` | stay on one app version (it still gets new `yt-dlp` builds) |
+| `1.2.3_2026.10.26` | stay on one app version and one `yt-dlp` |
+| `edge` | try the unreleased `main` |
 
-The binary does not include `yt-dlp` or `ffmpeg`: install them and put them on `PATH`. Configure it with the
-same environment variables as above. `./tube-stop reset-admin` works too. To build one yourself:
-`bun build --compile --minify src/main.ts --outfile tube-stop`.
+YouTube changes often, so a nightly job rebuilds the newest release whenever a new `yt-dlp` comes out. Pull
+again (or use something like Watchtower) to get it.
 
-To release: `git tag v1.2.3 && git push origin v1.2.3`.
+### Binary
 
-### How the workflow runs
+Each GitHub release has the app compiled into one executable, about 50 MB to download, with a `SHA256SUMS`
+file. Use the `x64` or `arm64` one for your machine, or the `-musl` one on Alpine (after
+`apk add libstdc++ libgcc`). Install `yt-dlp` and `ffmpeg` and put them on `PATH`, then run `./tube-stop`.
+`./tube-stop reset-admin` works too.
 
-Each step runs only if the one before it passed:
+### From source
 
-1. **plan:** works out what to build (the tag, `edge`, or the newest release for the nightly run) and which
-   `yt-dlp` to use. The nightly run stops here if there is nothing new.
-2. **check:** `bun run check`: type check, lint and all the tests, on the code being built.
-3. **binaries:** compiles the four binaries once, and smoke-tests one from an empty folder.
-4. **image:** builds the multi-arch image from those same binaries and pushes it.
-5. **release:** for a tag, creates the GitHub release with the binaries attached.
+Requires [Bun](https://bun.sh), `yt-dlp` and `ffmpeg` on `PATH`.
+
+    bun install
+    bun start
 
 ## Admin accounts
 
@@ -137,6 +122,8 @@ travels in clear text over plain HTTP, so put the app behind HTTPS (a reverse pr
 This deletes the admin account (videos, channels and settings are kept). Open `/admin` again and
 the app prints a fresh setup code. In the container: `docker exec <container> tube-stop reset-admin`.
 
+## Settings
+
 | Env | Default |
 |---|---|
 | `HOST` | `0.0.0.0` |
@@ -158,6 +145,31 @@ problem. `ADMIN_PASSWORD` is ignored: accounts are created in the browser.
     bun run format     # biome format and fix
 
 Source is in `src/` (`main.ts` and `serve.ts` for startup, `admin/` for accounts, login and the admin page, `user/` for the child's pages and player, `sync/` for channel syncing and the download worker, `web/` for the Hono app and what the pages share, `shared/` for config, the database, yt-dlp and the rest); tests sit next to the code they test (`*.test.ts`), with the shared test setup in `tests/`.
+
+**Building the image.** The image copies in a compiled app instead of compiling one, so make that first. The
+`yt-dlp` release is a required build argument, so an image always says which one it has:
+
+    mkdir -p dist/image
+    bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/image/amd64
+    bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/image/arm64
+    docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
+
+Add `--platform linux/amd64,linux/arm64` with `docker buildx build` for both architectures.
+To build a standalone binary for this machine: `bun build --compile --minify src/main.ts --outfile tube-stop`.
+
+**Releasing.** `git tag v1.2.3 && git push origin v1.2.3`. `.github/workflows/release.yml` then runs these in
+order, each only if the one before it passed:
+
+1. **plan:** works out what to build and which `yt-dlp` to use. The nightly run stops here if the newest release
+   already has the newest `yt-dlp`.
+2. **check:** `bun run check` on the code being built.
+3. **binaries:** compiles the four Linux binaries once, and smoke-tests one from an empty folder.
+4. **image:** builds the multi-arch image from those binaries and pushes it to `ghcr.io`.
+5. **release:** for a tag, creates the GitHub release with the binaries attached.
+
+A push to `main` runs steps 1 to 4 and publishes `edge`. The nightly run rebuilds the newest release's tag, not
+`main`, so unreleased code never reaches `latest`. Image tags: `1.2.3_<yt-dlp>` is fixed; `1.2.3`, `1.2`, `1`
+and `latest` move to the newest build (there is no `0` tag for `0.x`).
 
 **Changing the schema:** append a new migration in `src/shared/db/`; never edit an existing one.
 
