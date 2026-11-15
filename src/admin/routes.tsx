@@ -4,7 +4,7 @@ import { deleteChannel, getChannels, insertChannel, parseChannelId } from "../db
 import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../db/videos.ts";
 import { pinVideo, unpinVideo } from "../downloads/queue.ts";
 import { directorySize, removeMedia } from "../storage.ts";
-import { syncChannels } from "../syncer.ts";
+import { syncChannels } from "../sync.ts";
 import { removeThumbnail } from "../thumbnails.ts";
 import { shutdown } from "../util/shutdown.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";

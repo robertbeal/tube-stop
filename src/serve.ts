@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { config } from "./config.ts";
 import { database } from "./db/database.ts";
 import { runDownloads } from "./downloads/worker.ts";
-import { runSync } from "./syncer.ts";
+import { runSync } from "./sync.ts";
 import { logger } from "./util/logger.ts";
 import { shutdown } from "./util/shutdown.ts";
 import { createApp } from "./web/app.tsx";

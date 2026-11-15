@@ -5,7 +5,7 @@ import { createFirstUser } from "../admin/users.ts";
 import { config } from "../config.ts";
 import type { NewVideo, User } from "../db/types.ts";
 import { allowVideo } from "../db/videos.ts";
-import * as syncerModule from "../syncer.ts";
+import * as syncModule from "../sync.ts";
 import { thumbnailDir } from "../thumbnails.ts";
 import { logger } from "../util/logger.ts";
 import * as resolveModule from "../ytdlp/resolve.ts";
@@ -55,7 +55,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
         resolved.push(url);
         return (options.resolve ?? (() => Promise.reject(new Error("no resolver in this test"))))(url);
     });
-    spyOn(syncerModule, "syncChannels").mockImplementation(async () => {
+    spyOn(syncModule, "syncChannels").mockImplementation(async () => {
         triggers.sync += 1;
     });
     spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
