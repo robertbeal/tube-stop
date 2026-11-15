@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeEach, mock, setSystemTime, spyOn } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
-import { config } from "../src/config.ts";
-import { database } from "../src/db/database.ts";
-import { thumbnailDir } from "../src/thumbnails.ts";
-import { logger } from "../src/util/logger.ts";
+import { config } from "../src/shared/config.ts";
+import { database } from "../src/shared/db/database.ts";
+import { logger } from "../src/shared/logger.ts";
+import { thumbnailDir } from "../src/shared/thumbnails.ts";
 import { removeTemporaryDirectories, testStart } from "./helpers.ts";
 
 // Hooks registered in a preload file apply to every test file. Hooks registered in an imported

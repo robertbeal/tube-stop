@@ -1,4 +1,4 @@
-import type { Page, Video, VideoPage } from "../db/types.ts";
+import type { Page, Video, VideoPage } from "../shared/db/types.ts";
 
 export const kidPageSize = 24; // few, large choices suit a young child
 export const adminPageSize = 100; // the admin list is for scanning

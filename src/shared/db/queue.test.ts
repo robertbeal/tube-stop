@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
-import { cacheFile, idsOf, keepFile, newVideo, raw, videoOf } from "../db/test-helpers.ts";
-import { NotFoundError } from "../db/types.ts";
-import { allowVideo, blockVideo, deleteVideo } from "../db/videos.ts";
+import { randomVideoId, testStartSeconds } from "../../../tests/helpers.ts";
 import {
     claimCache,
     claimDownload,
@@ -17,6 +14,9 @@ import {
     resetDownloading,
     unpinVideo,
 } from "./queue.ts";
+import { cacheFile, idsOf, keepFile, newVideo, raw, videoOf } from "./test-helpers.ts";
+import { NotFoundError } from "./types.ts";
+import { allowVideo, blockVideo, deleteVideo } from "./videos.ts";
 
 describe("pinning", () => {
     test("pinning queues a download for a video without a file", async () => {

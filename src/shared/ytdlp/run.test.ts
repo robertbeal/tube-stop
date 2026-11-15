@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { stubYtDlp } from "../../tests/helpers.ts";
+import { stubYtDlp } from "../../../tests/helpers.ts";
 import { ytdlp } from "./run.ts";
 
 const neverAborted = new AbortController().signal;

@@ -2,8 +2,8 @@ import { setSystemTime } from "bun:test";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseVideoId } from "../src/ytdlp/info.ts";
-import type { VideoId } from "../src/ytdlp/types.ts";
+import { parseVideoId } from "../src/shared/ytdlp/info.ts";
+import type { VideoId } from "../src/shared/ytdlp/types.ts";
 
 /** The fake time every test starts at. Tests move it with `advanceTime` or `setSystemTime`. */
 export const testStart = new Date("2026-01-01T12:00:00Z");

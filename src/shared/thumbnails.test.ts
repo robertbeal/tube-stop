@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { testVideoId } from "../tests/helpers.ts";
+import { testVideoId } from "../../tests/helpers.ts";
 import { downloadThumbnail, removeThumbnail, thumbnailDir } from "./thumbnails.ts";
 
 const neverAborted = new AbortController().signal;

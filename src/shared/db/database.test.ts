@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
+import { randomVideoId, temporaryDirectory } from "../../../tests/helpers.ts";
 import { config } from "../config.ts";
 import { openDatabase } from "./database.ts";
 import { raw } from "./test-helpers.ts";

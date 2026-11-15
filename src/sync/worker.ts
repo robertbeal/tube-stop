@@ -1,10 +1,6 @@
 import { stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { config } from "../config.ts";
-import type { Video } from "../db/types.ts";
-import { removeMedia } from "../storage.ts";
-import { logger } from "../util/logger.ts";
-import { downloadToCache, downloadToLibrary } from "../ytdlp/download.ts";
+import { config } from "../shared/config.ts";
 import {
     claimCache,
     claimDownload,
@@ -15,7 +11,11 @@ import {
     finishDownload,
     getCacheEntries,
     resetDownloading,
-} from "./queue.ts";
+} from "../shared/db/queue.ts";
+import type { Video } from "../shared/db/types.ts";
+import { logger } from "../shared/logger.ts";
+import { removeMedia } from "../shared/storage.ts";
+import { downloadToCache, downloadToLibrary } from "../shared/ytdlp/download.ts";
 
 /** Watch-once copies are always fetched at this height. */
 const cacheHeight = 720;

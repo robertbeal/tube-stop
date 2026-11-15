@@ -2,11 +2,11 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
-import { getChannels, insertChannel, markChannelSynced } from "../db/channels.ts";
-import * as videoQueries from "../db/videos.ts";
-import { allowVideo, getVideo, getWatchableVideos, insertVideo } from "../db/videos.ts";
-import { claimDownload, failDownload, pinVideo } from "../downloads/queue.ts";
-import { allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
+import { getChannels, insertChannel, markChannelSynced } from "../shared/db/channels.ts";
+import { claimDownload, failDownload, pinVideo } from "../shared/db/queue.ts";
+import * as videoQueries from "../shared/db/videos.ts";
+import { allowVideo, getVideo, getWatchableVideos, insertVideo } from "../shared/db/videos.ts";
+import type { Resolved } from "../shared/ytdlp/types.ts";
 import {
     allowPianoVideo,
     countOccurrences,
@@ -18,8 +18,8 @@ import {
     unknownVideoId,
     videoId,
     writeFileWithFolders,
-} from "../web/kid-helpers.ts";
-import type { Resolved } from "../ytdlp/types.ts";
+} from "../user/test-helpers.ts";
+import { allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 
 async function exists(path: string): Promise<boolean> {
     return stat(path).then(

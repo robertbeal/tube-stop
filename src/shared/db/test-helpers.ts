@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
-import { randomVideoId } from "../../tests/helpers.ts";
+import { randomVideoId } from "../../../tests/helpers.ts";
 import { config } from "../config.ts";
-import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { getChannels } from "./channels.ts";
+import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "./queue.ts";
 import type { ChannelId, NewVideo, Video } from "./types.ts";
 import { getVideo } from "./videos.ts";
 

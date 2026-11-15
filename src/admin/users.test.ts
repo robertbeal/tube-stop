@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
-import { newVideo, raw, videoOf } from "../db/test-helpers.ts";
-import { AlreadySetUpError, NotFoundError } from "../db/types.ts";
-import { allowVideo } from "../db/videos.ts";
+import { newVideo, raw, videoOf } from "../shared/db/test-helpers.ts";
+import { AlreadySetUpError, NotFoundError } from "../shared/db/types.ts";
+import { allowVideo } from "../shared/db/videos.ts";
 import { countUsers, createFirstUser, deleteUsers, getUserById, getUserByUsername, updatePassword } from "./users.ts";
 
 describe("admin accounts", () => {

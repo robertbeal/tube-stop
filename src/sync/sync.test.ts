@@ -1,13 +1,13 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
-import { stubYtDlp, temporaryDirectory, testVideoId } from "../tests/helpers.ts";
-import { config } from "./config.ts";
-import * as channelQueries from "./db/channels.ts";
-import { getChannels, insertChannel } from "./db/channels.ts";
-import type { Channel } from "./db/types.ts";
-import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "./db/videos.ts";
+import { stubYtDlp, temporaryDirectory, testVideoId } from "../../tests/helpers.ts";
+import { config } from "../shared/config.ts";
+import * as channelQueries from "../shared/db/channels.ts";
+import { getChannels, insertChannel } from "../shared/db/channels.ts";
+import type { Channel } from "../shared/db/types.ts";
+import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "../shared/db/videos.ts";
+import { logger } from "../shared/logger.ts";
 import { runSync, syncChannels } from "./sync.ts";
-import { logger } from "./util/logger.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;

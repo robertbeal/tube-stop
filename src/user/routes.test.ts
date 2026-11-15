@@ -1,11 +1,11 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
 import { testVideoId } from "../../tests/helpers.ts";
-import * as videoQueries from "../db/videos.ts";
-import { blockVideo } from "../db/videos.ts";
-import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
-import type { VideoId } from "../ytdlp/types.ts";
-import { allow, buildEnvironment, logIn, send } from "./harness.ts";
+import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
+import * as videoQueries from "../shared/db/videos.ts";
+import { blockVideo } from "../shared/db/videos.ts";
+import type { VideoId } from "../shared/ytdlp/types.ts";
+import { allow, buildEnvironment, logIn, send } from "../web/harness.ts";
 import {
     addPublished,
     allowPianoVideo,
@@ -17,7 +17,7 @@ import {
     unknownVideoId,
     videoId,
     writeFileWithFolders,
-} from "./kid-helpers.ts";
+} from "./test-helpers.ts";
 
 async function environmentWithSong() {
     const environment = await buildEnvironment();

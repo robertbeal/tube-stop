@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { config } from "../config.ts";
+import { config } from "../shared/config.ts";
 
 /** Removes the admin account so a new one can be created from the setup page. */
 export async function resetAdmin(output: (line: string) => void): Promise<void> {

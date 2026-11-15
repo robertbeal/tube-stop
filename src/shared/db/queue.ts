@@ -1,7 +1,7 @@
-import { database } from "../db/database.ts";
-import { NotFoundError, type Video } from "../db/types.ts";
-import { toVideo, type VideoRow, videoColumns, watchableFor } from "../db/videos.ts";
 import type { VideoId } from "../ytdlp/types.ts";
+import { database } from "./database.ts";
+import { NotFoundError, type Video } from "./types.ts";
+import { toVideo, type VideoRow, videoColumns, watchableFor } from "./videos.ts";
 
 /** Marks a video to be kept, and queues a download if no file is ready. */
 export function pinVideo(youtubeId: VideoId): void {

@@ -2,11 +2,19 @@ import { describe, expect, setSystemTime, spyOn, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomVideoId, testStart, stubYtDlp as writeStub } from "../../tests/helpers.ts";
-import { config } from "../config.ts";
-import { allowVideo, deleteVideo, getVideo } from "../db/videos.ts";
-import * as downloads from "../ytdlp/download.ts";
-import type { VideoId } from "../ytdlp/types.ts";
-import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache, unpinVideo } from "./queue.ts";
+import { config } from "../shared/config.ts";
+import {
+    claimCache,
+    claimDownload,
+    finishCache,
+    finishDownload,
+    pinVideo,
+    requestCache,
+    unpinVideo,
+} from "../shared/db/queue.ts";
+import { allowVideo, deleteVideo, getVideo } from "../shared/db/videos.ts";
+import * as downloads from "../shared/ytdlp/download.ts";
+import type { VideoId } from "../shared/ytdlp/types.ts";
 import { janitor, processCache, processPin, runDownloads } from "./worker.ts";
 
 const neverAborted = new AbortController().signal;

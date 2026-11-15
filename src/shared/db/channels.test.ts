@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
-import { claimCache, finishCache, requestCache } from "../downloads/queue.ts";
+import { randomVideoId, testStartSeconds } from "../../../tests/helpers.ts";
 import { deleteChannel, getChannels, insertChannel, markChannelSynced } from "./channels.ts";
+import { claimCache, finishCache, requestCache } from "./queue.ts";
 import { cacheFile, channelIdOf, keepFile, newVideo, videoOf } from "./test-helpers.ts";
 import { type ChannelId, NotFoundError } from "./types.ts";
 import { allowVideo, blockVideo, insertVideo } from "./videos.ts";

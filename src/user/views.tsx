@@ -1,8 +1,8 @@
 import type { FC } from "hono/jsx";
-import type { Channel, Video } from "../db/types.ts";
-import { formatDuration } from "./format.ts";
-import { Layout } from "./layout.tsx";
-import type { Pagination } from "./paging.ts";
+import type { Channel, Video } from "../shared/db/types.ts";
+import { formatDuration } from "../web/format.ts";
+import { Layout } from "../web/layout.tsx";
+import type { Pagination } from "../web/paging.ts";
 
 const thumbnailUrl = (id: string) => `/thumb/${encodeURIComponent(id)}`;
 
@@ -158,6 +158,6 @@ export const WatchPage: FC<{ video: Video; ready: boolean }> = ({ video, ready }
                 ← Back
             </a>
         </div>
-        <script src="/static/player.js" />
+        <script src="/player.js" />
     </Layout>
 );

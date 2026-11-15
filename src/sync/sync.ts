@@ -1,10 +1,10 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { config } from "./config.ts";
-import { getChannels, markChannelSynced } from "./db/channels.ts";
-import type { Channel } from "./db/types.ts";
-import { insertVideo } from "./db/videos.ts";
-import { logger } from "./util/logger.ts";
-import { getChannelVideos } from "./ytdlp/resolve.ts";
+import { config } from "../shared/config.ts";
+import { getChannels, markChannelSynced } from "../shared/db/channels.ts";
+import type { Channel } from "../shared/db/types.ts";
+import { insertVideo } from "../shared/db/videos.ts";
+import { logger } from "../shared/logger.ts";
+import { getChannelVideos } from "../shared/ytdlp/resolve.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;

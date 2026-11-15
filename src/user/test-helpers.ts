@@ -1,12 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { testVideoId } from "../../tests/helpers.ts";
-import { insertChannel } from "../db/channels.ts";
-import type { Video } from "../db/types.ts";
-import { getVideo, insertVideo } from "../db/videos.ts";
-import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
-import type { VideoId } from "../ytdlp/types.ts";
-import { allow, type Environment } from "./harness.ts";
+import { insertChannel } from "../shared/db/channels.ts";
+import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
+import type { Video } from "../shared/db/types.ts";
+import { getVideo, insertVideo } from "../shared/db/videos.ts";
+import type { VideoId } from "../shared/ytdlp/types.ts";
+import { allow, type Environment } from "../web/harness.ts";
 
 export const videoId = testVideoId("abcdefghijk");
 export const unknownVideoId = testVideoId("zzzzzzzzzzz");

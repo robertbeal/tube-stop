@@ -1,10 +1,10 @@
 import { mkdir } from "node:fs/promises";
-import { config } from "./config.ts";
-import { database } from "./db/database.ts";
-import { runDownloads } from "./downloads/worker.ts";
-import { runSync } from "./sync.ts";
-import { logger } from "./util/logger.ts";
-import { shutdown } from "./util/shutdown.ts";
+import { config } from "./shared/config.ts";
+import { database } from "./shared/db/database.ts";
+import { logger } from "./shared/logger.ts";
+import { shutdown } from "./shared/shutdown.ts";
+import { runSync } from "./sync/sync.ts";
+import { runDownloads } from "./sync/worker.ts";
 import { createApp } from "./web/app.tsx";
 
 export async function serve(): Promise<void> {

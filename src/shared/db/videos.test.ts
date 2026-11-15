@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
-import { claimDownload, finishDownload, pinVideo } from "../downloads/queue.ts";
+import { randomVideoId, testStartSeconds } from "../../../tests/helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { deleteChannel, getWatchableChannels, insertChannel } from "./channels.ts";
+import { claimDownload, finishDownload, pinVideo } from "./queue.ts";
 import { cacheFile, channelIdOf, everything, idsOf, keepFile, newVideo, videoOf } from "./test-helpers.ts";
 import { NotFoundError } from "./types.ts";
 import {

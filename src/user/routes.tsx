@@ -1,16 +1,16 @@
 import { stat } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { getWatchableChannels } from "../db/channels.ts";
-import type { Video } from "../db/types.ts";
-import { getVideo, getWatchableVideos, recordPlay } from "../db/videos.ts";
-import { requestCache } from "../downloads/queue.ts";
-import { downloadThumbnail, thumbnailDir } from "../thumbnails.ts";
-import { logger } from "../util/logger.ts";
-import { parseVideoId } from "../ytdlp/info.ts";
+import { getWatchableChannels } from "../shared/db/channels.ts";
+import { requestCache } from "../shared/db/queue.ts";
+import type { Video } from "../shared/db/types.ts";
+import { getVideo, getWatchableVideos, recordPlay } from "../shared/db/videos.ts";
+import { logger } from "../shared/logger.ts";
+import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
+import { parseVideoId } from "../shared/ytdlp/info.ts";
+import { kidPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import { serveFile } from "./files.ts";
-import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
 import { IndexPage, WatchPage } from "./views.tsx";
 
 async function exists(path: string): Promise<boolean> {
@@ -42,10 +42,8 @@ async function pinnedThumbnail(video: Video): Promise<string> {
     return (await exists(path)) ? path : "";
 }
 
-const staticDirectory = join(import.meta.dir, "static");
-
 /** The child-facing pages: browse, watch, and the endpoints the player script uses. */
-export function kidRoutes(): Hono {
+export function userRoutes(): Hono {
     const routes = new Hono();
 
     /** The video for the `:id` path value, or null if it is unknown or hidden from the child. */
@@ -55,12 +53,7 @@ export function kidRoutes(): Hono {
         return video?.watchable ? video : null;
     };
 
-    routes.get("/static/*", (context) => {
-        const name = context.req.path.slice("/static/".length);
-        return name === "" || name !== basename(name) || name.startsWith(".")
-            ? context.notFound()
-            : serveFile(context.req.raw, join(staticDirectory, name));
-    });
+    routes.get("/player.js", (context) => serveFile(context.req.raw, join(import.meta.dir, "player.js")));
 
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";

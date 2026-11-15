@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { temporaryDirectory, testVideoId } from "../../tests/helpers.ts";
-import { config } from "../config.ts";
-import { getChannels, insertChannel } from "../db/channels.ts";
-import { allowVideo, getVideo } from "../db/videos.ts";
+import { config } from "../shared/config.ts";
+import { getChannels, insertChannel } from "../shared/db/channels.ts";
+import { allowVideo, getVideo } from "../shared/db/videos.ts";
 import { resetAdmin } from "./reset.ts";
 import { countUsers, createFirstUser, getUserByUsername } from "./users.ts";
 

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { logger } from "../util/logger.ts";
+import { logger } from "../shared/logger.ts";
 
 export const sessionCookieName = "tubestop_admin";
 export const loginPath = "/admin/login";

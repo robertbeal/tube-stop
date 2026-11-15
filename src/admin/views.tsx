@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import type { Channel, Video } from "../db/types.ts";
+import type { Channel, Video } from "../shared/db/types.ts";
 import { humanBytes, timeAgo } from "../web/format.ts";
 import { Layout } from "../web/layout.tsx";
 import type { Pagination } from "../web/paging.ts";

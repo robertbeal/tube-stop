@@ -1,6 +1,6 @@
 import type { SQLQueryBindings } from "bun:sqlite";
-import { database } from "../db/database.ts";
-import { AlreadySetUpError, NotFoundError, type User } from "../db/types.ts";
+import { database } from "../shared/db/database.ts";
+import { AlreadySetUpError, NotFoundError, type User } from "../shared/db/types.ts";
 
 type UserRow = {
     id: number;

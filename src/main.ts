@@ -1,5 +1,5 @@
 import { resetAdmin } from "./admin/reset.ts";
-import "./config.ts"; // checks the environment first, and exits with a message if it is invalid
+import "./shared/config.ts"; // checks the environment first, and exits with a message if it is invalid
 
 async function main(): Promise<void> {
     const [command] = process.argv.slice(2);

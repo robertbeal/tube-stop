@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { claimDownload, finishDownload, pinVideo } from "../downloads/queue.ts";
+import { claimDownload, finishDownload, pinVideo } from "../shared/db/queue.ts";
+import { allowPianoVideo, makeCacheReady, videoId } from "../user/test-helpers.ts";
 import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
-import { allowPianoVideo, makeCacheReady, videoId } from "./kid-helpers.ts";
 
 type RenderedPage = {
     name: string;
@@ -81,7 +81,7 @@ describe("static assets", () => {
         ["/static/bootstrap-LICENSE.txt", "text/plain", "MIT License", 500],
         ["/static/theme.js", "text/javascript", "prefers-color-scheme", 100],
         ["/static/style.css", "text/css", ".video-card", 100],
-        ["/static/player.js", "text/javascript", "loopToggle", 500],
+        ["/player.js", "text/javascript", "loopToggle", 500],
     ])("%s is served as %s", async (path, contentType, mustContain, minimumBytes) => {
         const environment = await buildEnvironment();
 
@@ -96,7 +96,7 @@ describe("static assets", () => {
 
     test("a file that is not in the static folder is not found", async () => {
         const environment = await buildEnvironment();
-        for (const path of ["/static/nothing.css", "/static/", "/static/..%2Fkid.tsx", "/static/.hidden"]) {
+        for (const path of ["/static/nothing.css", "/static/", "/static/..%2Fapp.tsx", "/static/.hidden"]) {
             expect((await send(environment, path)).status, path).toBe(404);
         }
     });
@@ -131,7 +131,7 @@ describe("the admin navbar", () => {
 
 describe("the player page", () => {
     test("contains every element the player script looks for", async () => {
-        const script = await Bun.file(join(import.meta.dir, "static/player.js")).text();
+        const script = await Bun.file(join(import.meta.dir, "../user/player.js")).text();
         const environment = await buildEnvironment();
         allowPianoVideo(videoId, "Song");
         const body = await (await send(environment, `/watch/${videoId}`)).text();

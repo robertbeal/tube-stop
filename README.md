@@ -103,9 +103,9 @@ problem. `ADMIN_PASSWORD` is ignored: accounts are created in the browser.
     bun run check      # typecheck + biome lint + tests, for CI
     bun run format     # biome format and fix
 
-Source is in `src/` (`config.ts`, `main.ts`, `util/` for the logger and shutdown signal, `admin/` for accounts, login and the admin page, `db/` for the database, `downloads/` for the download queue and worker, `ytdlp/`, `web/`, ...); tests sit next to the code they test (`*.test.ts`), with the shared test setup in `tests/`.
+Source is in `src/` (`main.ts` and `serve.ts` for startup, `admin/` for accounts, login and the admin page, `user/` for the child's pages and player, `sync/` for channel syncing and the download worker, `web/` for the Hono app and what the pages share, `shared/` for config, the database, yt-dlp and the rest); tests sit next to the code they test (`*.test.ts`), with the shared test setup in `tests/`.
 
-**Changing the schema:** append a new migration in `src/db/`; never edit an existing one.
+**Changing the schema:** append a new migration in `src/shared/db/`; never edit an existing one.
 
 ## Licence
 

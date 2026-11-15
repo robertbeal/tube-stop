@@ -2,8 +2,8 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import { AlreadySetUpError, type User } from "../db/types.ts";
-import { logger } from "../util/logger.ts";
+import { AlreadySetUpError, type User } from "../shared/db/types.ts";
+import { logger } from "../shared/logger.ts";
 import type { Services } from "../web/services.ts";
 import {
     capitalise,

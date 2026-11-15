@@ -1,3 +1,4 @@
+import { basename, join } from "node:path";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { createLoginLimiter, createSessions, currentSetupCode } from "../admin/auth.ts";
@@ -5,9 +6,10 @@ import { authRoutes } from "../admin/auth-routes.tsx";
 import { createPasswordHasher } from "../admin/passwords.ts";
 import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
-import { config } from "../config.ts";
-import { logger } from "../util/logger.ts";
-import { kidRoutes } from "./kid.tsx";
+import { config } from "../shared/config.ts";
+import { logger } from "../shared/logger.ts";
+import { serveFile } from "../user/files.ts";
+import { userRoutes } from "../user/routes.tsx";
 import type { AppOptions, Services } from "./services.ts";
 
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -53,7 +55,13 @@ export function createApp(options: AppOptions = {}): Hono {
         return context.text("something went wrong", 500);
     });
 
-    app.route("/", kidRoutes());
+    app.get("/static/*", (context) => {
+        const name = context.req.path.slice("/static/".length);
+        return name === "" || name !== basename(name) || name.startsWith(".")
+            ? context.notFound()
+            : serveFile(context.req.raw, join(import.meta.dir, "static", name));
+    });
+    app.route("/", userRoutes());
     app.route("/", signInRoutes);
     const admin = new Hono();
     admin.use(requireLogin);

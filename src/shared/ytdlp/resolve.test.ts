@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { stubYtDlp, testVideoId } from "../../tests/helpers.ts";
+import { stubYtDlp, testVideoId } from "../../../tests/helpers.ts";
 import { getChannelVideos, resolveUrl } from "./resolve.ts";
 
 const neverAborted = new AbortController().signal;

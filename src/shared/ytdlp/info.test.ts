@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { testVideoId } from "../../tests/helpers.ts";
+import { testVideoId } from "../../../tests/helpers.ts";
 import { type Info, parseVideoId, toChannel, toVideo } from "./info.ts";
 
 const videoId = testVideoId("abcdefghijk");
