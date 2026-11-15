@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { VideoId } from "./ytdlp/types.ts";
 
 const imageServer = "https://i.ytimg.com";
-const fetchTimeoutMs = 10_000;
 
 /**
  * Always fetches a video's thumbnail from YouTube and saves it as `<directory>/<video id>.jpg`, moving it
@@ -15,7 +14,7 @@ export async function downloadThumbnail(
   signal: AbortSignal,
 ): Promise<string> {
   const response = await fetch(`${imageServer}/vi/${videoId}/mqdefault.jpg`, {
-    signal: AbortSignal.any([signal, AbortSignal.timeout(fetchTimeoutMs)]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
   });
 
   if (!response.ok) {
