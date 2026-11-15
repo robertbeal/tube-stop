@@ -82,9 +82,8 @@ The image has the app, `ffmpeg` and `yt-dlp`, for `amd64` and `arm64`. Pick a ta
 | `latest` | follow the newest release |
 | `1.2.3` | stay on one app version (it still gets new `yt-dlp` builds) |
 | `1.2.3_2026.10.26` | stay on one app version and one `yt-dlp` |
-| `edge` | try the unreleased `main` |
 
-YouTube changes often, so a nightly job rebuilds the newest release whenever a new `yt-dlp` comes out. Pull
+YouTube changes often, so a nightly job rebuilds the current release whenever a new `yt-dlp` comes out. Pull
 again (or use something like Watchtower) to get it.
 
 ### Binary
@@ -161,19 +160,25 @@ Source is in `src/` (`main.ts` and `serve.ts` for startup, `admin/` for accounts
 Add `--platform linux/amd64,linux/arm64` with `docker buildx build` for both architectures.
 To build a standalone binary for this machine: `bun build --compile --minify src/main.ts --outfile tube-stop`.
 
-**Releasing.** `git tag v1.2.3 && git push origin v1.2.3`. `.github/workflows/release.yml` then runs these in
-order, each only if the one before it passed:
+**Releasing is automatic.** Everything is built from `main`, and the version comes from the commit messages
+([conventional commits](https://www.conventionalcommits.org)), so there are no tags to push by hand:
 
-1. **plan:** works out what to build and which `yt-dlp` to use. The nightly run stops here if the newest release
-   already has the newest `yt-dlp`.
-2. **check:** `bun run check` on the code being built.
-3. **binaries:** compiles the four Linux binaries once, and smoke-tests one from an empty folder.
-4. **image:** builds the multi-arch image from those binaries and pushes it to `ghcr.io`.
-5. **release:** for a tag, creates the GitHub release with the binaries attached.
+| Commit pushed to `main` | Release |
+|---|---|
+| `fix: …` | patch (0.2.0 → 0.2.1) |
+| `feat: …` | minor (0.2.0 → 0.3.0) |
+| `feat!: …` or `fix!: …`, or a `BREAKING CHANGE:` line in any commit | major (0.2.0 → 1.0.0) |
+| anything else (`docs`, `ci`, `refactor`, `test`, `chore`…) | none: only the checks run |
 
-A push to `main` runs steps 1 to 4 and publishes `edge`. The nightly run rebuilds the newest release's tag, not
-`main`, so unreleased code never reaches `latest`. Image tags: `1.2.3_<yt-dlp>` is fixed; `1.2.3`, `1.2`, `1`
-and `latest` move to the newest build (there is no `0` tag for `0.x`).
+`.github/workflows/release.yml` is one job that stops at the first failure: `bun run check`, work out the
+version (`scripts/next-version.sh`), compile the four Linux binaries, test the binary
+(`scripts/smoke-test.sh`), build and test the image, push it to `ghcr.io`, and, for a new version, create the
+`v…` tag and GitHub release with the binaries attached.
+
+Every night it also looks up the newest `yt-dlp`. If the current release has not been built with it yet, the
+image is rebuilt from `main` and `latest`, `1.2` and the others move to it. The image tags are
+`1.2.3_<yt-dlp>` (fixed), `1.2.3`, `1.2`, `1` (not for `0.x`) and `latest`. You can also run the workflow by hand
+from the Actions tab, for example to retry a release that failed.
 
 **Changing the schema:** append a new migration in `src/shared/db/`; never edit an existing one.
 
