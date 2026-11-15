@@ -55,17 +55,20 @@ Requires [Bun](https://bun.sh), `yt-dlp` and `ffmpeg` on `PATH`. YouTube changes
 updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volumes for `/data`,
 `/media` and `/cache`:
 
+    mkdir -p dist/image
+    bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/image/amd64
+    bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/image/arm64
     docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
     docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
 
-The image has the app as one compiled executable, `ffmpeg`, QuickJS and `yt-dlp`. The `yt-dlp` release is a required build argument, so the
-image always says exactly which one it has. It builds for `linux/amd64` and `linux/arm64`:
-
-    docker buildx build --build-arg YTDLP_VERSION=2026.10.26 --platform linux/amd64,linux/arm64 -t tube-stop .
+The image does not compile anything. It copies in the compiled app (one file per architecture, made by the
+first commands: add `--platform` to `docker build` to pick one), plus `ffmpeg`, QuickJS and `yt-dlp`. The
+`yt-dlp` release is a required build argument, so the image always says exactly which one it has. It builds for
+`linux/amd64` and `linux/arm64`: use `docker buildx build --platform linux/amd64,linux/arm64`.
 
 ### Published images
 
-`.github/workflows/image.yml` publishes to GitHub's container registry (`ghcr.io/<owner>/<repo>`) for both
+`.github/workflows/release.yml` publishes to GitHub's container registry (`ghcr.io/<owner>/<repo>`) for both
 architectures. Releases are git tags like `v1.2.3`. Pushing one builds it with the newest `yt-dlp` and creates a
 GitHub release. The version of the image is the app's version and the `yt-dlp` inside it:
 
@@ -96,7 +99,18 @@ The binary does not include `yt-dlp` or `ffmpeg`: install them and put them on `
 same environment variables as above. `./tube-stop reset-admin` works too. To build one yourself:
 `bun build --compile --minify src/main.ts --outfile tube-stop`.
 
-To release: `git tag v1.2.3 && git push origin v1.2.3`. That builds the image and the binaries, and creates the release.
+To release: `git tag v1.2.3 && git push origin v1.2.3`.
+
+### How the workflow runs
+
+Each step runs only if the one before it passed:
+
+1. **plan:** works out what to build (the tag, `edge`, or the newest release for the nightly run) and which
+   `yt-dlp` to use. The nightly run stops here if there is nothing new.
+2. **check:** `bun run check`: type check, lint and all the tests, on the code being built.
+3. **binaries:** compiles the four binaries once, and smoke-tests one from an empty folder.
+4. **image:** builds the multi-arch image from those same binaries and pushes it.
+5. **release:** for a tag, creates the GitHub release with the binaries attached.
 
 ## Admin accounts
 

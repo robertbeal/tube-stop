@@ -1,0 +1,208 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  BUN_VERSION: 1.4.4
+
+jobs:
+  # Works out what to build. A pushed tag builds that release. The nightly and manual runs rebuild the newest
+  # release with the newest yt-dlp, or build `edge` if there is no release yet. A push to main builds `edge`.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      ytdlp: ${{ steps.plan.outputs.ytdlp }}
+      ref: ${{ steps.plan.outputs.ref }}
+      skip: ${{ steps.plan.outputs.skip }}
+      tags: ${{ steps.plan.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ytdlp=$(gh api repos/yt-dlp/yt-dlp/releases/latest --jq .tag_name)
+          newest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "$tag is not a version like v1.2.3" >&2; exit 1; }
+          elif [ "$GITHUB_EVENT_NAME" != push ] && [ -n "$newest" ]; then
+            tag="$newest"
+          else
+            tag=""
+          fi
+
+          skip=false
+          if [ -z "$tag" ]; then
+            tags="$IMAGE:edge"
+            ref="$GITHUB_SHA"
+          else
+            version="${tag#v}"
+            major="${version%%.*}"
+            minor="${version%.*}"
+            ref="$tag"
+            tags="$IMAGE:${version}_${ytdlp}"$'\n'"$IMAGE:$version"
+            # Only the newest release moves the floating tags.
+            if [ "$tag" = "$newest" ]; then
+              tags+=$'\n'"$IMAGE:$minor"$'\n'"$IMAGE:latest"
+              [ "$major" != 0 ] && tags+=$'\n'"$IMAGE:$major"
+            fi
+            # The nightly run only builds when there is a yt-dlp this release has not had yet.
+            if [ "$GITHUB_EVENT_NAME" = schedule ] && docker manifest inspect "$IMAGE:${version}_${ytdlp}" >/dev/null 2>&1; then
+              skip=true
+            fi
+          fi
+
+          {
+            echo "ytdlp=$ytdlp"
+            echo "ref=$ref"
+            echo "skip=$skip"
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: plan
+    if: needs.plan.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+
+  # The app compiled into one executable, with Bun inside. These are the files the release attaches, and the
+  # ones the image runs. They do not include yt-dlp or ffmpeg.
+  binaries:
+    needs: [plan, check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --production
+
+      - name: Compile
+        run: |
+          for target in linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl; do
+            bun build --compile --minify --target="bun-$target" src/main.ts --outfile "dist/tube-stop-$target"
+          done
+
+      # The binary has to serve its pages and embedded files from an empty folder.
+      - name: Smoke test
+        run: |
+          cd "$(mktemp -d)"
+          export DATA_DIR=./data MEDIA_DIR=./media CACHE_DIR=./cache HOST=127.0.0.1 PORT=18080 YTDLP_BIN=true
+          "$GITHUB_WORKSPACE/dist/tube-stop-linux-x64" > log 2>&1 &
+          for _ in $(seq 20); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.5; done
+          for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /player.js; do
+            curl -sf -o /dev/null "http://127.0.0.1:18080$path" || { echo "$path failed"; cat log; exit 1; }
+          done
+          kill %1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/tube-stop-*
+          if-no-files-found: error
+
+  image:
+    needs: [plan, binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      # The image runs the musl binaries, picked by Docker's architecture names.
+      - name: Choose the binaries for the image
+        run: |
+          mkdir dist/image
+          cp dist/tube-stop-linux-x64-musl dist/image/amd64
+          cp dist/tube-stop-linux-arm64-musl dist/image/arm64
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: YTDLP_VERSION=${{ needs.plan.outputs.ytdlp }}
+          tags: ${{ needs.plan.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.plan.outputs.ref }}
+            yt-dlp.version=${{ needs.plan.outputs.ytdlp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Only after the checks, the binaries and the image have all succeeded.
+  release:
+    needs: [plan, image]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          for target in linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl; do
+            name="tube-stop-$GITHUB_REF_NAME-$target"
+            mkdir "$name"
+            install -m 755 "tube-stop-$target" "$name/tube-stop"
+            cp ../LICENSE "$name/"
+            tar -czf "$name.tar.gz" "$name"
+          done
+          sha256sum ./*.tar.gz > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" ./*.tar.gz SHA256SUMS --generate-notes --verify-tag

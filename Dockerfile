@@ -1,17 +1,3 @@
-ARG BUN_VERSION=1.4.4
-
-# Compiles the app into one executable. This runs on the build machine's own architecture and
-# cross-compiles for the target, so building for arm64 does not need to emulate it.
-FROM --platform=$BUILDPLATFORM docker.io/oven/bun:${BUN_VERSION}-alpine AS app
-ARG TARGETARCH
-WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
-COPY tsconfig.json ./
-COPY src ./src
-RUN case "$TARGETARCH" in amd64) target=bun-linux-x64-musl ;; arm64) target=bun-linux-arm64-musl ;; esac \
-    && bun build --compile --minify --target="$target" src/main.ts --outfile /tube-stop
-
 # yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
 ARG TARGETARCH
@@ -24,6 +10,7 @@ RUN test -n "$YTDLP_VERSION" || { echo "pass --build-arg YTDLP_VERSION=<a yt-dlp
     && install -m 755 "${asset}" /yt-dlp
 
 FROM docker.io/alpine:3.23
+ARG TARGETARCH
 # libstdc++ and libgcc are what the compiled app needs. QuickJS runs the challenges YouTube sets (see yt-dlp.conf).
 RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
     && adduser -D -u 1000 tubestop \
@@ -31,7 +18,8 @@ RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
     && chown tubestop:tubestop /data /media /cache
 COPY --from=ytdlp /yt-dlp /usr/local/bin/yt-dlp
 COPY yt-dlp.conf /etc/yt-dlp.conf
-COPY --from=app /tube-stop /usr/local/bin/tube-stop
+# The compiled app, one file per architecture: see the README for how to make it.
+COPY dist/image/${TARGETARCH} /usr/local/bin/tube-stop
 
 ENV DATA_DIR=/data \
     MEDIA_DIR=/media \

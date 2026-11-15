@@ -4,9 +4,10 @@ node_modules
 data
 media
 cache
+src
 tests
-**/*.test.ts
-**/test-helpers.ts
 bunfig.toml
+dist/*
+!dist/image
 Dockerfile
 .dockerignore
