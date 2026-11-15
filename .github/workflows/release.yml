@@ -124,7 +124,7 @@ jobs:
           export DATA_DIR=./data MEDIA_DIR=./media CACHE_DIR=./cache HOST=127.0.0.1 PORT=18080 YTDLP_BIN=true
           "$GITHUB_WORKSPACE/dist/tube-stop-linux-x64" > log 2>&1 &
           for _ in $(seq 20); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.5; done
-          for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /player.js; do
+          for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /player.js /player.css; do
             curl -sf -o /dev/null "http://127.0.0.1:18080$path" || { echo "$path failed"; cat log; exit 1; }
           done
           kill %1
@@ -178,7 +178,7 @@ jobs:
           docker run --rm --entrypoint sh tube-stop:test -c 'yt-dlp --version && ffmpeg -version | head -n 1'
           docker run -d --name tube-stop-test -p 18080:8080 tube-stop:test
           for _ in $(seq 20); do curl -sf -o /dev/null http://127.0.0.1:18080/ && break; sleep 0.5; done
-          for path in / /admin/setup /static/style.css /player.js; do
+          for path in / /admin/setup /static/style.css /player.js /player.css; do
             curl -sf -o /dev/null "http://127.0.0.1:18080$path" || { echo "$path failed"; docker logs tube-stop-test; exit 1; }
           done
           docker exec tube-stop-test tube-stop reset-admin
