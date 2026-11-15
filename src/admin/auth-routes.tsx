@@ -156,9 +156,7 @@ export function authRoutes(services: Services): {
     try {
       updatePassword(store, user.id, await hashPassword(hasher, password));
     } catch (error) {
-      services.log(
-        `web: upgrade password hash of "${user.username}": ${error instanceof Error ? error.message : error}`,
-      );
+      services.log(`web: upgrade password hash of "${user.username}": ${error.message}`);
     }
   };
 

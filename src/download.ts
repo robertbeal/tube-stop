@@ -35,10 +35,6 @@ export interface DownloadConfig {
   cacheMaxBytes: number;
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Downloads pinned videos and watch-once cache copies, and keeps the cache within its limits. */
 export interface DownloadWorker {
   store: Store;
@@ -86,8 +82,8 @@ async function loop(
   }
 }
 
-function logFailure(worker: DownloadWorker, error: unknown): false {
-  worker.log(`download: ${describe(error)}`);
+function logFailure(worker: DownloadWorker, error: Error): false {
+  worker.log(`download: ${error.message}`);
   return false;
 }
 
@@ -122,11 +118,11 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
       worker.log(`download: pinned ${id} -> ${path}`);
     }
   } catch (error) {
-    worker.log(`download: ${id} failed: ${describe(error)}`);
+    worker.log(`download: ${id} failed: ${error.message}`);
     if (signal.aborted) {
       return false;
     }
-    failDownload(worker.store, id, describe(error));
+    failDownload(worker.store, id, error.message);
   }
   return true;
 }
@@ -148,11 +144,11 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
       await discard(worker, worker.config.cacheDir, path); // removed while downloading
     }
   } catch (error) {
-    worker.log(`cache: ${id} failed: ${describe(error)}`);
+    worker.log(`cache: ${id} failed: ${error.message}`);
     if (signal.aborted) {
       return false;
     }
-    failCache(worker.store, id, describe(error));
+    failCache(worker.store, id, error.message);
   }
   return true;
 }

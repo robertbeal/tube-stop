@@ -23,10 +23,6 @@ import { AdminPage } from "./views.tsx";
 
 const resolveTimeoutMs = 90 * 1000;
 
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Runs a store change; a missing row or other failure becomes the message to show the admin. */
 function messageFrom<Result>(
   change: () => Result,
@@ -34,7 +30,7 @@ function messageFrom<Result>(
   try {
     return { ok: true, value: change() };
   } catch (error) {
-    return { ok: false, message: describe(error) };
+    return { ok: false, message: error.message };
   }
 }
 
@@ -78,7 +74,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     const signal = AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(resolveTimeoutMs)]);
     const resolved = await services.resolveUrl(url, signal).then(
       (value) => ({ ok: true as const, value }),
-      (error) => ({ ok: false as const, message: describe(error) }),
+      (error) => ({ ok: false as const, message: error.message }),
     );
     if (!resolved.ok) {
       return redirectWithMessage(context, `Could not read that URL: ${resolved.message}`);
@@ -121,7 +117,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     return redirectWithMessage(
       context,
       failures.length > 0
-        ? `Channel removed, but some cached files could not be deleted: ${failures.map(describe).join("; ")}`
+        ? `Channel removed, but some cached files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`
         : "Channel removed. Pinned videos from it were kept.",
     );
   });
@@ -149,7 +145,7 @@ type ActionOutcome = "unknown-action" | { message: string };
 
 function withFileFailures(message: string, failures: Error[]): string {
   return failures.length > 0
-    ? `Done, but some files could not be deleted: ${failures.map(describe).join("; ")}`
+    ? `Done, but some files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`
     : message;
 }
 
@@ -190,7 +186,7 @@ async function videoAction(services: Services, action: string, id: VideoId): Pro
           ? []
           : await removeThumbnail(services.thumbnailDir, id).then(
               () => [],
-              (error: unknown) => [error instanceof Error ? error : new Error(String(error))],
+              (error) => [error],
             )),
       ];
       const message = blocked

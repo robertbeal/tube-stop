@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     try {
       return loadConfig(process.env);
     } catch (error) {
-      throw new Error(`invalid configuration:\n${error instanceof Error ? error.message : error}`);
+      throw new Error(`invalid configuration:\n${error.message}`);
     }
   })();
   const [command] = process.argv.slice(2);
@@ -87,6 +87,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(error.message);
   process.exit(1);
 });

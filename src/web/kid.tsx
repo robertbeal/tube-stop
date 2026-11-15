@@ -132,7 +132,7 @@ export function kidRoutes(services: Services): Hono {
       }
       return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
     } catch (error) {
-      services.log(`web: thumbnail of ${video.youtubeId}: ${error instanceof Error ? error.message : error}`);
+      services.log(`web: thumbnail of ${video.youtubeId}: ${error.message}`);
       return context.text("thumbnail unavailable", 502);
     }
   });

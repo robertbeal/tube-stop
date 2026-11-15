@@ -43,7 +43,7 @@ export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void
       await syncChannel(syncer, channel, signal);
     }
   } catch (error) {
-    syncer.log(`sync: ${describe(error)}`);
+    syncer.log(`sync: ${error.message}`);
   }
 }
 
@@ -58,7 +58,7 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
     markChannelSynced(syncer.store, channel.youtubeId);
     syncer.log(`sync: ${channel.name}: ${listed.length} videos`);
   } catch (error) {
-    syncer.log(`sync: ${channel.name}: ${describe(error)}`);
+    syncer.log(`sync: ${channel.name}: ${error.message}`);
   }
 }
 
@@ -73,10 +73,6 @@ function insertSyncedVideo(syncer: Syncer, channel: Channel, video: Video): void
       publishedAt: video.publishedAt,
     });
   } catch (error) {
-    syncer.log(`sync: insert ${video.id}: ${describe(error)}`);
+    syncer.log(`sync: insert ${video.id}: ${error.message}`);
   }
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

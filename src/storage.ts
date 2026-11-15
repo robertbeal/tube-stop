@@ -10,7 +10,7 @@ async function removeQuietly(path: string): Promise<Error | undefined> {
     await rm(path, { force: true });
     return undefined;
   } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
+    return error;
   }
 }
 
