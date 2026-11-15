@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
 import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
-import { downloadThumbnail, thumbnailPath } from "../thumbnails.ts";
+import { downloadThumbnail } from "../thumbnails.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
 import { serveFile } from "./files.ts";
 import { kidPageSize, listLink, loadPage, requestedPage } from "./paging.ts";
@@ -126,7 +126,7 @@ export function kidRoutes(services: Services): Hono {
       return context.notFound();
     }
     try {
-      const path = (await pinnedThumbnail(video)) || thumbnailPath(services.thumbnailDir, video.youtubeId);
+      const path = (await pinnedThumbnail(video)) || join(services.thumbnailDir, `${video.youtubeId}.jpg`);
       if (!(await exists(path))) {
         await downloadThumbnail(services.thumbnailDir, video.youtubeId, context.req.raw.signal);
       }

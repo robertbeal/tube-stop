@@ -2,7 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory, testVideoId } from "./test-helpers.ts";
-import { downloadThumbnail, removeThumbnail, thumbnailPath } from "./thumbnails.ts";
+import { downloadThumbnail, removeThumbnail } from "./thumbnails.ts";
 
 const neverAborted = new AbortController().signal;
 
@@ -25,22 +25,6 @@ function imageServer(handler: Handler = jpeg) {
   return { requested };
 }
 
-describe("thumbnailPath", () => {
-  test("is where the thumbnail is saved, named by the video id", () => {
-    expect(thumbnailPath("/data/thumbs", videoId)).toBe(`/data/thumbs/${videoId}.jpg`);
-  });
-
-  test("does not fetch or create anything", async () => {
-    const directory = await temporaryDirectory();
-    const server = imageServer();
-
-    thumbnailPath(directory, videoId);
-
-    expect(server.requested).toEqual([]);
-    expect(await readdir(directory)).toEqual([]);
-  });
-});
-
 describe("downloadThumbnail", () => {
   test("fetches the thumbnail, saves it at its path and returns that path", async () => {
     const directory = await temporaryDirectory();
@@ -48,7 +32,7 @@ describe("downloadThumbnail", () => {
 
     const path = await downloadThumbnail(directory, videoId, neverAborted);
 
-    expect(path).toBe(thumbnailPath(directory, videoId));
+    expect(path).toBe(join(directory, `${videoId}.jpg`));
     expect(await Bun.file(path).text()).toBe("JPEG-BYTES");
     expect(server.requested).toHaveLength(1);
   });
