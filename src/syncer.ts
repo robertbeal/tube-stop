@@ -4,55 +4,62 @@ import { getChannels, markChannelSynced } from "./db/channels.ts";
 import type { Channel } from "./db/types.ts";
 import { insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
-import type { Video } from "./ytdlp/types.ts";
+import type { GetChannelVideos } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
 const recentVideos = 50;
 const perChannelTimeoutMs = 3 * 60 * 1000;
 
-/** Copies the recent videos of each allowed channel into the database, on a schedule. */
-export type Syncer = {
-    database: Database;
-    getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
-    intervalMs: number;
-};
-
 /** Syncs once straight away, then on every interval, until `signal` aborts. */
-export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void> {
-    await syncChannels(syncer, signal);
+export async function runSync(
+    database: Database,
+    getChannelVideos: GetChannelVideos,
+    intervalMs: number,
+    signal: AbortSignal,
+): Promise<void> {
+    await syncChannels(database, getChannelVideos, signal);
     while (!signal.aborted) {
-        await delay(syncer.intervalMs, undefined, { signal }).catch(() => undefined);
-        await syncChannels(syncer, signal);
+        await delay(intervalMs, undefined, { signal }).catch(() => undefined);
+        await syncChannels(database, getChannelVideos, signal);
     }
 }
 
 /** Syncs every channel. It never rejects, because it also runs on its own when the admin asks for a sync. */
-export async function syncChannels(syncer: Syncer, signal: AbortSignal): Promise<void> {
+export async function syncChannels(
+    database: Database,
+    getChannelVideos: GetChannelVideos,
+    signal: AbortSignal,
+): Promise<void> {
     if (signal.aborted) {
         return;
     }
 
     try {
-        for (const channel of getChannels(syncer.database)) {
+        for (const channel of getChannels(database)) {
             if (signal.aborted) {
                 return;
             }
-            await syncChannel(syncer, channel, signal);
+            await syncChannel(database, getChannelVideos, channel, signal);
         }
     } catch (error) {
         logger.error(`sync: ${error.message}`);
     }
 }
 
-async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal): Promise<void> {
+async function syncChannel(
+    database: Database,
+    getChannelVideos: GetChannelVideos,
+    channel: Channel,
+    signal: AbortSignal,
+): Promise<void> {
     const timeout = AbortSignal.any([signal, AbortSignal.timeout(perChannelTimeoutMs)]);
 
     try {
-        const videos = await syncer.getChannelVideos(channel.youtubeId, recentVideos, timeout);
+        const videos = await getChannelVideos(channel.youtubeId, recentVideos, timeout);
 
         for (const video of videos.toReversed()) {
             try {
-                insertVideo(syncer.database, {
+                insertVideo(database, {
                     youtubeId: video.id,
                     channelYoutubeId: channel.youtubeId,
                     channelName: channel.name,
@@ -64,7 +71,7 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
                 logger.error(`sync: insert ${video.id}: ${error.message}`);
             }
         }
-        markChannelSynced(syncer.database, channel.youtubeId);
+        markChannelSynced(database, channel.youtubeId);
         logger.info(`sync: ${channel.name}: ${videos.length} videos`);
     } catch (error) {
         logger.error(`sync: ${channel.name}: ${error.message}`);
