@@ -26,7 +26,7 @@ export function createFirstUser(store: Store, username: string, passwordHash: st
                 .query<unknown, SQLQueryBindings[]>(
                     "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
                 )
-                .run(username, passwordHash, store.now());
+                .run(username, passwordHash, Math.floor(Date.now() / 1000));
             return { id: Number(result.lastInsertRowid), username, passwordHash };
         })
         .immediate();

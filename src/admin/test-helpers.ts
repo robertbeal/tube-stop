@@ -86,7 +86,6 @@ export function withHasher(environment: Environment, hasher: PasswordHasher): En
         mediaDir: environment.mediaDir,
         cacheDir: environment.cacheDir,
         hasher,
-        now: () => environment.clock.milliseconds,
     });
     return { ...environment, app };
 }

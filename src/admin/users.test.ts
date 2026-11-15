@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { randomVideoId } from "../../tests/helpers.ts";
+import { randomVideoId, testStartSeconds } from "../../tests/helpers.ts";
 import { AlreadySetUpError, allowVideo, NotFoundError } from "../db/store.ts";
-import { fixedNow, newVideo, openTestDatabase, videoOf } from "../db/test-helpers.ts";
+import { newVideo, openTestDatabase, videoOf } from "../db/test-helpers.ts";
 import { countUsers, createFirstUser, deleteUsers, getUserById, getUserByUsername, updatePassword } from "./users.ts";
 
 describe("admin accounts", () => {
@@ -18,7 +18,7 @@ describe("admin accounts", () => {
         const { store, raw } = await openTestDatabase();
         createFirstUser(store, "parent", "hash");
         const row = raw.query<{ created_at: number }, []>("SELECT created_at FROM users").get();
-        expect(row?.created_at).toBe(fixedNow);
+        expect(row?.created_at).toBe(testStartSeconds);
     });
 
     test("creating a user is refused once an account exists", async () => {

@@ -95,6 +95,4 @@ export class AlreadySetUpError extends Error {
 /** The Tube Stop database: curated channels and videos, download and cache state, and admin accounts. */
 export type Store = {
     database: Database;
-    /** The current time in unix seconds; tests replace it. */
-    now: () => number;
 };

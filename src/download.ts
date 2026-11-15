@@ -141,13 +141,13 @@ async function discard(root: string, path: string): Promise<void> {
  * Evicts cached copies that are redundant (the video is pinned and downloaded), stale (not
  * played within the TTL), or over the size budget (least recently played first).
  */
-export async function janitor(worker: DownloadWorker, now: number = Date.now()): Promise<void> {
+export async function janitor(worker: DownloadWorker): Promise<void> {
     const inspected = await Promise.all(
         getCacheEntries(worker.store).map(async (video) => ({ video, size: await fileSize(video.cachePath) })),
     );
     const vanished = inspected.filter(({ size }) => size === undefined);
     const present = inspected.flatMap(({ video, size }) => (size === undefined ? [] : [{ video, size }]));
-    const expired = present.filter(({ video }) => isRedundant(video) || isStale(worker, video, now));
+    const expired = present.filter(({ video }) => isRedundant(video) || isStale(worker, video));
     const survivors = present.filter((entry) => !expired.includes(entry));
 
     for (const { video } of vanished) {
@@ -159,8 +159,8 @@ export async function janitor(worker: DownloadWorker, now: number = Date.now()):
 
 const isRedundant = (video: Video): boolean => video.pinned && video.downloadStatus === "ready";
 
-const isStale = (worker: DownloadWorker, video: Video, now: number): boolean =>
-    now - video.lastPlayedAt * 1000 > worker.config.cacheTtlMs;
+const isStale = (worker: DownloadWorker, video: Video): boolean =>
+    Date.now() - video.lastPlayedAt * 1000 > worker.config.cacheTtlMs;
 
 async function evict(worker: DownloadWorker, video: Video): Promise<void> {
     logger.info(`janitor: evicting ${video.youtubeId}`);

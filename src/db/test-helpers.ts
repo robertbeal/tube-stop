@@ -19,8 +19,6 @@ import {
 
 export const everything = { limit: 1000, offset: 0 };
 
-export const fixedNow = 1_700_000_000;
-
 export function newVideo(channelYoutubeId: string, overrides: Partial<NewVideo> = {}): NewVideo {
     return {
         youtubeId: randomVideoId(),
@@ -74,8 +72,8 @@ export type TestDatabase = {
     raw: Database;
 };
 
-export async function openTestDatabase(now?: () => number): Promise<TestDatabase> {
+export async function openTestDatabase(): Promise<TestDatabase> {
     const path = join(await temporaryDirectory(), "test.db");
-    const store = openStore(path, now ?? (() => fixedNow));
+    const store = openStore(path);
     return { path, store, raw: new Database(path, { strict: true }) };
 }

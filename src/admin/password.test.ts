@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { adminPassword, adminUsername, advanceClock, buildEnvironment, logIn, send } from "../web/harness.ts";
+import { advanceTime } from "../../tests/helpers.ts";
+import { adminPassword, adminUsername, buildEnvironment, logIn, send } from "../web/harness.ts";
 import { changeForm, changePassword, replacementPassword, tryLogIn } from "./test-helpers.ts";
 import { getUserByUsername } from "./users.ts";
 
@@ -75,7 +76,7 @@ describe("changing the password", () => {
         );
         expect(limited).toContain("Too many");
         expect(await tryLogIn(environment, adminUsername, replacementPassword)).toBeUndefined();
-        advanceClock(environment.clock, 61 * 1000);
+        advanceTime(61 * 1000);
         const later = await changePassword(
             environment,
             cookie,

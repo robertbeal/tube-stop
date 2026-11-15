@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
+import { randomVideoId, temporaryDirectory, testStartSeconds } from "../../tests/helpers.ts";
 import { countUsers } from "../admin/users.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import {
@@ -40,7 +40,6 @@ import {
     cacheFile,
     channelIdOf,
     everything,
-    fixedNow,
     idsOf,
     keepFile,
     newVideo,
@@ -236,7 +235,7 @@ describe("channels", () => {
         insertChannel(store, "chan", "Piano");
         expect(getChannels(store)[0]?.lastSyncedAt).toBe(0);
         markChannelSynced(store, "chan");
-        expect(getChannels(store)[0]?.lastSyncedAt).toBe(fixedNow);
+        expect(getChannels(store)[0]?.lastSyncedAt).toBe(testStartSeconds);
     });
 });
 
@@ -248,7 +247,7 @@ describe("recording plays", () => {
         recordPlay(store, video.youtubeId);
         recordPlay(store, video.youtubeId);
         const played = videoOf(store, video.youtubeId);
-        expect([played.playCount, played.lastPlayedAt]).toEqual([2, fixedNow]);
+        expect([played.playCount, played.lastPlayedAt]).toEqual([2, testStartSeconds]);
     });
 });
 
@@ -434,7 +433,7 @@ describe("watch-once cache", () => {
         allowVideo(store, video);
         requestCache(store, video.youtubeId);
         const requested = videoOf(store, video.youtubeId);
-        expect([requested.lastPlayedAt, requested.playCount]).toEqual([fixedNow, 0]);
+        expect([requested.lastPlayedAt, requested.playCount]).toEqual([testStartSeconds, 0]);
     });
 
     test("claiming serves the most recently played first", async () => {

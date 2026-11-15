@@ -1,7 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setSystemTime, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { randomVideoId, temporaryDirectory, stubYtDlp as writeStub } from "../tests/helpers.ts";
+import { randomVideoId, temporaryDirectory, testStart, stubYtDlp as writeStub } from "../tests/helpers.ts";
 import {
     allowVideo,
     claimCache,
@@ -30,7 +30,6 @@ import type { VideoId } from "./ytdlp/types.ts";
 const neverAborted = new AbortController().signal;
 const hour = 60 * 60 * 1000;
 const day = 24 * hour;
-const baseTimeSeconds = 2_000_000_000;
 
 async function writeFile(path: string, size: number): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
@@ -99,13 +98,10 @@ type Fixture = {
     store: Store;
     config: DownloadConfig;
     workerWith(fetcher: Fetcher, overrides?: Partial<DownloadConfig>): DownloadWorker;
-    /** Moves the store's clock, which stamps cache requests as played. */
-    setTime(unixSeconds: number): void;
 };
 
 async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fixture> {
-    const clock = { now: baseTimeSeconds };
-    const store = openStore(join(await temporaryDirectory(), "tubestop.db"), () => clock.now);
+    const store = openStore(join(await temporaryDirectory(), "tubestop.db"));
     const config: DownloadConfig = {
         mediaDir: await temporaryDirectory(),
         cacheDir: await temporaryDirectory(),
@@ -122,9 +118,6 @@ async function newFixture(cacheTtlMs: number, cacheMaxBytes: number): Promise<Fi
             downloadToCache: fetcher.downloadToCache,
             config: { ...config, ...overrides },
         }),
-        setTime: (unixSeconds) => {
-            clock.now = unixSeconds;
-        },
     };
 }
 
@@ -149,22 +142,22 @@ async function addCached(fixture: Fixture, size: number, playedAgoMs: number) {
     const path = join(fixture.config.cacheDir, `${id}.mp4`);
     await writeFile(path, size);
     addVideo(fixture.store, id);
-    fixture.setTime(baseTimeSeconds - Math.round(playedAgoMs / 1000));
+    setSystemTime(new Date(testStart.getTime() - playedAgoMs));
     requestCache(fixture.store, id);
     claimCache(fixture.store);
     finishCache(fixture.store, id, path);
+    setSystemTime(testStart);
     return { id, path };
 }
 
 const cacheStatus = (fixture: Fixture, id: VideoId) => getVideo(fixture.store, id)?.cacheStatus;
-const janitorTime = baseTimeSeconds * 1000;
 
 describe("janitor", () => {
     test("keeps recent files under the budget", async () => {
         const fixture = await newFixture(7 * day, 1 << 20);
         const { id, path } = await addCached(fixture, 100, hour);
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(await exists(path)).toBe(true);
         expect(cacheStatus(fixture, id)).toBe("ready");
@@ -175,7 +168,7 @@ describe("janitor", () => {
         const stale = await addCached(fixture, 100, 8 * day);
         const fresh = await addCached(fixture, 100, 6 * day);
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(await exists(stale.path)).toBe(false);
         expect(cacheStatus(fixture, stale.id)).toBe("none");
@@ -189,7 +182,7 @@ describe("janitor", () => {
         const middle = await addCached(fixture, 100, 2 * hour);
         const newest = await addCached(fixture, 100, hour);
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(await exists(oldest.path)).toBe(false);
         expect(cacheStatus(fixture, oldest.id)).toBe("none");
@@ -206,7 +199,7 @@ describe("janitor", () => {
         claimDownload(fixture.store);
         finishDownload(fixture.store, id, join(fixture.config.mediaDir, "kept.mp4"));
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(await exists(path)).toBe(false);
         expect(cacheStatus(fixture, id)).toBe("none");
@@ -217,7 +210,7 @@ describe("janitor", () => {
         const { id, path } = await addCached(fixture, 100, 60_000);
         pinVideo(fixture.store, id);
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(await exists(path)).toBe(true);
         expect(cacheStatus(fixture, id)).toBe("ready");
@@ -228,7 +221,7 @@ describe("janitor", () => {
         const { id, path } = await addCached(fixture, 100, 60_000);
         await rm(path);
 
-        await janitor(fixture.workerWith(neverCalled), janitorTime);
+        await janitor(fixture.workerWith(neverCalled));
 
         expect(cacheStatus(fixture, id)).toBe("none");
     });

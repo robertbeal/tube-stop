@@ -87,15 +87,13 @@ const videoColumns = `v.youtube_id, v.channel_yt_id, v.channel_name, v.title, v.
 // Videos with a known publish date come first, newest first; the rest follow in the order they were added.
 const newestFirst = "ORDER BY v.published_at DESC, v.id DESC";
 
-const unixSeconds = () => Math.floor(Date.now() / 1000);
-
-export function openStore(path: string, now: () => number = unixSeconds): Store {
+export function openStore(path: string): Store {
     const database = new Database(path, { create: true, strict: true });
     database.run("PRAGMA busy_timeout = 5000");
     database.run("PRAGMA journal_mode = WAL");
     database.run("PRAGMA foreign_keys = ON");
     migrate(database);
-    return { database, now };
+    return { database };
 }
 
 export function closeStore(store: Store): void {
@@ -179,7 +177,10 @@ export function deleteChannel(store: Store, id: number): string[] {
 }
 
 export function markChannelSynced(store: Store, youtubeId: string): void {
-    store.database.run("UPDATE channels SET last_synced_at = ? WHERE youtube_id = ?", [store.now(), youtubeId]);
+    store.database.run("UPDATE channels SET last_synced_at = ? WHERE youtube_id = ?", [
+        Math.floor(Date.now() / 1000),
+        youtubeId,
+    ]);
 }
 
 /** Channels that have at least one watchable video. */
@@ -276,7 +277,7 @@ export function getAdminVideos(store: Store, channelYoutubeId: string, page: Pag
 /** Counts a play and stamps the last-played time used for cache eviction. */
 export function recordPlay(store: Store, youtubeId: VideoId): void {
     store.database.run("UPDATE videos SET play_count = play_count + 1, last_played_at = ? WHERE youtube_id = ?", [
-        store.now(),
+        Math.floor(Date.now() / 1000),
         youtubeId,
     ]);
 }
@@ -402,7 +403,7 @@ export function requestCache(store: Store, youtubeId: VideoId): void {
     store.database.run(
         `UPDATE videos SET cache_status = 'queued', cache_error = '', last_played_at = ?
      WHERE youtube_id = ? AND cache_status IN ('none','failed')`,
-        [store.now(), youtubeId],
+        [Math.floor(Date.now() / 1000), youtubeId],
     );
 }
 

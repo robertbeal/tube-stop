@@ -59,7 +59,6 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
                 pages={pages}
                 mediaBytes={mediaBytes}
                 cacheBytes={cacheBytes}
-                nowMs={services.now()}
             />,
         );
     });

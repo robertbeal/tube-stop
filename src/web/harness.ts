@@ -12,21 +12,9 @@ import { createApp } from "./app.tsx";
 export const adminUsername = "parent";
 export const adminPassword = "correct horse battery";
 
-/** A clock the test can move. */
-export type FakeClock = {
-    milliseconds: number;
-};
-
-export const createFakeClock = (): FakeClock => ({ milliseconds: Date.UTC(2026, 0, 1, 12, 0, 0) });
-
-export function advanceClock(clock: FakeClock, milliseconds: number): void {
-    clock.milliseconds += milliseconds;
-}
-
 export type Environment = {
     app: Hono;
     store: Store;
-    clock: FakeClock;
     mediaDir: string;
     cacheDir: string;
     thumbDir: string;
@@ -55,8 +43,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
     const mediaDir = join(directory, "media");
     const cacheDir = join(directory, "cache");
     const thumbDir = join(directory, "thumbs");
-    const clock = createFakeClock();
-    const store = openStore(join(directory, "tubestop.db"), () => Math.floor(clock.milliseconds / 1000));
+    const store = openStore(join(directory, "tubestop.db"));
     const hasher = createPasswordHasher(4); // the cheapest bcrypt keeps tests fast
     const admin =
         options.withAdmin === false
@@ -91,9 +78,8 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
         cacheDir,
         hasher,
         sessionLifetimeMs: options.sessionLifetimeMs,
-        now: () => clock.milliseconds,
     });
-    return { app, store, clock, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
+    return { app, store, mediaDir, cacheDir, thumbDir, logs, triggers, imageServer, resolved, admin };
 }
 
 export type RequestOptions = {

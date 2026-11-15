@@ -31,14 +31,12 @@ const crossOriginProtection = createMiddleware(async (context, next) => {
 });
 
 function withDefaults(dependencies: WebDependencies): Services {
-    const now = dependencies.now ?? Date.now;
     return {
         ...dependencies,
         hasher: dependencies.hasher ?? createPasswordHasher(),
         sessionLifetimeMs: dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs,
-        now,
-        sessions: createSessions(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs, now),
-        limiter: createLoginLimiter(now),
+        sessions: createSessions(dependencies.sessionLifetimeMs ?? defaultSessionLifetimeMs),
+        limiter: createLoginLimiter(),
         setupCode: { code: "" },
     };
 }

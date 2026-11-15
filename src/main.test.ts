@@ -46,7 +46,7 @@ function start(env: Record<string, string>, ...commandArguments: string[]): Chil
 }
 
 async function untilListening(port: number, child: Child): Promise<void> {
-    const deadline = Date.now() + 15_000;
+    const deadline = performance.now() + 15_000;
     const attempt = async (): Promise<void> => {
         if (child.exitCode !== null) {
             throw new Error(`app exited early with ${child.exitCode}: ${await new Response(child.stderr).text()}`);
@@ -58,7 +58,7 @@ async function untilListening(port: number, child: Child): Promise<void> {
         if (reachable) {
             return;
         }
-        if (Date.now() > deadline) {
+        if (performance.now() > deadline) {
             throw new Error("app did not start listening in time");
         }
         await Bun.sleep(50);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import { testVideoId } from "../../tests/helpers.ts";
+import { advanceTime, testVideoId } from "../../tests/helpers.ts";
 import {
     allowVideo,
     claimDownload,
@@ -15,7 +15,7 @@ import {
     markChannelSynced,
     pinVideo,
 } from "../db/store.ts";
-import { advanceClock, allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
+import { allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 import {
     allowPianoVideo,
     countOccurrences,
@@ -290,7 +290,7 @@ describe("the admin page", () => {
             publishedAt: 0,
         });
         markChannelSynced(environment.store, "UC1");
-        advanceClock(environment.clock, 2 * 60 * 60 * 1000);
+        advanceTime(2 * 60 * 60 * 1000);
 
         const body = await adminPage(environment);
 

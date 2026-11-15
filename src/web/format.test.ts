@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { testStartSeconds } from "../../tests/helpers.ts";
 import { formatDuration, humanBytes, timeAgo } from "./format.ts";
 
 describe("humanBytes", () => {
@@ -32,8 +33,7 @@ describe("formatDuration", () => {
 });
 
 describe("timeAgo", () => {
-    const nowMs = Date.UTC(2026, 10, 14, 12, 0, 0);
-    const secondsBefore = (seconds: number) => nowMs / 1000 - seconds;
+    const secondsBefore = (seconds: number) => testStartSeconds - seconds;
     const minute = 60;
     const hour = 60 * minute;
     const day = 24 * hour;
@@ -53,6 +53,6 @@ describe("timeAgo", () => {
         ["two days", secondsBefore(49 * hour), "2 days ago"],
         ["long ago", secondsBefore(400 * day), "400 days ago"],
     ])("%s", (_name, unixSeconds, expected) => {
-        expect(timeAgo(nowMs, unixSeconds)).toBe(expected);
+        expect(timeAgo(unixSeconds)).toBe(expected);
     });
 });

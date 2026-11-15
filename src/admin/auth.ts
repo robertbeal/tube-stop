@@ -21,19 +21,14 @@ type Session = {
 export type Sessions = {
     byToken: Map<string, Session>;
     lifetimeMs: number;
-    now: () => number;
 };
 
-export const createSessions = (lifetimeMs: number, now: () => number): Sessions => ({
-    byToken: new Map(),
-    lifetimeMs,
-    now,
-});
+export const createSessions = (lifetimeMs: number): Sessions => ({ byToken: new Map(), lifetimeMs });
 
 /** Starts a session for a user and returns its random token and when it expires. */
 export function createSession(sessions: Sessions, userId: number): { token: string; expiresAt: number } {
     const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
-    const now = sessions.now();
+    const now = Date.now();
     for (const [existing, session] of sessions.byToken) {
         if (now >= session.expiresAt) {
             sessions.byToken.delete(existing); // keeps the map from growing forever
@@ -50,7 +45,7 @@ export function lookupSession(sessions: Sessions, token: string): number | undef
     if (session === undefined) {
         return undefined;
     }
-    if (sessions.now() >= session.expiresAt) {
+    if (Date.now() >= session.expiresAt) {
         sessions.byToken.delete(token);
         return undefined;
     }
@@ -77,13 +72,12 @@ export function removeOtherSessions(sessions: Sessions, userId: number, keep: st
  */
 export type LoginLimiter = {
     failures: number[];
-    now: () => number;
 };
 
-export const createLoginLimiter = (now: () => number): LoginLimiter => ({ failures: [], now });
+export const createLoginLimiter = (): LoginLimiter => ({ failures: [] });
 
 const recentFailures = (limiter: LoginLimiter): number[] => {
-    const cutoff = limiter.now() - failedLoginWindowMs;
+    const cutoff = Date.now() - failedLoginWindowMs;
     return limiter.failures.filter((failure) => failure > cutoff);
 };
 
@@ -94,7 +88,7 @@ export function isLoginBlocked(limiter: LoginLimiter): boolean {
 }
 
 export function recordLoginFailure(limiter: LoginLimiter): void {
-    limiter.failures = [...recentFailures(limiter), limiter.now()];
+    limiter.failures = [...recentFailures(limiter), Date.now()];
 }
 
 /** Typed codes are forgiving: case, spaces and the dash do not matter. */

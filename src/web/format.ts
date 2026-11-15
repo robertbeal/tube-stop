@@ -25,14 +25,14 @@ function pluralAgo(count: number, unit: string): string {
 }
 
 /**
- * Describes how long before `nowMs` a unix time (seconds) was, in the largest sensible unit:
+ * Describes how long before now a unix time (seconds) was, in the largest sensible unit:
  * "never" for 0, then "just now", "5 minutes ago", "3 hours ago", "2 days ago".
  */
-export function timeAgo(nowMs: number, unixSeconds: number): string {
+export function timeAgo(unixSeconds: number): string {
     if (unixSeconds === 0) {
         return "never";
     }
-    const elapsedSeconds = (nowMs - unixSeconds * 1000) / 1000;
+    const elapsedSeconds = Date.now() / 1000 - unixSeconds;
     if (elapsedSeconds < 60) {
         return "just now"; // includes times slightly in the future from clock differences
     }

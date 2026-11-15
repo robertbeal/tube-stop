@@ -13,7 +13,6 @@ export type AdminProps = {
     pages: Pagination;
     mediaBytes: number;
     cacheBytes: number;
-    nowMs: number;
 };
 
 const PostButton: FC<{ action: string; buttonClass: string; inline?: boolean; label: string }> = ({
@@ -199,7 +198,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
                                     </a>
                                 </td>
                                 <td>{channel.videoCount}</td>
-                                <td>{timeAgo(props.nowMs, channel.lastSyncedAt)}</td>
+                                <td>{timeAgo(channel.lastSyncedAt)}</td>
                                 <td class="text-end">
                                     <PostButton
                                         action={`/admin/channels/${channel.id}/remove`}

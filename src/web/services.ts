@@ -19,8 +19,6 @@ export type WebDependencies = {
     hasher?: PasswordHasher;
     /** How long an admin login lasts; 30 days if omitted. */
     sessionLifetimeMs?: number;
-    /** The current time in milliseconds; the real clock if omitted. Tests replace it. */
-    now?: () => number;
 };
 
 /** The dependencies with defaults filled in, plus the state the web layer keeps itself. */
