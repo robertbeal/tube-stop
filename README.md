@@ -58,6 +58,11 @@ updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volume
     docker build -t tube-stop .
     docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
 
+The image has Bun, `ffmpeg`, QuickJS and the newest `yt-dlp` as of the build. Docker reuses the cached
+`yt-dlp` layer, so add `--no-cache` to fetch a newer one. It builds for `linux/amd64` and `linux/arm64`:
+
+    docker buildx build --platform linux/amd64,linux/arm64 -t tube-stop .
+
 ## Admin accounts
 
 **First run.** There is no default password. While no admin account exists, `/admin` leads to a
