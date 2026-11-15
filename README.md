@@ -63,6 +63,13 @@ in the `Dockerfile` (or pass `--build-arg YTDLP_VERSION=...`) and rebuild. The i
 
     docker buildx build --platform linux/amd64,linux/arm64 -t tube-stop .
 
+**Automatic builds.** `.github/workflows/image.yml` publishes the image to GitHub's container registry
+(`ghcr.io/<owner>/<repo>`) for both architectures. It runs on every push to `main`, nightly, and on
+demand ("Run workflow" in the Actions tab). Each run looks up the newest `yt-dlp` release and builds with it,
+tagging the image `latest`, `yt-dlp-<version>` and the commit. The nightly run does nothing unless there
+is a `yt-dlp` release the image does not have yet, so a new `yt-dlp` reaches `latest` within a day. Pull
+`latest` (for example with Watchtower) to pick it up, or pin a `yt-dlp-<version>` tag to roll back.
+
 ## Admin accounts
 
 **First run.** There is no default password. While no admin account exists, `/admin` leads to a
