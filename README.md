@@ -55,20 +55,34 @@ Requires [Bun](https://bun.sh), `yt-dlp` and `ffmpeg` on `PATH`. YouTube changes
 updated (`yt-dlp -U`, or rebuild the container image). With Docker, mount volumes for `/data`,
 `/media` and `/cache`:
 
-    docker build -t tube-stop .
+    docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
     docker run -p 8080:8080 -v tube-data:/data -v ./media:/media -v tube-cache:/cache tube-stop
 
-The image has Bun, `ffmpeg`, QuickJS and a pinned `yt-dlp`. To update `yt-dlp`, change `YTDLP_VERSION`
-in the `Dockerfile` (or pass `--build-arg YTDLP_VERSION=...`) and rebuild. The image builds for `linux/amd64` and `linux/arm64`:
+The image has Bun, `ffmpeg`, QuickJS and `yt-dlp`. The `yt-dlp` release is a required build argument, so the
+image always says exactly which one it has. It builds for `linux/amd64` and `linux/arm64`:
 
-    docker buildx build --platform linux/amd64,linux/arm64 -t tube-stop .
+    docker buildx build --build-arg YTDLP_VERSION=2026.10.26 --platform linux/amd64,linux/arm64 -t tube-stop .
 
-**Automatic builds.** `.github/workflows/image.yml` publishes the image to GitHub's container registry
-(`ghcr.io/<owner>/<repo>`) for both architectures. It runs on every push to `main`, nightly, and on
-demand ("Run workflow" in the Actions tab). Each run looks up the newest `yt-dlp` release and builds with it,
-tagging the image `latest`, `yt-dlp-<version>` and the commit. The nightly run does nothing unless there
-is a `yt-dlp` release the image does not have yet, so a new `yt-dlp` reaches `latest` within a day. Pull
-`latest` (for example with Watchtower) to pick it up, or pin a `yt-dlp-<version>` tag to roll back.
+### Published images
+
+`.github/workflows/image.yml` publishes to GitHub's container registry (`ghcr.io/<owner>/<repo>`) for both
+architectures. Releases are git tags like `v1.2.3`. Pushing one builds it with the newest `yt-dlp` and creates a
+GitHub release. The version of the image is the app's version and the `yt-dlp` inside it:
+
+| Tag | Meaning | Moves? |
+|---|---|---|
+| `1.2.3_2026.10.26` | app 1.2.3 with that `yt-dlp` | never |
+| `1.2.3` | app 1.2.3 with the newest `yt-dlp` | when `yt-dlp` updates |
+| `1.2`, `1` | the newest release in that line (no `0` tag for `0.x`) | with new releases and `yt-dlp` updates |
+| `latest` | the newest release | with new releases and `yt-dlp` updates |
+| `edge` | the latest `main`, unreleased | on every push to `main` |
+
+Every night the workflow looks up the newest `yt-dlp`. If the newest release has not been built with it, the
+workflow rebuilds that release's tag (not `main`) and moves the tags above. Nothing happens otherwise, and
+unreleased code never reaches `latest`. Pull `latest` (for example with Watchtower) to follow along, or pin a
+full tag such as `1.2.3_2026.10.26` to stay put. You can also run the workflow by hand from the Actions tab.
+
+To release: `git tag v1.2.3 && git push origin v1.2.3`.
 
 ## Admin accounts
 

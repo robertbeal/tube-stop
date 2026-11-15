@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ["v*"]
   schedule:
     - cron: "17 4 * * *"
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -19,12 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Find the newest yt-dlp
-        id: ytdlp
-        run: echo "version=$(gh api repos/yt-dlp/yt-dlp/releases/latest --jq .tag_name)" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
+        with:
+          fetch-depth: 0
 
       - uses: docker/login-action@v3
         with:
@@ -32,33 +29,80 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      # The nightly run only builds when there is a yt-dlp this image has not had yet.
-      - name: Check for an existing image
-        id: existing
+      # A pushed tag builds that release. The nightly and manual runs rebuild the newest release with the
+      # newest yt-dlp, or build `edge` if there is no release yet. A push to main builds `edge`.
+      - name: Work out what to build
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = schedule ] && docker manifest inspect "$IMAGE:yt-dlp-${{ steps.ytdlp.outputs.version }}" >/dev/null 2>&1; then
-            echo "built=true" >> "$GITHUB_OUTPUT"
+          ytdlp=$(gh api repos/yt-dlp/yt-dlp/releases/latest --jq .tag_name)
+          newest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "$tag is not a version like v1.2.3" >&2; exit 1; }
+          elif [ "$GITHUB_EVENT_NAME" != push ] && [ -n "$newest" ]; then
+            tag="$newest"
+          else
+            tag=""
           fi
 
+          skip=false
+          if [ -z "$tag" ]; then
+            tags="$IMAGE:edge"
+            ref="$GITHUB_SHA"
+          else
+            version="${tag#v}"
+            major="${version%%.*}"
+            minor="${version%.*}"
+            ref="$tag"
+            tags="$IMAGE:${version}_${ytdlp}"$'\n'"$IMAGE:$version"
+            # Only the newest release moves the floating tags.
+            if [ "$tag" = "$newest" ]; then
+              tags+=$'\n'"$IMAGE:$minor"$'\n'"$IMAGE:latest"
+              [ "$major" != 0 ] && tags+=$'\n'"$IMAGE:$major"
+            fi
+            if [ "$GITHUB_EVENT_NAME" = schedule ] && docker manifest inspect "$IMAGE:${version}_${ytdlp}" >/dev/null 2>&1; then
+              skip=true
+            fi
+          fi
+
+          {
+            echo "ytdlp=$ytdlp"
+            echo "ref=$ref"
+            echo "skip=$skip"
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out the code to build
+        if: steps.plan.outputs.skip != 'true'
+        run: git checkout --detach "${{ steps.plan.outputs.ref }}"
+
       - uses: docker/setup-qemu-action@v3
-        if: steps.existing.outputs.built != 'true'
+        if: steps.plan.outputs.skip != 'true'
       - uses: docker/setup-buildx-action@v3
-        if: steps.existing.outputs.built != 'true'
+        if: steps.plan.outputs.skip != 'true'
 
       - uses: docker/build-push-action@v6
-        if: steps.existing.outputs.built != 'true'
+        if: steps.plan.outputs.skip != 'true'
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: YTDLP_VERSION=${{ steps.ytdlp.outputs.version }}
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:yt-dlp-${{ steps.ytdlp.outputs.version }}
-            ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: YTDLP_VERSION=${{ steps.plan.outputs.ytdlp }}
+          tags: ${{ steps.plan.outputs.tags }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            yt-dlp.version=${{ steps.ytdlp.outputs.version }}
+            org.opencontainers.image.revision=${{ steps.plan.outputs.ref }}
+            yt-dlp.version=${{ steps.plan.outputs.ytdlp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create the GitHub release
+        if: github.ref_type == 'tag'
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

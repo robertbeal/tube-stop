@@ -8,8 +8,9 @@ RUN bun install --frozen-lockfile --production
 # yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
 ARG TARGETARCH
-ARG YTDLP_VERSION=2026.10.26
-RUN case "$TARGETARCH" in amd64) asset=yt-dlp_musllinux ;; arm64) asset=yt-dlp_musllinux_aarch64 ;; esac \
+ARG YTDLP_VERSION
+RUN test -n "$YTDLP_VERSION" || { echo "pass --build-arg YTDLP_VERSION=<a yt-dlp release, like 2026.10.26>" >&2; exit 1; } \
+    && case "$TARGETARCH" in amd64) asset=yt-dlp_musllinux ;; arm64) asset=yt-dlp_musllinux_aarch64 ;; esac \
     && release="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}" \
     && wget -q "${release}/${asset}" \
     && wget -qO- "${release}/SHA2-256SUMS" | grep " ${asset}\$" | sha256sum -c \
