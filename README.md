@@ -55,6 +55,7 @@ http://localhost:8080/admin. Settings are environment variables, listed under [S
       tube-stop:
         image: ghcr.io/robertbeal/tube-stop:latest
         restart: unless-stopped
+        user: "4217:4217"   # the owner of ./tube-stop on the host
         ports:
           - "8080:8080"
         volumes:
@@ -68,8 +69,11 @@ folder per channel: point Jellyfin here, read-only) and `cache/` (watch-once cop
 To put one somewhere else, mount it over its folder, for example `./videos:/app/media`. Keeping them under one
 mount is the simplest, and lets files move between the folders instantly.
 
-The container runs as user 1000, so a folder you mount from the host must be writable by it:
-`chown 1000 tube-stop`.
+The app never runs as root. By default it runs as user 1000, but set `user:` to the owner of the folder you
+mount (as above, using your own numbers: `ls -ldn tube-stop` shows them). If the folder does not exist, Docker
+creates it owned by root, and the app stops with `cannot open the database in /app/data: EACCES`: create it
+first with `mkdir tube-stop && chown 4217:4217 tube-stop`. With a named volume instead of a host folder
+(`tube-stop:/app`), Docker gives the app ownership itself and you can leave out `user:`.
 
 The image has the app, `ffmpeg` and `yt-dlp`, for `amd64` and `arm64`. Pick a tag:
 
