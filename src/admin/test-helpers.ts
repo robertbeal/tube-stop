@@ -1,5 +1,5 @@
+import { type Environment, send } from "../../tests/harness.ts";
 import { createApp } from "../web/app.tsx";
-import { type Environment, send } from "../web/harness.ts";
 import type { PasswordHasher } from "./passwords.ts";
 
 export const newUsername = "mum";

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { allow, buildEnvironment, type Environment, logIn, send } from "../../tests/harness.ts";
 import { claimDownload, finishDownload, pinVideo } from "../shared/db/queue.ts";
 import { allowPianoVideo, makeCacheReady, videoId } from "../user/test-helpers.ts";
-import { allow, buildEnvironment, type Environment, logIn, send } from "./harness.ts";
 
 type RenderedPage = {
     name: string;

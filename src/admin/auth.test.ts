@@ -1,7 +1,15 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import {
+    adminPassword,
+    adminUsername,
+    allow,
+    buildEnvironment,
+    logIn,
+    send,
+    sessionCookie,
+} from "../../tests/harness.ts";
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
 import { getVideo } from "../shared/db/videos.ts";
-import { adminPassword, adminUsername, allow, buildEnvironment, logIn, send, sessionCookie } from "../web/harness.ts";
 import {
     createLoginLimiter,
     createSession,

@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import { allow, buildEnvironment, type Environment, logIn, send } from "../../tests/harness.ts";
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
 import { getChannels, insertChannel, markChannelSynced } from "../shared/db/channels.ts";
 import { claimDownload, failDownload, pinVideo } from "../shared/db/queue.ts";
@@ -19,7 +20,6 @@ import {
     videoId,
     writeFileWithFolders,
 } from "../user/test-helpers.ts";
-import { allow, buildEnvironment, type Environment, logIn, send } from "../web/harness.ts";
 
 async function exists(path: string): Promise<boolean> {
     return stat(path).then(

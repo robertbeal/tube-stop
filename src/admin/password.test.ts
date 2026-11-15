@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { adminPassword, adminUsername, buildEnvironment, logIn, send } from "../../tests/harness.ts";
 import { advanceTime } from "../../tests/helpers.ts";
-import { adminPassword, adminUsername, buildEnvironment, logIn, send } from "../web/harness.ts";
 import { changeForm, changePassword, replacementPassword, tryLogIn } from "./test-helpers.ts";
 import { getUserByUsername } from "./users.ts";
 

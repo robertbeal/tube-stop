@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { buildEnvironment, send, sessionCookie } from "../../tests/harness.ts";
 import { advanceTime } from "../../tests/helpers.ts";
 import { logger } from "../shared/logger.ts";
-import { buildEnvironment, send, sessionCookie } from "../web/harness.ts";
 import { clearSetupCode, currentSetupCode, type SetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./test-helpers.ts";
 import { countUsers, deleteUsers, getUserByUsername } from "./users.ts";

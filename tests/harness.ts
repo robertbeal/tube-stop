@@ -1,16 +1,16 @@
 import { spyOn } from "bun:test";
 import type { Hono } from "hono";
-import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
-import { createFirstUser } from "../admin/users.ts";
-import { config } from "../shared/config.ts";
-import type { NewVideo, User } from "../shared/db/types.ts";
-import { allowVideo } from "../shared/db/videos.ts";
-import { logger } from "../shared/logger.ts";
-import { thumbnailDir } from "../shared/thumbnails.ts";
-import * as resolveModule from "../shared/ytdlp/resolve.ts";
-import type { Resolved, VideoId } from "../shared/ytdlp/types.ts";
-import * as syncModule from "../sync/sync.ts";
-import { createApp } from "./app.tsx";
+import { createPasswordHasher, hashPassword } from "../src/admin/passwords.ts";
+import { createFirstUser } from "../src/admin/users.ts";
+import { config } from "../src/shared/config.ts";
+import type { NewVideo, User } from "../src/shared/db/types.ts";
+import { allowVideo } from "../src/shared/db/videos.ts";
+import { logger } from "../src/shared/logger.ts";
+import { thumbnailDir } from "../src/shared/thumbnails.ts";
+import * as resolveModule from "../src/shared/ytdlp/resolve.ts";
+import type { Resolved, VideoId } from "../src/shared/ytdlp/types.ts";
+import * as syncModule from "../src/sync/sync.ts";
+import { createApp } from "../src/web/app.tsx";
 
 export const adminUsername = "parent";
 export const adminPassword = "correct horse battery";

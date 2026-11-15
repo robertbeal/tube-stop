@@ -1,11 +1,11 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
+import { allow, buildEnvironment, logIn, send } from "../../tests/harness.ts";
 import { testVideoId } from "../../tests/helpers.ts";
 import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
 import * as videoQueries from "../shared/db/videos.ts";
 import { blockVideo } from "../shared/db/videos.ts";
 import type { VideoId } from "../shared/ytdlp/types.ts";
-import { allow, buildEnvironment, logIn, send } from "../web/harness.ts";
 import {
     addPublished,
     allowPianoVideo,
