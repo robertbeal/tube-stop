@@ -187,7 +187,7 @@ describe("syncAll", () => {
     await syncAll(syncer, neverAborted);
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toStartWith("sync: list channels: ");
+    expect(messages[0]).toStartWith("sync: ");
     expect(calls).toEqual([]);
   });
 

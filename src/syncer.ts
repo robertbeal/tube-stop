@@ -30,24 +30,20 @@ export async function runSync(syncer: Syncer, signal: AbortSignal): Promise<void
   }
 }
 
+/** Syncs every channel. It never rejects, because it also runs on its own when the admin asks for a sync. */
 export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void> {
   if (signal.aborted) {
     return;
   }
-  for (const channel of listChannels(syncer)) {
-    if (signal.aborted) {
-      return;
-    }
-    await syncChannel(syncer, channel, signal);
-  }
-}
-
-function listChannels(syncer: Syncer): Channel[] {
   try {
-    return getChannels(syncer.store);
+    for (const channel of getChannels(syncer.store)) {
+      if (signal.aborted) {
+        return;
+      }
+      await syncChannel(syncer, channel, signal);
+    }
   } catch (error) {
-    syncer.log(`sync: list channels: ${describe(error)}`);
-    return [];
+    syncer.log(`sync: ${describe(error)}`);
   }
 }
 
