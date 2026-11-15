@@ -1,13 +1,11 @@
 name: release
 
-# Everything is built from main. A feat or fix pushed to main is released: the version comes from the commit
-# messages (see scripts/next-version.sh). The nightly run rebuilds the current release when yt-dlp has a new one.
+# Everything is built from main. A feat or fix pushed to main is released, and semantic-release works out the
+# version from the commit messages (see .releaserc.json). Other commits only run the checks.
 on:
   workflow_dispatch:
   push:
     branches: [main]
-  schedule:
-    - cron: "17 4 * * *"
 
 permissions:
   contents: write
@@ -16,39 +14,50 @@ permissions:
 concurrency: release
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  BUN_VERSION: 1.4.4
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.next.outputs.new_release_published }}
+      version: ${{ steps.next.outputs.new_release_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.4
+          bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - run: bun run check
 
-      - uses: docker/login-action@v3
+      - name: Next version
+        id: next
+        uses: cycjimmy/semantic-release-action@v8
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: yt-dlp Version
-        id: plan
+          dry_run: true
+          semantic_version: 25
+          extra_plugins: conventional-changelog-conventionalcommits@9
         env:
-          EVENT: ${{ github.event_name }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          export YTDLP=$(gh api repos/yt-dlp/yt-dlp/releases/latest --jq .tag_name)
-          { echo "ytdlp=$YTDLP"; scripts/next-version.sh; } | tee -a "$GITHUB_OUTPUT"
+          GITHUB_TOKEN: ${{ github.token }}
 
-      # The app compiled into one executable, with Bun inside. The release attaches these, and the image runs them.
+  release:
+    needs: version
+    if: needs.version.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --production
+
+      # The app compiled into one executable, with Bun inside. The release attaches these, and the image runs the
+      # musl ones.
       - name: Compile
-        if: steps.plan.outputs.build == 'true'
         run: |
           for arch in amd64 arm64; do
             for libc in "" -musl; do
@@ -56,61 +65,63 @@ jobs:
             done
           done
 
-      - name: Smoke Test
-        if: steps.plan.outputs.build == 'true'
-        run: scripts/test-binary.sh dist/tube-stop-linux-amd64
+      - name: Package
+        working-directory: dist
+        run: |
+          for binary in tube-stop-linux-*; do
+            mkdir "$binary.d"
+            install -m 755 "$binary" "$binary.d/tube-stop"
+            cp ../LICENSE "$binary.d/"
+            tar -czf "$binary.tar.gz" -C "$binary.d" .
+          done
+          sha256sum ./*.tar.gz > SHA256SUMS
 
-      - uses: docker/setup-qemu-action@v3
-        if: steps.plan.outputs.build == 'true'
-      - uses: docker/setup-buildx-action@v3
-        if: steps.plan.outputs.build == 'true'
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Image tags
+        id: tags
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.version.outputs.version }},enable=${{ !startsWith(needs.version.outputs.version, '0.') }}
 
       # The image is started before anything is pushed, so one that cannot run never gets a tag.
       - name: Build the image to test
-        if: steps.plan.outputs.build == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
           load: true
-          build-args: YTDLP_VERSION=${{ steps.plan.outputs.ytdlp }}
           tags: tube-stop:test
           cache-from: type=gha
 
       - name: Test the image
-        if: steps.plan.outputs.build == 'true'
         run: scripts/test-image.sh tube-stop:test
 
       - name: Push the image
-        if: steps.plan.outputs.build == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: YTDLP_VERSION=${{ steps.plan.outputs.ytdlp }}
-          tags: ${{ steps.plan.outputs.tags }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            yt-dlp.version=${{ steps.plan.outputs.ytdlp }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.tags.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Only for a new version, and only once everything above has passed.
       - name: Create the release
-        if: steps.plan.outputs.release == 'true'
+        uses: cycjimmy/semantic-release-action@v8
+        with:
+          semantic_version: 25
+          extra_plugins: conventional-changelog-conventionalcommits@9
         env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.plan.outputs.version }}
-        run: |
-          cd dist
-          for target in linux-amd64 linux-arm64 linux-amd64-musl linux-arm64-musl; do
-            name="tube-stop-v$VERSION-$target"
-            mkdir "$name"
-            install -m 755 "tube-stop-$target" "$name/tube-stop"
-            cp ../LICENSE "$name/"
-            tar -czf "$name.tar.gz" "$name"
-          done
-          sha256sum ./*.tar.gz > SHA256SUMS
-          gh release create "v$VERSION" ./*.tar.gz SHA256SUMS --target "$GITHUB_SHA" --generate-notes
+          GITHUB_TOKEN: ${{ github.token }}

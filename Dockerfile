@@ -1,9 +1,11 @@
+# The yt-dlp release in the image. A scheduled workflow keeps this up to date.
+ARG YTDLP_VERSION=2026.10.26
+
 # yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
 ARG TARGETARCH
 ARG YTDLP_VERSION
-RUN test -n "$YTDLP_VERSION" || { echo "pass --build-arg YTDLP_VERSION=<a yt-dlp release, like 2026.10.26>" >&2; exit 1; } \
-    && case "$TARGETARCH" in amd64) asset=yt-dlp_musllinux ;; arm64) asset=yt-dlp_musllinux_aarch64 ;; esac \
+RUN case "$TARGETARCH" in amd64) asset=yt-dlp_musllinux ;; arm64) asset=yt-dlp_musllinux_aarch64 ;; esac \
     && release="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}" \
     && wget -q "${release}/${asset}" \
     && wget -qO- "${release}/SHA2-256SUMS" | grep " ${asset}\$" | sha256sum -c \
@@ -11,6 +13,8 @@ RUN test -n "$YTDLP_VERSION" || { echo "pass --build-arg YTDLP_VERSION=<a yt-dlp
 
 FROM docker.io/alpine:3.23
 ARG TARGETARCH
+ARG YTDLP_VERSION
+LABEL yt-dlp.version=$YTDLP_VERSION
 # libstdc++ and libgcc are what the compiled app needs. QuickJS runs the challenges YouTube sets (see yt-dlp.conf).
 RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
     && adduser -D -u 1000 tubestop \

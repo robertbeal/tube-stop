@@ -1,0 +1,8 @@
+{
+    "branches": ["main"],
+    "plugins": [
+        ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits", "presetConfig": {} }],
+        ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits", "presetConfig": {} }],
+        ["@semantic-release/github", { "assets": ["dist/*.tar.gz", "dist/SHA256SUMS"] }]
+    ]
+}

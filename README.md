@@ -80,11 +80,11 @@ The image has the app, `ffmpeg` and `yt-dlp`, for `amd64` and `arm64`. Pick a ta
 | Tag | Use it to |
 |---|---|
 | `latest` | follow the newest release |
-| `1.2.3` | stay on one app version (it still gets new `yt-dlp` builds) |
-| `1.2.3_2026.10.26` | stay on one app version and one `yt-dlp` |
+| `1.2` | stay on one minor version, and get its fixes |
+| `1.2.3` | stay on exactly one version |
 
-YouTube changes often, so a nightly job rebuilds the current release whenever a new `yt-dlp` comes out. Pull
-again (or use something like Watchtower) to get it.
+YouTube changes often, so a new `yt-dlp` is released as a new version of the app within a day. Pull again (or use
+something like Watchtower) to get it. The image says which `yt-dlp` it has in its `yt-dlp.version` label.
 
 ### Binary
 
@@ -149,35 +149,36 @@ problem. `ADMIN_PASSWORD` is ignored: accounts are created in the browser.
 
 Source is in `src/` (`main.ts` and `serve.ts` for startup, `admin/` for accounts, login and the admin page, `user/` for the child's pages and player, `sync/` for channel syncing and the download worker, `web/` for the Hono app and what the pages share, `shared/` for config, the database, yt-dlp and the rest); tests sit next to the code they test (`*.test.ts`), with the shared test setup in `tests/`.
 
-**Building the image.** The image copies in a compiled app instead of compiling one, so make that first. The
-`yt-dlp` release is a required build argument, so an image always says which one it has:
+**Building the image.** The image copies in a compiled app instead of compiling one, so make that first:
 
     bun build --compile --minify --target=bun-linux-x64-musl src/main.ts --outfile dist/tube-stop-linux-amd64-musl
     bun build --compile --minify --target=bun-linux-arm64-musl src/main.ts --outfile dist/tube-stop-linux-arm64-musl
-    docker build --build-arg YTDLP_VERSION=2026.10.26 -t tube-stop .
+    docker build -t tube-stop .
 
-Add `--platform linux/amd64,linux/arm64` with `docker buildx build` for both architectures.
-To build a standalone binary for this machine: `bun build --compile --minify src/main.ts --outfile tube-stop`.
+Add `--platform linux/amd64,linux/arm64` with `docker buildx build` for both architectures. `scripts/test-image.sh
+tube-stop` then checks that the image runs. To build a standalone binary for this machine:
+`bun build --compile --minify src/main.ts --outfile tube-stop`.
 
-**Releasing is automatic.** Everything is built from `main`, and the version comes from the commit messages
-([conventional commits](https://www.conventionalcommits.org)), so there are no tags to push by hand:
+**Releasing is automatic.** Everything is built from `main`, and [semantic-release](https://semantic-release.gitbook.io)
+works out the version from the commit messages ([conventional commits](https://www.conventionalcommits.org)), so
+there are no tags to push by hand. With its standard rules:
 
 | Commit pushed to `main` | Release |
 |---|---|
-| `fix: …` | patch (0.2.0 → 0.2.1) |
-| `feat: …` | minor (0.2.0 → 0.3.0) |
-| `feat!: …` or `fix!: …`, or a `BREAKING CHANGE:` line in any commit | major (0.2.0 → 1.0.0) |
+| `fix:` or `perf:` | patch (0.2.0 → 0.2.1) |
+| `feat:` | minor (0.2.0 → 0.3.0) |
+| a `!` after the type (`feat!:`), or a `BREAKING CHANGE:` line | major (0.2.0 → 1.0.0) |
 | anything else (`docs`, `ci`, `refactor`, `test`, `chore`…) | none: only the checks run |
 
-`.github/workflows/release.yml` is one job that stops at the first failure: `bun run check`, work out the
-version (`scripts/next-version.sh`), compile the four Linux binaries, test the binary
-(`scripts/test-binary.sh`), build and test the image (`scripts/test-image.sh`), push it to `ghcr.io`, and, for a new version, create the
-`v…` tag and GitHub release with the binaries attached.
+`.github/workflows/release.yml` runs `bun run check` and asks semantic-release what the next version is. If there
+is one, it compiles the four Linux binaries, builds the image, starts it (`scripts/test-image.sh`), pushes it to
+`ghcr.io` as `1.2.3`, `1.2`, `1` (not for `0.x`) and `latest`, and creates the `v…` tag and GitHub release with the
+binaries attached. A failure at any point stops there, before anything is tagged. Run the workflow by hand from the
+Actions tab to retry.
 
-Every night it also looks up the newest `yt-dlp`. If the current release has not been built with it yet, the
-image is rebuilt from `main` and `latest`, `1.2` and the others move to it. The image tags are
-`1.2.3_<yt-dlp>` (fixed), `1.2.3`, `1.2`, `1` (not for `0.x`) and `latest`. You can also run the workflow by hand
-from the Actions tab, for example to retry a release that failed.
+The `yt-dlp` version is pinned at the top of the `Dockerfile`. Every night `.github/workflows/update-ytdlp.yml`
+checks for a newer one and, if there is, commits `fix(deps): update yt-dlp to …` to `main`, which releases a new
+version like any other fix.
 
 **Changing the schema:** append a new migration in `src/shared/db/`; never edit an existing one.
 
