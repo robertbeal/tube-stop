@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { advanceTime } from "../../tests/helpers.ts";
-import { logger } from "../logger.ts";
+import { logger } from "../util/logger.ts";
 import { buildEnvironment, send, sessionCookie } from "../web/harness.ts";
 import { clearSetupCode, currentSetupCode, type SetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./test-helpers.ts";

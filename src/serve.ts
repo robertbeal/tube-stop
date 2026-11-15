@@ -2,12 +2,11 @@ import { mkdir } from "node:fs/promises";
 import { config } from "./config.ts";
 import { database } from "./db/database.ts";
 import { runDownloads } from "./downloads/worker.ts";
-import { logger } from "./logger.ts";
-import { shutdown } from "./shutdown.ts";
 import { runSync } from "./syncer.ts";
+import { logger } from "./util/logger.ts";
+import { shutdown } from "./util/shutdown.ts";
 import { createApp } from "./web/app.tsx";
 
-/** Runs the app until it is told to stop. */
 export async function serve(): Promise<void> {
     // Other users (such as a Jellyfin container) need to read the media folders.
     await Promise.all(
@@ -32,6 +31,7 @@ export async function serve(): Promise<void> {
             });
         }
     });
+
     await stopped;
     await server.stop(true); // close idle keep-alive connections too, or shutdown would wait for them
     await workers; // workers stop before the database closes

@@ -2,8 +2,8 @@ import { stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { config } from "../config.ts";
 import type { Video } from "../db/types.ts";
-import { logger } from "../logger.ts";
 import { removeMedia } from "../storage.ts";
+import { logger } from "../util/logger.ts";
 import { downloadToCache, downloadToLibrary } from "../ytdlp/download.ts";
 import {
     claimCache,

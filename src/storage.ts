@@ -9,9 +9,11 @@ import { basename, dirname, extname, join, resolve, sep } from "node:path";
  */
 export async function removeMedia(root: string, path: string): Promise<Error[]> {
     const file = resolve(root, path);
+
     if (!file.startsWith(join(root, sep))) {
         return [];
     }
+
     const directory = dirname(file);
     const stem = basename(file, extname(file));
     const siblings = await readdir(directory).catch(() => []);
@@ -24,6 +26,7 @@ export async function removeMedia(root: string, path: string): Promise<Error[]> 
     if (directory !== root) {
         await rmdir(directory).catch(() => undefined); // fails harmlessly when other videos remain in the folder
     }
+
     return results.filter((result) => result.status === "rejected").map((result) => result.reason);
 }
 

@@ -6,8 +6,8 @@ import * as channelQueries from "./db/channels.ts";
 import { getChannels, insertChannel } from "./db/channels.ts";
 import type { Channel } from "./db/types.ts";
 import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "./db/videos.ts";
-import { logger } from "./logger.ts";
 import { runSync, syncChannels } from "./syncer.ts";
+import { logger } from "./util/logger.ts";
 
 const everything = { limit: 1000, offset: 0 };
 const neverAborted = new AbortController().signal;

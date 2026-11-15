@@ -6,7 +6,7 @@ import { createPasswordHasher } from "../admin/passwords.ts";
 import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
 import { config } from "../config.ts";
-import { logger } from "../logger.ts";
+import { logger } from "../util/logger.ts";
 import { kidRoutes } from "./kid.tsx";
 import type { AppOptions, Services } from "./services.ts";
 
