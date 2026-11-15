@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { openDatabase } from "../db/open.ts";
+import { openDatabase } from "../db/database.ts";
 import { deleteUsers } from "./users.ts";
 
 /** Removes the admin account so a new one can be created from the setup page. */

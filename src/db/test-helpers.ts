@@ -4,7 +4,7 @@ import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
 import { claimCache, claimDownload, finishCache, finishDownload, pinVideo, requestCache } from "../downloads/queue.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { getChannels } from "./channels.ts";
-import { openDatabase } from "./open.ts";
+import { openDatabase } from "./database.ts";
 import type { NewVideo, Video } from "./types.ts";
 import { getVideo } from "./videos.ts";
 

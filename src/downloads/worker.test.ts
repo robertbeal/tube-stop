@@ -3,7 +3,7 @@ import { describe, expect, setSystemTime, test } from "bun:test";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomVideoId, temporaryDirectory, testStart, stubYtDlp as writeStub } from "../../tests/helpers.ts";
-import { openDatabase } from "../db/open.ts";
+import { openDatabase } from "../db/database.ts";
 import { allowVideo, deleteVideo, getVideo } from "../db/videos.ts";
 import { downloadToCache, downloadToLibrary } from "../ytdlp/download.ts";
 import type { VideoId } from "../ytdlp/types.ts";

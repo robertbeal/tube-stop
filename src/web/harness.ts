@@ -5,7 +5,7 @@ import type { Hono } from "hono";
 import { temporaryDirectory } from "../../tests/helpers.ts";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
-import { openDatabase } from "../db/open.ts";
+import { openDatabase } from "../db/database.ts";
 import type { NewVideo, User } from "../db/types.ts";
 import { allowVideo } from "../db/videos.ts";
 import { logger } from "../logger.ts";

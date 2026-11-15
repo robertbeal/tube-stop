@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory, testVideoId } from "../../tests/helpers.ts";
 import { getChannels, insertChannel } from "../db/channels.ts";
-import { openDatabase } from "../db/open.ts";
+import { openDatabase } from "../db/database.ts";
 import { allowVideo, getVideo } from "../db/videos.ts";
 import { resetAdmin } from "./reset.ts";
 import { countUsers, createFirstUser, getUserByUsername } from "./users.ts";

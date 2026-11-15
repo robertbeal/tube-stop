@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { resetAdmin } from "./admin/reset.ts";
 import { loadConfig } from "./config.ts";
-import { openDatabase } from "./db/open.ts";
+import { openDatabase } from "./db/database.ts";
 import { type DownloadWorker, runDownloads } from "./downloads/worker.ts";
 import { logger } from "./logger.ts";
 import { runSync, type Syncer, syncAll } from "./syncer.ts";

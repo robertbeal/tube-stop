@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { randomVideoId, temporaryDirectory } from "../../tests/helpers.ts";
 import { countUsers } from "../admin/users.ts";
-import { openDatabase } from "./open.ts";
+import { openDatabase } from "./database.ts";
 import { newVideo, openTestDatabase, videoOf } from "./test-helpers.ts";
 import { allowVideo } from "./videos.ts";
 

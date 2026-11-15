@@ -4,7 +4,7 @@ import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { temporaryDirectory, testVideoId, stubYtDlp as writeStub } from "../tests/helpers.ts";
 import { getChannels, insertChannel } from "./db/channels.ts";
-import { openDatabase } from "./db/open.ts";
+import { openDatabase } from "./db/database.ts";
 import type { Channel } from "./db/types.ts";
 import { blockVideo, getVideo, getWatchableVideos, insertVideo } from "./db/videos.ts";
 import { logger } from "./logger.ts";
