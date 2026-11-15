@@ -14,20 +14,20 @@ ARG TARGETARCH
 # libstdc++ and libgcc are what the compiled app needs. QuickJS runs the challenges YouTube sets (see yt-dlp.conf).
 RUN apk add --no-cache ffmpeg quickjs ca-certificates libstdc++ libgcc \
     && adduser -D -u 1000 tubestop \
-    && mkdir -p /tube-stop/data /tube-stop/media /tube-stop/cache \
-    && chown -R tubestop:tubestop /tube-stop
+    && mkdir -p /app/data /app/media /app/cache \
+    && chown -R tubestop:tubestop /app
 COPY --from=ytdlp /yt-dlp /usr/local/bin/yt-dlp
 COPY yt-dlp.conf /etc/yt-dlp.conf
 # The compiled app, one file per architecture: see the README for how to make it.
 COPY dist/image/${TARGETARCH} /usr/local/bin/tube-stop
 
-# Everything the app keeps is under /tube-stop, so one mount there is enough.
-WORKDIR /tube-stop
-ENV DATA_DIR=/tube-stop/data \
-    MEDIA_DIR=/tube-stop/media \
-    CACHE_DIR=/tube-stop/cache \
+# Everything the app keeps is under /app, so one mount there is enough.
+WORKDIR /app
+ENV DATA_DIR=/app/data \
+    MEDIA_DIR=/app/media \
+    CACHE_DIR=/app/cache \
     PORT=8080
-VOLUME ["/tube-stop"]
+VOLUME ["/app"]
 EXPOSE 8080
 
 USER tubestop

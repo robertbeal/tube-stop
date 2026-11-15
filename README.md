@@ -58,14 +58,15 @@ http://localhost:8080/admin. Settings are environment variables, listed under [S
         ports:
           - "8080:8080"
         volumes:
-          - ./tube-stop:/tube-stop
+          - ./tube-stop:/app
         environment:
           CACHE_MAX_GB: 20
           KEEP_MAX_HEIGHT: 1080
 
-Everything is kept under `/tube-stop`: `data/` (the database and thumbnails), `media/` (pinned videos, one
+Everything is kept under `/app`: `data/` (the database and thumbnails), `media/` (pinned videos, one
 folder per channel: point Jellyfin here, read-only) and `cache/` (watch-once copies, deleted automatically).
-To put one somewhere else, mount it over its folder, for example `./videos:/tube-stop/media`.
+To put one somewhere else, mount it over its folder, for example `./videos:/app/media`. Keeping them under one
+mount is the simplest, and lets files move between the folders instantly.
 
 The container runs as user 1000, so a folder you mount from the host must be writable by it:
 `chown 1000 tube-stop`.
