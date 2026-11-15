@@ -7,12 +7,12 @@ const recentVideos = 50;
 const perChannelTimeoutMs = 3 * 60 * 1000;
 
 /** Copies the recent videos of each allowed channel into the database, on a schedule. */
-export interface Syncer {
+export type Syncer = {
   store: Store;
   getChannelVideos: (channelId: string, limit: number, signal: AbortSignal) => Promise<Video[]>;
   intervalMs: number;
   log: (message: string) => void;
-}
+};
 
 export const createSyncer = (
   store: Store,
