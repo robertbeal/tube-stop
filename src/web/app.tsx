@@ -5,7 +5,7 @@ import { authRoutes } from "../admin/auth-routes.tsx";
 import { createPasswordHasher } from "../admin/passwords.ts";
 import { adminRoutes } from "../admin/routes.tsx";
 import { countUsers } from "../admin/users.ts";
-import { logError } from "../log.ts";
+import { logger } from "../logger.ts";
 import { kidRoutes } from "./kid.tsx";
 import type { Services, WebDependencies } from "./services.ts";
 
@@ -51,7 +51,7 @@ export function createApp(dependencies: WebDependencies): Hono {
     const app = new Hono();
     app.use(crossOriginProtection);
     app.onError((error, context) => {
-        logError(`web: ${error.message}`);
+        logger.error(`web: ${error.message}`);
         return context.text("something went wrong", 500);
     });
 

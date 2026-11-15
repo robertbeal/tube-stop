@@ -14,7 +14,7 @@ import {
     openStore,
     type Store,
 } from "./db/store.ts";
-import * as log from "./log.ts";
+import { logger } from "./logger.ts";
 import { runSync, type Syncer, syncAll } from "./syncer.ts";
 import { getChannelVideos } from "./ytdlp/resolve.ts";
 import type { Video } from "./ytdlp/types.ts";
@@ -182,7 +182,7 @@ describe("syncAll", () => {
         const brokenStore = await newStore();
         closeStore(brokenStore);
 
-        const errors = spyOn(log, "logError");
+        const errors = spyOn(logger, "error");
         const syncer: Syncer = { store: brokenStore, getChannelVideos: lister, intervalMs: hour };
         await syncAll(syncer, neverAborted);
 

@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { type Channel, getChannels, insertVideo, markChannelSynced, type Store } from "./db/store.ts";
-import { logError, logInfo } from "./log.ts";
+import { logger } from "./logger.ts";
 import type { Video } from "./ytdlp/types.ts";
 
 /** How many of a channel's newest videos each sync looks at. */
@@ -36,7 +36,7 @@ export async function syncAll(syncer: Syncer, signal: AbortSignal): Promise<void
             await syncChannel(syncer, channel, signal);
         }
     } catch (error) {
-        logError(`sync: ${error.message}`);
+        logger.error(`sync: ${error.message}`);
     }
 }
 
@@ -49,9 +49,9 @@ async function syncChannel(syncer: Syncer, channel: Channel, signal: AbortSignal
             insertSyncedVideo(syncer, channel, video);
         }
         markChannelSynced(syncer.store, channel.youtubeId);
-        logInfo(`sync: ${channel.name}: ${listed.length} videos`);
+        logger.info(`sync: ${channel.name}: ${listed.length} videos`);
     } catch (error) {
-        logError(`sync: ${channel.name}: ${error.message}`);
+        logger.error(`sync: ${channel.name}: ${error.message}`);
     }
 }
 
@@ -66,6 +66,6 @@ function insertSyncedVideo(syncer: Syncer, channel: Channel, video: Video): void
             publishedAt: video.publishedAt,
         });
     } catch (error) {
-        logError(`sync: insert ${video.id}: ${error.message}`);
+        logger.error(`sync: insert ${video.id}: ${error.message}`);
     }
 }

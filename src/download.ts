@@ -13,7 +13,7 @@ import {
     type Store,
     type Video,
 } from "./db/store.ts";
-import { logError, logInfo } from "./log.ts";
+import { logger } from "./logger.ts";
 import { removeMedia } from "./storage.ts";
 import type { Download } from "./ytdlp/types.ts";
 
@@ -65,7 +65,7 @@ async function loop(signal: AbortSignal, processNext: () => Promise<boolean>): P
 }
 
 function logFailure(error: Error): false {
-    logError(`download: ${error.message}`);
+    logger.error(`download: ${error.message}`);
     return false;
 }
 
@@ -85,17 +85,17 @@ export async function processPin(worker: DownloadWorker, signal: AbortSignal): P
     if (id === null) {
         return false;
     }
-    logInfo(`download: pinning ${id}`);
+    logger.info(`download: pinning ${id}`);
     try {
         const path = await worker.downloadToLibrary(id, worker.config.mediaDir, worker.config.keepMaxHeight, signal);
         const kept = finishDownload(worker.store, id, path);
         if (kept) {
-            logInfo(`download: pinned ${id} -> ${path}`);
+            logger.info(`download: pinned ${id} -> ${path}`);
         } else {
             await discard(worker.config.mediaDir, path); // unpinned or removed while downloading
         }
     } catch (error) {
-        logError(`download: ${id} failed: ${error.message}`);
+        logger.error(`download: ${id} failed: ${error.message}`);
         if (signal.aborted) {
             return false;
         }
@@ -113,7 +113,7 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
     if (id === null) {
         return false;
     }
-    logInfo(`cache: fetching ${id}`);
+    logger.info(`cache: fetching ${id}`);
     try {
         const path = await worker.downloadToCache(id, worker.config.cacheDir, cacheHeight, signal);
         const stored = finishCache(worker.store, id, path);
@@ -121,7 +121,7 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
             await discard(worker.config.cacheDir, path); // removed while downloading
         }
     } catch (error) {
-        logError(`cache: ${id} failed: ${error.message}`);
+        logger.error(`cache: ${id} failed: ${error.message}`);
         if (signal.aborted) {
             return false;
         }
@@ -133,7 +133,7 @@ export async function processCache(worker: DownloadWorker, signal: AbortSignal):
 async function discard(root: string, path: string): Promise<void> {
     const failures = await removeMedia(root, path);
     for (const failure of failures) {
-        logError(`download: delete ${path}: ${failure.message}`);
+        logger.error(`download: delete ${path}: ${failure.message}`);
     }
 }
 
@@ -163,7 +163,7 @@ const isStale = (worker: DownloadWorker, video: Video, now: number): boolean =>
     now - video.lastPlayedAt * 1000 > worker.config.cacheTtlMs;
 
 async function evict(worker: DownloadWorker, video: Video): Promise<void> {
-    logInfo(`janitor: evicting ${video.youtubeId}`);
+    logger.info(`janitor: evicting ${video.youtubeId}`);
     await discard(worker.config.cacheDir, video.cachePath);
     clearCache(worker.store, video.youtubeId);
 }

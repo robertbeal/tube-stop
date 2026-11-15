@@ -5,7 +5,7 @@ import { temporaryDirectory } from "../../tests/helpers.ts";
 import { createPasswordHasher, hashPassword } from "../admin/passwords.ts";
 import { createFirstUser } from "../admin/users.ts";
 import { allowVideo, type NewVideo, openStore, type Store, type User } from "../db/store.ts";
-import * as log from "../log.ts";
+import { logger } from "../logger.ts";
 import type { Resolved, ResolveUrl, VideoId } from "../ytdlp/types.ts";
 import { createApp } from "./app.tsx";
 
@@ -64,8 +64,8 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
             : createFirstUser(store, adminUsername, await hashPassword(hasher, adminPassword));
 
     const logs: string[] = [];
-    spyOn(log, "logInfo").mockImplementation((message) => void logs.push(message));
-    spyOn(log, "logError").mockImplementation((message) => void logs.push(message));
+    spyOn(logger, "info").mockImplementation((message) => void logs.push(message));
+    spyOn(logger, "error").mockImplementation((message) => void logs.push(message));
     const triggers = { sync: 0 };
     const imageServer = { requests: [] as string[], failing: false };
     const resolved: string[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import * as log from "../log.ts";
+import { logger } from "../logger.ts";
 import { advanceClock, buildEnvironment, send, sessionCookie } from "../web/harness.ts";
 import { clearSetupCode, currentSetupCode, type SetupCode, setupCodeMatches } from "./auth.ts";
 import { loggedSetupCode, newPassword, newUsername, postSetup, setupForm, tryLogIn } from "./test-helpers.ts";
@@ -39,7 +39,7 @@ describe("the setup code", () => {
     });
 
     test("is created once and then reused until cleared", () => {
-        const logged = spyOn(log, "logInfo");
+        const logged = spyOn(logger, "info");
         const setupCode: SetupCode = { code: "" };
         const first = currentSetupCode(setupCode);
         expect(currentSetupCode(setupCode)).toBe(first);

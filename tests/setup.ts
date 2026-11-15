@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, mock, spyOn } from "bun:test";
-import * as log from "../src/log.ts";
+import { logger } from "../src/logger.ts";
 import { removeTemporaryDirectories } from "./helpers.ts";
 
 // Hooks registered in a preload file apply to every test file. Hooks registered in an imported
@@ -7,8 +7,8 @@ import { removeTemporaryDirectories } from "./helpers.ts";
 
 // Logging is silent unless a test captures it by spying on the logger itself.
 beforeEach(() => {
-    spyOn(log, "logInfo").mockImplementation(() => undefined);
-    spyOn(log, "logError").mockImplementation(() => undefined);
+    spyOn(logger, "info").mockImplementation(() => undefined);
+    spyOn(logger, "error").mockImplementation(() => undefined);
 });
 
 afterEach(() => {

@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { Video } from "../db/store.ts";
 import { getVideo, getWatchableChannels, getWatchableVideos, recordPlay, requestCache } from "../db/store.ts";
-import { logError } from "../log.ts";
+import { logger } from "../logger.ts";
 import { downloadThumbnail } from "../thumbnails.ts";
 import { parseVideoId } from "../ytdlp/info.ts";
 import { serveFile } from "./files.ts";
@@ -133,7 +133,7 @@ export function kidRoutes(services: Services): Hono {
             }
             return serveFile(context.req.raw, path, { "Cache-Control": "public, max-age=86400" });
         } catch (error) {
-            logError(`web: thumbnail of ${video.youtubeId}: ${error.message}`);
+            logger.error(`web: thumbnail of ${video.youtubeId}: ${error.message}`);
             return context.text("thumbnail unavailable", 502);
         }
     });

@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { AlreadySetUpError, type User } from "../db/store.ts";
-import { logError } from "../log.ts";
+import { logger } from "../logger.ts";
 import type { Services } from "../web/services.ts";
 import {
     capitalise,
@@ -149,7 +149,7 @@ export function authRoutes(services: Services): {
         try {
             updatePassword(store, user.id, await hashPassword(hasher, password));
         } catch (error) {
-            logError(`web: upgrade password hash of "${user.username}": ${error.message}`);
+            logger.error(`web: upgrade password hash of "${user.username}": ${error.message}`);
         }
     };
 
