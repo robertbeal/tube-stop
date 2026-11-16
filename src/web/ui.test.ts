@@ -82,6 +82,7 @@ describe("static assets", () => {
         ["/static/bootstrap-LICENSE.txt", "text/plain", "MIT License", 500],
         ["/static/theme.js", "text/javascript", "prefers-color-scheme", 100],
         ["/static/style.css", "text/css", ".video-card", 100],
+        ["/static/forms.js", "text/javascript", "spinner-border", 500],
         ["/player.js", "text/javascript", "loopToggle", 500],
         ["/player.css", "text/css", ".player-controls", 500],
     ])("%s is served as %s", async (path, contentType, mustContain, minimumBytes) => {

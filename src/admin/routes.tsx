@@ -13,7 +13,7 @@ import { isVideo } from "../shared/ytdlp/types.ts";
 import { syncChannels } from "../sync/sync.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import type { Services } from "../web/services.ts";
-import { type AuthEnv, changePassword, formFields, redirectWithMessage } from "./auth-routes.tsx";
+import { type AuthEnv, changePassword, formFields, type MessageKind, redirectWithMessage } from "./auth-routes.tsx";
 import { AdminPage } from "./views.tsx";
 
 const resolveTimeoutMs = 90 * 1000;
@@ -47,6 +47,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             <AdminPage
                 username={context.get("user").username}
                 message={context.req.query("msg") ?? ""}
+                messageKind={context.req.query("kind") ?? ""}
                 channels={getChannels()}
                 videos={videos}
                 current={channel}
@@ -60,7 +61,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     routes.post("/add", async (context) => {
         const url = (await formFields(context))("url");
         if (url === "") {
-            return redirectWithMessage(context, "Enter a URL");
+            return redirectWithMessage(context, "Enter a URL", "error");
         }
         const signal = AbortSignal.any([context.req.raw.signal, AbortSignal.timeout(resolveTimeoutMs)]);
         const resolved = await resolveUrl(config.ytdlpBin, url, signal).then(
@@ -68,16 +69,16 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             (error) => ({ ok: false as const, message: error.message }),
         );
         if (!resolved.ok) {
-            return redirectWithMessage(context, `Could not read that URL: ${resolved.message}`);
+            return redirectWithMessage(context, `Could not read that URL: ${resolved.message}`, "error");
         }
         const { value } = resolved;
         if (!isVideo(value)) {
             const added = messageFrom(() => insertChannel(value.id, value.name));
             if (!added.ok) {
-                return redirectWithMessage(context, added.message);
+                return redirectWithMessage(context, added.message, "error");
             }
             void syncChannels(shutdown.signal);
-            return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`);
+            return redirectWithMessage(context, `Allowed channel ${value.name} (syncing videos…)`, "success");
         }
         const video = value;
         const allowed = messageFrom(() =>
@@ -90,7 +91,9 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
                 publishedAt: video.publishedAt,
             }),
         );
-        return redirectWithMessage(context, allowed.ok ? `Allowed video ${video.title}` : allowed.message);
+        return allowed.ok
+            ? redirectWithMessage(context, `Allowed video ${video.title}`, "success")
+            : redirectWithMessage(context, allowed.message, "error");
     });
 
     routes.post("/channels/:id/remove", async (context) => {
@@ -100,20 +103,21 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
         }
         const removed = messageFrom(() => deleteChannel(id));
         if (!removed.ok) {
-            return redirectWithMessage(context, removed.message);
+            return redirectWithMessage(context, removed.message, "error");
         }
         const failures = (await Promise.all(removed.value.map((path) => removeMedia(config.cacheDir, path)))).flat();
-        return redirectWithMessage(
-            context,
-            failures.length > 0
-                ? `Channel removed, but some cached files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`
-                : "Channel removed. Pinned videos from it were kept.",
-        );
+        return failures.length > 0
+            ? redirectWithMessage(
+                  context,
+                  `Channel removed, but some cached files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`,
+                  "warning",
+              )
+            : redirectWithMessage(context, "Channel removed. Pinned videos from it were kept.", "success");
     });
 
     routes.post("/sync", (context) => {
         void syncChannels(shutdown.signal);
-        return redirectWithMessage(context, "Sync started");
+        return redirectWithMessage(context, "Sync started", "success");
     });
 
     routes.post("/password", changePassword(services));
@@ -124,48 +128,51 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
             return context.notFound();
         }
         const outcome = await videoAction(context.req.param("action"), id);
-        return outcome === "unknown-action" ? context.notFound() : redirectWithMessage(context, outcome.message);
+        return outcome === "unknown-action"
+            ? context.notFound()
+            : redirectWithMessage(context, outcome.message, outcome.kind);
     });
 
     return routes;
 }
 
-type ActionOutcome = "unknown-action" | { message: string };
+type Notice = { message: string; kind: MessageKind };
 
-function withFileFailures(message: string, failures: Error[]): string {
+type ActionOutcome = "unknown-action" | Notice;
+
+/** "Done" when the change worked, and the reason it did not when it failed. */
+function done(change: { ok: true } | { ok: false; message: string }): Notice {
+    return change.ok ? { message: "Done", kind: "success" } : { message: change.message, kind: "error" };
+}
+
+/** The message when it worked, or a warning when some files could not be deleted afterwards. */
+function withFileFailures(message: string, failures: Error[]): Notice {
     return failures.length > 0
-        ? `Done, but some files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`
-        : message;
+        ? {
+              message: `Done, but some files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`,
+              kind: "warning",
+          }
+        : { message, kind: "success" };
 }
 
 async function videoAction(action: string, id: VideoId): Promise<ActionOutcome> {
     const { mediaDir, cacheDir } = config;
     switch (action) {
         case "pin":
-        case "retry": {
-            const pinned = messageFrom(() => pinVideo(id));
-            return { message: pinned.ok ? "Done" : pinned.message };
-        }
+        case "retry":
+            return done(messageFrom(() => pinVideo(id)));
         case "unpin": {
             const unpinned = messageFrom(() => unpinVideo(id));
-            return {
-                message: unpinned.ok
-                    ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value))
-                    : unpinned.message,
-            };
+            return unpinned.ok ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value)) : done(unpinned);
         }
-        case "block": {
-            const blocked = messageFrom(() => blockVideo(id));
-            return { message: blocked.ok ? "Done" : blocked.message };
-        }
-        case "unblock": {
-            const unblocked = messageFrom(() => unblockVideo(id));
-            return { message: unblocked.ok ? "Done" : unblocked.message };
-        }
+        case "block":
+            return done(messageFrom(() => blockVideo(id)));
+        case "unblock":
+            return done(messageFrom(() => unblockVideo(id)));
         case "remove": {
             const removal = messageFrom(() => deleteVideo(id));
             if (!removal.ok) {
-                return { message: removal.message };
+                return done(removal);
             }
             const { filePath, cachePath, blocked } = removal.value;
             const failures = [
@@ -181,7 +188,7 @@ async function videoAction(action: string, id: VideoId): Promise<ActionOutcome> 
             const message = blocked
                 ? "Removed. It stays blocked so syncing the channel cannot bring it back."
                 : "Removed";
-            return { message: withFileFailures(message, failures) };
+            return withFileFailures(message, failures);
         }
         default:
             return "unknown-action";

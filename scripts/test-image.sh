@@ -16,7 +16,7 @@ for _ in $(seq 40); do
     curl -sf -o /dev/null "$url/" && break
     sleep 0.5
 done
-for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /player.js /player.css; do
+for path in / /admin/setup /static/bootstrap.min.css /static/bootstrap-LICENSE.txt /static/style.css /static/theme.js /static/forms.js /player.js /player.css; do
     curl -sf -o /dev/null "$url$path" || { echo "$path failed" >&2; docker logs "$container"; exit 1; }
 done
 

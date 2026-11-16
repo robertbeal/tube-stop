@@ -43,9 +43,12 @@ function isHttps(context: Context): boolean {
     return context.req.url.startsWith("https:") || context.req.header("x-forwarded-proto") === "https";
 }
 
+/** How a message on the admin page is shown: green when it worked, amber when it only partly did, red when it did not. */
+export type MessageKind = "success" | "warning" | "error";
+
 /** Goes back to the admin page with a message to show. */
-export function redirectWithMessage(context: Context, message: string): Response {
-    return context.redirect(`/admin?msg=${encodeURIComponent(message)}`, 303);
+export function redirectWithMessage(context: Context, message: string, kind: MessageKind): Response {
+    return context.redirect(`/admin?msg=${encodeURIComponent(message)}&kind=${kind}`, 303);
 }
 
 /** Sign-in, first-run setup, and the middleware that keeps the rest of the admin area behind a login. */
@@ -220,22 +223,22 @@ export function changePassword(services: Services) {
     return async (context: Context<AuthEnv>): Promise<Response> => {
         const user = context.get("user");
         if (isLoginBlocked(limiter)) {
-            return redirectWithMessage(context, tooManyAttempts);
+            return redirectWithMessage(context, tooManyAttempts, "error");
         }
         const field = await formFields(context);
         if (!(await verifyPassword(user.passwordHash, field("current")))) {
             recordLoginFailure(limiter);
-            return redirectWithMessage(context, "Your current password is wrong.");
+            return redirectWithMessage(context, "Your current password is wrong.", "error");
         }
         const newPassword = field("new");
         if (field("confirm") !== newPassword) {
-            return redirectWithMessage(context, "The two new passwords do not match.");
+            return redirectWithMessage(context, "The two new passwords do not match.", "error");
         }
         try {
             updatePassword(user.id, await hashPassword(hasher, newPassword));
         } catch (error) {
             if (error instanceof PasswordRuleError) {
-                return redirectWithMessage(context, `${capitalise(error.message)}.`);
+                return redirectWithMessage(context, `${capitalise(error.message)}.`, "error");
             }
             throw error;
         }
@@ -243,6 +246,6 @@ export function changePassword(services: Services) {
         if (token !== undefined) {
             removeOtherSessions(sessions, user.id, token);
         }
-        return redirectWithMessage(context, "Password changed. Any other logins were signed out.");
+        return redirectWithMessage(context, "Password changed. Any other logins were signed out.", "success");
     };
 }

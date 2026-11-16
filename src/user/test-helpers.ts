@@ -56,6 +56,12 @@ export function redirectMessage(response: Response): string {
     return new URL(location, "http://localhost").searchParams.get("msg") ?? "";
 }
 
+/** The `kind` a redirect to the admin page carries: how its message is shown. */
+export function redirectKind(response: Response): string {
+    const location = response.headers.get("location") ?? "";
+    return new URL(location, "http://localhost").searchParams.get("kind") ?? "";
+}
+
 /** A distinct, valid 11-character video id. */
 export function numberedId(number: number): VideoId {
     return testVideoId(`video${String(number).padStart(6, "0")}`);

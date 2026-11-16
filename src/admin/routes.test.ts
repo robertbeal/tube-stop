@@ -7,6 +7,7 @@ import { getChannels, insertChannel, markChannelSynced } from "../shared/db/chan
 import { claimDownload, failDownload, pinVideo } from "../shared/db/queue.ts";
 import * as videoQueries from "../shared/db/videos.ts";
 import { allowVideo, getVideo, getWatchableVideos, insertVideo } from "../shared/db/videos.ts";
+import * as storage from "../shared/storage.ts";
 import type { Resolved } from "../shared/ytdlp/types.ts";
 import {
     allowPianoVideo,
@@ -15,6 +16,7 @@ import {
     makeCacheReady,
     makePinnedFile,
     numberedId,
+    redirectKind,
     redirectMessage,
     unknownVideoId,
     videoId,
@@ -208,6 +210,67 @@ describe("video actions", () => {
     });
 });
 
+describe("the colour of the message", () => {
+    test("is green when it worked", async () => {
+        const environment = await buildEnvironment({ resolve: async () => pianoGuyVideo });
+
+        const responses = [
+            await adminPost(environment, "/admin/add", { url: `https://youtu.be/${videoId}` }),
+            await adminPost(environment, `/admin/videos/${videoId}/pin`),
+            await adminPost(environment, `/admin/videos/${videoId}/block`),
+            await adminPost(environment, "/admin/sync"),
+        ];
+
+        expect(responses.map(redirectKind)).toEqual(["success", "success", "success", "success"]);
+    });
+
+    test("is red when it did not", async () => {
+        const environment = await buildEnvironment({
+            resolve: async () => {
+                throw new Error("Unsupported URL");
+            },
+        });
+
+        const responses = [
+            await adminPost(environment, "/admin/add", { url: "" }),
+            await adminPost(environment, "/admin/add", { url: "https://example.com/nope" }),
+            await adminPost(environment, `/admin/videos/${unknownVideoId}/pin`),
+            await adminPost(environment, "/admin/channels/424242/remove"),
+        ];
+
+        expect(responses.map(redirectKind)).toEqual(["error", "error", "error", "error"]);
+    });
+
+    test("is amber when it worked but some files could not be deleted", async () => {
+        const environment = await environmentWithSong();
+        spyOn(storage, "removeMedia").mockResolvedValue([new Error("permission denied")]);
+
+        const response = await adminPost(environment, `/admin/videos/${videoId}/unpin`);
+
+        expect(redirectKind(response)).toBe("warning");
+        expect(redirectMessage(response)).toContain("could not be deleted: permission denied");
+    });
+
+    test.each([
+        ["success", "alert-success", "status"],
+        ["warning", "alert-warning", "status"],
+        ["error", "alert-danger", "alert"],
+        ["anything-else", "alert-info", "status"],
+        ["", "alert-info", "status"],
+    ])("a %s message is shown as %s, announced as %s", async (kind, alertClass, role) => {
+        const environment = await buildEnvironment();
+
+        const body = await adminPage(environment, `?msg=Hello&kind=${kind}`);
+
+        expect(body).toContain(`<div class="alert ${alertClass}" role="${role}">Hello</div>`);
+    });
+
+    test("no message shows no box", async () => {
+        const environment = await buildEnvironment();
+        expect(await adminPage(environment)).not.toContain('class="alert alert-');
+    });
+});
+
 describe("the admin page", () => {
     test("shows download errors, a retry button and disk usage", async () => {
         const environment = await environmentWithSong();
@@ -228,6 +291,28 @@ describe("the admin page", () => {
         const body = await adminPage(environment, `?msg=${encodeURIComponent("<script>alert(1)</script>")}`);
         expect(body).not.toContain("<script>alert(1)");
         expect(body).toContain("&lt;script&gt;alert(1)");
+    });
+
+    test("the button that adds a URL is called Add", async () => {
+        const environment = await buildEnvironment();
+        const body = await adminPage(environment);
+        expect(body).toMatch(/<button[^>]*>Add<\/button>/);
+        expect(body).not.toMatch(/<button[^>]*>Allow<\/button>/);
+    });
+
+    test("every button that sends a form says what it is doing while it works", async () => {
+        const environment = await environmentWithSong();
+        insertChannel("UC1", "Piano Guy");
+        pinVideo(videoId);
+        claimDownload();
+        failDownload(videoId, "HTTP Error 403");
+
+        const body = await adminPage(environment);
+
+        const buttons = [...body.matchAll(/<button[^>]*type="submit"[^>]*>/g)].map(([tag]) => tag);
+        expect(buttons.length).toBeGreaterThan(8);
+        expect(buttons.filter((tag) => !/data-busy-label="[^"]+…"/.test(tag))).toEqual([]);
+        expect(body).toContain('src="/static/forms.js"');
     });
 
     test("the remove button says when the video will stay hidden", async () => {

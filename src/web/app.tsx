@@ -11,6 +11,7 @@ import { userRoutes } from "../user/routes.tsx";
 import type { AppOptions, Services } from "./services.ts";
 import bootstrapStyles from "./static/bootstrap.min.css" with { type: "file" };
 import bootstrapLicense from "./static/bootstrap-LICENSE.txt" with { type: "file" };
+import formsScript from "./static/forms.js" with { type: "file" };
 import siteStyles from "./static/style.css" with { type: "file" };
 import themeScript from "./static/theme.js" with { type: "file" };
 
@@ -18,6 +19,7 @@ import themeScript from "./static/theme.js" with { type: "file" };
 const staticFiles = {
     "/static/bootstrap-LICENSE.txt": bootstrapLicense,
     "/static/bootstrap.min.css": bootstrapStyles,
+    "/static/forms.js": formsScript,
     "/static/style.css": siteStyles,
     "/static/theme.js": themeScript,
 };

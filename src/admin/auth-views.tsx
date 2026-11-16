@@ -48,7 +48,7 @@ export const LoginPage: FC<LoginProps> = ({ next, username = "", error }) => (
                             required
                         />
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
+                    <button type="submit" class="btn btn-primary w-100" data-busy-label="Logging in…">
                         Log in
                     </button>
                 </form>
@@ -137,7 +137,7 @@ export const SetupPage: FC<{ username?: string; error?: string }> = ({ username 
                             required
                         />
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
+                    <button type="submit" class="btn btn-primary w-100" data-busy-label="Creating…">
                         Create admin account
                     </button>
                 </form>

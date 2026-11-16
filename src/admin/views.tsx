@@ -7,6 +7,8 @@ import type { Pagination } from "../web/paging.ts";
 export type AdminProps = {
     username: string;
     message: string;
+    /** How the message is shown: "success", "warning" or "error". Anything else is shown neutrally. */
+    messageKind: string;
     channels: Channel[];
     videos: Video[];
     current: string;
@@ -15,14 +17,21 @@ export type AdminProps = {
     cacheBytes: number;
 };
 
-const PostButton: FC<{ action: string; buttonClass: string; inline?: boolean; label: string }> = ({
-    action,
-    buttonClass,
-    inline = true,
-    label,
-}) => (
+const messageStyles: Record<string, { alertClass: string; role: string }> = {
+    success: { alertClass: "alert-success", role: "status" },
+    warning: { alertClass: "alert-warning", role: "status" },
+    error: { alertClass: "alert-danger", role: "alert" },
+};
+
+const PostButton: FC<{
+    action: string;
+    buttonClass: string;
+    inline?: boolean;
+    label: string;
+    busyLabel: string;
+}> = ({ action, buttonClass, inline = true, label, busyLabel }) => (
     <form class={inline ? "d-inline" : undefined} method="post" action={action}>
-        <button type="submit" class={`btn ${buttonClass} btn-sm`}>
+        <button type="submit" class={`btn ${buttonClass} btn-sm`} data-busy-label={busyLabel}>
             {label}
         </button>
     </form>
@@ -48,23 +57,44 @@ const VideoActions: FC<{ video: Video }> = ({ video }) => {
         <td class="text-end text-nowrap">
             {video.pinned ? (
                 <>
-                    <PostButton action={`${base}/unpin`} buttonClass="btn-outline-secondary" label="Unpin" />{" "}
+                    <PostButton
+                        action={`${base}/unpin`}
+                        buttonClass="btn-outline-secondary"
+                        label="Unpin"
+                        busyLabel="Unpinning…"
+                    />{" "}
                     {video.downloadStatus === "failed" && (
-                        <PostButton action={`${base}/retry`} buttonClass="btn-outline-primary" label="Retry" />
+                        <PostButton
+                            action={`${base}/retry`}
+                            buttonClass="btn-outline-primary"
+                            label="Retry"
+                            busyLabel="Retrying…"
+                        />
                     )}
                 </>
             ) : (
-                <PostButton action={`${base}/pin`} buttonClass="btn-outline-primary" label="Pin" />
+                <PostButton action={`${base}/pin`} buttonClass="btn-outline-primary" label="Pin" busyLabel="Pinning…" />
             )}{" "}
             {video.rule === "block" ? (
-                <PostButton action={`${base}/unblock`} buttonClass="btn-outline-success" label="Unblock" />
+                <PostButton
+                    action={`${base}/unblock`}
+                    buttonClass="btn-outline-success"
+                    label="Unblock"
+                    busyLabel="Unblocking…"
+                />
             ) : (
-                <PostButton action={`${base}/block`} buttonClass="btn-outline-warning" label="Block" />
+                <PostButton
+                    action={`${base}/block`}
+                    buttonClass="btn-outline-warning"
+                    label="Block"
+                    busyLabel="Blocking…"
+                />
             )}{" "}
             <PostButton
                 action={`${base}/remove`}
                 buttonClass="btn-outline-danger"
                 label={video.channelAllowed ? "Remove (stays hidden)" : "Remove"}
+                busyLabel="Removing…"
             />
         </td>
     );
@@ -78,7 +108,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
                 <span class="navbar-text">
                     Logged in as <strong>{props.username}</strong>
                 </span>
-                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <button type="submit" class="btn btn-outline-secondary btn-sm" data-busy-label="Logging out…">
                     Log out
                 </button>
             </form>
@@ -86,7 +116,10 @@ export const AdminPage: FC<AdminProps> = (props) => (
     >
         <h1 class="h3 mb-3">Admin</h1>
         {props.message !== "" && (
-            <div class="alert alert-info" role="status">
+            <div
+                class={`alert ${messageStyles[props.messageKind]?.alertClass ?? "alert-info"}`}
+                role={messageStyles[props.messageKind]?.role ?? "status"}
+            >
                 {props.message}
             </div>
         )}
@@ -103,8 +136,8 @@ export const AdminPage: FC<AdminProps> = (props) => (
                 aria-label="YouTube channel or video URL"
                 required
             />
-            <button type="submit" class="btn btn-primary">
-                Allow
+            <button type="submit" class="btn btn-primary" data-busy-label="Adding…">
+                Add
             </button>
         </form>
 
@@ -158,7 +191,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
                         required
                     />
                 </div>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" data-busy-label="Changing…">
                     Change password
                 </button>
             </form>
@@ -167,7 +200,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h2 class="h5 mb-0">Allowed channels</h2>
             <form method="post" action="/admin/sync">
-                <button type="submit" class="btn btn-outline-primary btn-sm">
+                <button type="submit" class="btn btn-outline-primary btn-sm" data-busy-label="Starting sync…">
                     Sync all now
                 </button>
             </form>
@@ -205,6 +238,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
                                         buttonClass="btn-outline-danger"
                                         inline={false}
                                         label="Remove"
+                                        busyLabel="Removing…"
                                     />
                                 </td>
                             </tr>

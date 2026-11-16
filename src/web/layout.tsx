@@ -22,6 +22,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, navbar, head
                 <script src="/static/theme.js" />
                 <link rel="stylesheet" href="/static/bootstrap.min.css" />
                 <link rel="stylesheet" href="/static/style.css" />
+                <script src="/static/forms.js" defer />
                 {head}
             </head>
             <body>
