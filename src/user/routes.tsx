@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { getWatchableChannels } from "../shared/db/channels.ts";
 import { requestCache } from "../shared/db/queue.ts";
 import {
@@ -12,7 +13,7 @@ import {
     getWatchableVideosWithoutTopic,
 } from "../shared/db/topics.ts";
 import type { Video } from "../shared/db/types.ts";
-import { getVideo, getWatchableVideos, markWatched, recordPlay } from "../shared/db/videos.ts";
+import { getRecentlyWatched, getVideo, getWatchableVideos, markWatched, recordPlay } from "../shared/db/videos.ts";
 import { logger } from "../shared/logger.ts";
 import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
@@ -21,6 +22,18 @@ import { serveFile } from "./files.ts";
 import playerStyles from "./player.css" with { type: "file" };
 import playerScript from "./player.js" with { type: "file" };
 import { IndexPage, TopicPage, WatchPage } from "./views.tsx";
+
+const hideWatchedCookie = "tubestop_hide_watched";
+
+/** Where the "hide watched" button may send the child back to: a path on this site, with an optional query. */
+const localPath = /^\/(?:[\w.~%-]+(?:\/[\w.~%-]+)*)?(?:\?[\w.~%&=+-]*)?$/;
+
+const hidingWatched = (context: Context): boolean => getCookie(context, hideWatchedCookie) === "1";
+
+const currentPath = (context: Context): string => {
+    const url = new URL(context.req.url);
+    return `${url.pathname}${url.search}`;
+};
 
 /** How many videos each row on the home page shows before "See all". */
 const shelfSize = 8;
@@ -73,6 +86,8 @@ export function userRoutes(): Hono {
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";
         const channels = getWatchableChannels();
+        const hideWatched = hidingWatched(context);
+        const here = currentPath(context);
         if (channel === "" && getTopics().length > 0) {
             return context.html(
                 <IndexPage
@@ -80,17 +95,48 @@ export function userRoutes(): Hono {
                     channels={channels}
                     current={channel}
                     pages={paginate(1, kidPageSize, 0, listLink("/", ""))}
-                    shelves={getShelves(shelfSize)}
+                    hideWatched={hideWatched}
+                    here={here}
+                    shelves={{
+                        ...getShelves(shelfSize, hideWatched),
+                        recent: getRecentlyWatched({ limit: shelfSize, offset: 0 }),
+                    }}
                 />,
             );
         }
         const { videos, pages } = loadPage(
-            (page) => getWatchableVideos(channel, page),
+            (page) => getWatchableVideos(channel, page, hideWatched),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink("/", channel),
         );
-        return context.html(<IndexPage videos={videos} channels={channels} current={channel} pages={pages} />);
+        return context.html(
+            <IndexPage
+                videos={videos}
+                channels={channels}
+                current={channel}
+                pages={pages}
+                hideWatched={hideWatched}
+                here={here}
+                recent={channel === "" ? getRecentlyWatched({ limit: shelfSize, offset: 0 }) : undefined}
+            />,
+        );
+    });
+
+    routes.post("/hide-watched", async (context) => {
+        const body = await context.req.parseBody();
+        const next = typeof body.next === "string" && localPath.test(body.next) ? body.next : "/";
+        if (body.hide === "1") {
+            setCookie(context, hideWatchedCookie, "1", {
+                path: "/",
+                httpOnly: true,
+                sameSite: "Lax",
+                maxAge: 365 * 24 * 60 * 60,
+            });
+        } else {
+            deleteCookie(context, hideWatchedCookie, { path: "/" });
+        }
+        return context.redirect(next, 303);
     });
 
     routes.get("/topic/:slug", (context) => {
@@ -98,23 +144,51 @@ export function userRoutes(): Hono {
         if (topic === null) {
             return context.notFound();
         }
+        const hideWatched = hidingWatched(context);
         const { videos, pages } = loadPage(
-            (page) => getWatchableVideosInTopic(topic.id, page),
+            (page) => getWatchableVideosInTopic(topic.id, page, hideWatched),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink(`/topic/${encodeURIComponent(topic.slug)}`, ""),
         );
-        return context.html(<TopicPage topic={topic} videos={videos} pages={pages} />);
+        return context.html(
+            <TopicPage
+                heading={topic.name}
+                emoji={topic.emoji}
+                videos={videos}
+                pages={pages}
+                toggle={{ hidden: hideWatched, here: currentPath(context) }}
+            />,
+        );
     });
 
     routes.get("/other", (context) => {
+        const hideWatched = hidingWatched(context);
         const { videos, pages } = loadPage(
-            getWatchableVideosWithoutTopic,
+            (page) => getWatchableVideosWithoutTopic(page, hideWatched),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink("/other", ""),
         );
-        return context.html(<TopicPage topic={null} videos={videos} pages={pages} />);
+        return context.html(
+            <TopicPage
+                heading="More videos"
+                emoji=""
+                videos={videos}
+                pages={pages}
+                toggle={{ hidden: hideWatched, here: currentPath(context) }}
+            />,
+        );
+    });
+
+    routes.get("/watched", (context) => {
+        const { videos, pages } = loadPage(
+            getRecentlyWatched,
+            requestedPage(context.req.query("page")),
+            kidPageSize,
+            listLink("/watched", ""),
+        );
+        return context.html(<TopicPage heading="Recently watched" emoji="✓" videos={videos} pages={pages} />);
     });
 
     // Opening a page only reads state: the page's script asks for the video to be prepared and reports plays.

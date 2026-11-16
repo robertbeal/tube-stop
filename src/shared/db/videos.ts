@@ -63,6 +63,9 @@ const channelAllowedExpression = "EXISTS (SELECT 1 FROM channels c WHERE c.youtu
 
 export const watchableExpression = watchableFor("v");
 
+/** The condition for a video the child has not watched yet. */
+export const unwatched = "v.watched_at = 0";
+
 export const videoColumns = `v.youtube_id, v.channel_yt_id, v.channel_name, v.title, v.duration, v.rule, v.pinned,
   v.file_path, v.download_status, v.download_error, v.cache_status, v.cache_path, v.cache_error,
   v.last_played_at, v.play_count, v.watched_at, v.published_at,
@@ -119,23 +122,34 @@ export function getVideo(youtubeId: VideoId): Video | null {
     return row === null ? null : toVideo(row);
 }
 
-export function queryPage(where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
+export function queryPage(
+    where: string,
+    parameters: SQLQueryBindings[],
+    page: Page,
+    order: string = newestFirst,
+): VideoPage {
     const total = database
         .query<{ total: number }, SQLQueryBindings[]>(`SELECT COUNT(*) AS total FROM videos v WHERE ${where}`)
         .get(...parameters);
     const rows = database
         .query<VideoRow, SQLQueryBindings[]>(
-            `SELECT ${videoColumns} FROM videos v WHERE ${where} ${newestFirst} LIMIT ? OFFSET ?`,
+            `SELECT ${videoColumns} FROM videos v WHERE ${where} ${order} LIMIT ? OFFSET ?`,
         )
         .all(...parameters, page.limit, page.offset);
     return { videos: rows.map(toVideo), total: total?.total ?? 0 };
 }
 
 /** One page of the videos the child may watch, newest published first, optionally for one channel. */
-export function getWatchableVideos(channelYoutubeId: string, page: Page): VideoPage {
+export function getWatchableVideos(channelYoutubeId: string, page: Page, hideWatched = false): VideoPage {
+    const visible = hideWatched ? `${watchableExpression} AND ${unwatched}` : watchableExpression;
     return channelYoutubeId === ""
-        ? queryPage(watchableExpression, [], page)
-        : queryPage(`${watchableExpression} AND v.channel_yt_id = ?`, [channelYoutubeId], page);
+        ? queryPage(visible, [], page)
+        : queryPage(`${visible} AND v.channel_yt_id = ?`, [channelYoutubeId], page);
+}
+
+/** One page of the videos the child may watch and has watched, the most recently watched first. */
+export function getRecentlyWatched(page: Page): VideoPage {
+    return queryPage(`${watchableExpression} AND v.watched_at > 0`, [], page, "ORDER BY v.watched_at DESC, v.id DESC");
 }
 
 /**

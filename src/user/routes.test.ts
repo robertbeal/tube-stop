@@ -554,7 +554,88 @@ describe("watched badge", () => {
         expect(await (await send(environment, "/")).text()).not.toContain("Watched");
 
         await send(environment, `/api/videos/${videoId}/watched`, { method: "POST" });
-        const html = await (await send(environment, "/")).text();
+        const html = await (await send(environment, "/?channel=UC1")).text();
         expect(countOccurrences(html, "✓ Watched")).toBe(1);
+    });
+});
+
+describe("recently watched and hiding watched", () => {
+    const hideCookie = "tubestop_hide_watched=1";
+
+    async function setup() {
+        const environment = await buildEnvironment();
+        const topic = createTopic("Music", "🎵", "danger");
+        const seen = numberedId(2);
+        allowPianoVideo(videoId, "Fresh song");
+        allowPianoVideo(seen, "Seen song");
+        setVideoTopics(videoId, [topic.id]);
+        setVideoTopics(seen, [topic.id]);
+        await send(environment, `/api/videos/${seen}/watched`, { method: "POST" });
+        return { environment, seen };
+    }
+
+    test("the home page ends with the recently watched row", async () => {
+        const { environment, seen } = await setup();
+        const html = await (await send(environment, "/")).text();
+        expect(html).toContain("Recently watched");
+        expect(html.indexOf("Recently watched")).toBeGreaterThan(html.indexOf("Music"));
+        expect(countOccurrences(html, `href="/watch/${seen}"`)).toBe(2);
+    });
+
+    test("without topics the plain list is followed by the recently watched row", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+        expect(await (await send(environment, "/")).text()).not.toContain("Recently watched");
+
+        await send(environment, `/api/videos/${videoId}/watched`, { method: "POST" });
+        const html = await (await send(environment, "/")).text();
+        expect(html).toContain("Recently watched");
+        expect(html.indexOf("Recently watched")).toBeGreaterThan(html.indexOf("Song"));
+        expect(await (await send(environment, "/?channel=UC1")).text()).not.toContain("Recently watched");
+    });
+
+    test("no recently watched row until something is watched", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+        setVideoTopics(videoId, [createTopic("Music", "", "primary").id]);
+        expect(await (await send(environment, "/")).text()).not.toContain("Recently watched");
+    });
+
+    test("hiding watched leaves them out of topic rows and pages but not the recently watched row", async () => {
+        const { environment, seen } = await setup();
+        const home = await (await send(environment, "/", { cookie: hideCookie })).text();
+        expect(countOccurrences(home, `href="/watch/${seen}"`)).toBe(1);
+        expect(home).toContain("Show watched");
+
+        const topic = await (await send(environment, "/topic/music", { cookie: hideCookie })).text();
+        expect(cardCount(topic)).toBe(1);
+        expect(topic).not.toContain("Seen song");
+
+        const plain = await (await send(environment, "/topic/music")).text();
+        expect(cardCount(plain)).toBe(2);
+        expect(plain).toContain("Hide watched");
+    });
+
+    test("the watched page lists them all", async () => {
+        const { environment } = await setup();
+        const html = await (await send(environment, "/watched", { cookie: hideCookie })).text();
+        expect(cardCount(html)).toBe(1);
+        expect(html).toContain("Seen song");
+    });
+
+    test("the button sets and clears the choice, and only returns to this site", async () => {
+        const environment = await buildEnvironment();
+        const on = await send(environment, "/hide-watched", { form: { hide: "1", next: "/topic/music?page=2" } });
+        expect(on.status).toBe(303);
+        expect(on.headers.get("location")).toBe("/topic/music?page=2");
+        expect(on.headers.getSetCookie().join()).toContain("tubestop_hide_watched=1");
+
+        const off = await send(environment, "/hide-watched", { form: { hide: "0", next: "/" } });
+        expect(off.headers.getSetCookie().join()).toMatch(/tubestop_hide_watched=;/);
+
+        for (const next of ["//evil.example", "https://evil.example", "/\\evil", ""]) {
+            const response = await send(environment, "/hide-watched", { form: { hide: "1", next } });
+            expect(response.headers.get("location")).toBe("/");
+        }
     });
 });

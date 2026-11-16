@@ -10,6 +10,7 @@ import {
     blockVideo,
     deleteVideo,
     getAdminVideos,
+    getRecentlyWatched,
     getVideo,
     getWatchableVideos,
     insertVideo,
@@ -143,6 +144,37 @@ describe("watched", () => {
         expect(videoOf(video.youtubeId).watchedAt).toBe(0);
         expect(() => markWatched(randomVideoId())).toThrow(NotFoundError);
         expect(() => unmarkWatched(randomVideoId())).toThrow(NotFoundError);
+    });
+});
+
+describe("hiding watched videos", () => {
+    test("watched videos can be left out of the list", async () => {
+        const seen = newVideo("loose");
+        const fresh = newVideo("loose");
+        allowVideo(seen);
+        allowVideo(fresh);
+        markWatched(seen.youtubeId);
+        expect(getWatchableVideos("", everything, true).videos.map((video) => video.youtubeId)).toEqual([
+            fresh.youtubeId,
+        ]);
+        expect(getWatchableVideos("", everything).total).toBe(2);
+    });
+
+    test("recently watched lists the latest first, and leaves out blocked videos", async () => {
+        const [first, second, third, hidden] = [newVideo("x"), newVideo("x"), newVideo("x"), newVideo("x")];
+        for (const video of [first, second, third, hidden]) {
+            allowVideo(video);
+        }
+        for (const video of [second, first, hidden, third]) {
+            markWatched(video.youtubeId);
+            advanceTime(1000);
+        }
+        blockVideo(hidden.youtubeId);
+        expect(idsOf(getRecentlyWatched(everything).videos)).toEqual([
+            third.youtubeId,
+            first.youtubeId,
+            second.youtubeId,
+        ]);
     });
 });
 

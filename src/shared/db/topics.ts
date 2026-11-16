@@ -9,7 +9,7 @@ import {
     type TopicId,
     type VideoPage,
 } from "./types.ts";
-import { queryPage, watchableExpression } from "./videos.ts";
+import { queryPage, unwatched, watchableExpression } from "./videos.ts";
 
 type TopicRow = { id: number; slug: string; name: string; emoji: string; color: string };
 
@@ -227,21 +227,24 @@ const hasNoTopic = `(NOT EXISTS (SELECT 1 FROM video_topics vt WHERE vt.video_yo
   AND NOT EXISTS (SELECT 1 FROM channel_topics ct JOIN channels tc ON tc.id = ct.channel_id
        WHERE tc.youtube_id = v.channel_yt_id))`;
 
+const visible = (hideWatched: boolean) =>
+    hideWatched ? `${watchableExpression} AND ${unwatched}` : watchableExpression;
+
 /** One page of the videos the child may watch under a topic, newest published first. */
-export function getWatchableVideosInTopic(topicId: TopicId, page: Page): VideoPage {
-    return queryPage(`${watchableExpression} AND ${inTopic}`, [topicId, topicId], page);
+export function getWatchableVideosInTopic(topicId: TopicId, page: Page, hideWatched = false): VideoPage {
+    return queryPage(`${visible(hideWatched)} AND ${inTopic}`, [topicId, topicId], page);
 }
 
 /** One page of the videos the child may watch that have no topic. */
-export function getWatchableVideosWithoutTopic(page: Page): VideoPage {
-    return queryPage(`${watchableExpression} AND ${hasNoTopic}`, [], page);
+export function getWatchableVideosWithoutTopic(page: Page, hideWatched = false): VideoPage {
+    return queryPage(`${visible(hideWatched)} AND ${hasNoTopic}`, [], page);
 }
 
 /** The newest videos of each topic that has any, in topic order, and separately the videos with no topic. */
-export function getShelves(perShelf: number): { shelves: Shelf[]; other: VideoPage } {
+export function getShelves(perShelf: number, hideWatched = false): { shelves: Shelf[]; other: VideoPage } {
     const page = { limit: perShelf, offset: 0 };
     const shelves = getTopics()
-        .map((topic) => ({ topic, ...getWatchableVideosInTopic(topic.id, page) }))
+        .map((topic) => ({ topic, ...getWatchableVideosInTopic(topic.id, page, hideWatched) }))
         .filter((shelf) => shelf.total > 0);
-    return { shelves, other: getWatchableVideosWithoutTopic(page) };
+    return { shelves, other: getWatchableVideosWithoutTopic(page, hideWatched) };
 }

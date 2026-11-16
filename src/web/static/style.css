@@ -95,3 +95,10 @@
 .watched-thumb {
   opacity: 0.75;
 }
+
+/* The hide-watched button: a big enough target for a finger. */
+.toggle-button {
+  min-height: 3rem;
+  padding-inline: 1.1rem;
+  font-size: 1.1rem;
+}
