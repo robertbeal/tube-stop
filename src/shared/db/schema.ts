@@ -37,8 +37,42 @@ CREATE TABLE users (
 );
 `;
 
+const topics = `
+CREATE TABLE topics (
+  id INTEGER PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT 'primary',
+  position INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE channel_topics (
+  channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  PRIMARY KEY (channel_id, topic_id)
+);
+
+-- Keyed by YouTube id, like the rest of the video's links: a deleted video takes its tags with it.
+CREATE TABLE video_topics (
+  video_youtube_id TEXT NOT NULL REFERENCES videos(youtube_id) ON DELETE CASCADE,
+  topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  PRIMARY KEY (video_youtube_id, topic_id)
+);
+`;
+
+const starterTopics = `
+INSERT INTO topics (slug, name, emoji, color, position) VALUES
+  ('nature', 'Nature', '🌿', 'success', 1),
+  ('animals', 'Animals', '🐾', 'warning', 2),
+  ('science', 'Science', '🔬', 'info', 3),
+  ('music', 'Music', '🎵', 'danger', 4),
+  ('stories', 'Stories', '📚', 'primary', 5),
+  ('art-and-making', 'Art & Making', '🎨', 'secondary', 6);
+`;
+
 /**
  * Applied in order; the number applied is kept in PRAGMA user_version. Never edit an existing
  * entry: append a new one instead.
  */
-export const migrations: readonly string[] = [schema];
+export const migrations: readonly string[] = [schema, topics, starterTopics];

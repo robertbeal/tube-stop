@@ -117,7 +117,7 @@ export function getVideo(youtubeId: VideoId): Video | null {
     return row === null ? null : toVideo(row);
 }
 
-function queryPage(where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
+export function queryPage(where: string, parameters: SQLQueryBindings[], page: Page): VideoPage {
     const total = database
         .query<{ total: number }, SQLQueryBindings[]>(`SELECT COUNT(*) AS total FROM videos v WHERE ${where}`)
         .get(...parameters);

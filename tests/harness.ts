@@ -82,7 +82,7 @@ export async function buildEnvironment(options: EnvironmentOptions = {}): Promis
 export type RequestOptions = {
     method?: string;
     /** Sent as a url-encoded form body. */
-    form?: Record<string, string>;
+    form?: Record<string, string> | URLSearchParams;
     headers?: Record<string, string>;
     /** A cookie header value, such as the one returned by `logIn`. */
     cookie?: string;

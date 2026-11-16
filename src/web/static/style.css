@@ -60,3 +60,33 @@
     transition: none;
   }
 }
+
+/* Home page rows: one per topic, scrolling sideways, with cards that snap into place. */
+.shelf-row {
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.shelf-item {
+  flex: 0 0 auto;
+  width: min(16rem, 70vw);
+  scroll-snap-align: start;
+}
+.shelf-more {
+  width: min(10rem, 40vw);
+}
+.shelf-heading {
+  display: inline-block;
+  padding-block: 0.25rem;
+}
+
+/* Admin topic pickers: the badges are the closed state, so keep them clickable and tidy. */
+.topic-picker summary {
+  cursor: pointer;
+  list-style: none;
+}
+.topic-picker summary::-webkit-details-marker {
+  display: none;
+}
+.topic-emoji {
+  width: 4rem;
+}

@@ -39,6 +39,12 @@ export async function formFields(context: Context): Promise<(name: string) => st
     };
 }
 
+/** Reads every value sent under one field name, such as the ticked boxes of a group; files are ignored. */
+export async function formValues(context: Context, name: string): Promise<string[]> {
+    const value = (await context.req.parseBody({ all: true }))[name];
+    return (Array.isArray(value) ? value : [value]).filter((item) => typeof item === "string");
+}
+
 function isHttps(context: Context): boolean {
     return context.req.url.startsWith("https:") || context.req.header("x-forwarded-proto") === "https";
 }

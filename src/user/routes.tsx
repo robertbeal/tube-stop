@@ -4,16 +4,26 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { getWatchableChannels } from "../shared/db/channels.ts";
 import { requestCache } from "../shared/db/queue.ts";
+import {
+    getShelves,
+    getTopicBySlug,
+    getTopics,
+    getWatchableVideosInTopic,
+    getWatchableVideosWithoutTopic,
+} from "../shared/db/topics.ts";
 import type { Video } from "../shared/db/types.ts";
 import { getVideo, getWatchableVideos, recordPlay } from "../shared/db/videos.ts";
 import { logger } from "../shared/logger.ts";
 import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
-import { kidPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
+import { kidPageSize, listLink, loadPage, paginate, requestedPage } from "../web/paging.ts";
 import { serveFile } from "./files.ts";
 import playerStyles from "./player.css" with { type: "file" };
 import playerScript from "./player.js" with { type: "file" };
-import { IndexPage, WatchPage } from "./views.tsx";
+import { IndexPage, TopicPage, WatchPage } from "./views.tsx";
+
+/** How many videos each row on the home page shows before "See all". */
+const shelfSize = 8;
 
 async function exists(path: string): Promise<boolean> {
     return stat(path).then(
@@ -62,15 +72,49 @@ export function userRoutes(): Hono {
 
     routes.get("/", (context) => {
         const channel = context.req.query("channel") ?? "";
+        const channels = getWatchableChannels();
+        if (channel === "" && getTopics().length > 0) {
+            return context.html(
+                <IndexPage
+                    videos={[]}
+                    channels={channels}
+                    current={channel}
+                    pages={paginate(1, kidPageSize, 0, listLink("/", ""))}
+                    shelves={getShelves(shelfSize)}
+                />,
+            );
+        }
         const { videos, pages } = loadPage(
             (page) => getWatchableVideos(channel, page),
             requestedPage(context.req.query("page")),
             kidPageSize,
             listLink("/", channel),
         );
-        return context.html(
-            <IndexPage videos={videos} channels={getWatchableChannels()} current={channel} pages={pages} />,
+        return context.html(<IndexPage videos={videos} channels={channels} current={channel} pages={pages} />);
+    });
+
+    routes.get("/topic/:slug", (context) => {
+        const topic = getTopicBySlug(context.req.param("slug"));
+        if (topic === null) {
+            return context.notFound();
+        }
+        const { videos, pages } = loadPage(
+            (page) => getWatchableVideosInTopic(topic.id, page),
+            requestedPage(context.req.query("page")),
+            kidPageSize,
+            listLink(`/topic/${encodeURIComponent(topic.slug)}`, ""),
         );
+        return context.html(<TopicPage topic={topic} videos={videos} pages={pages} />);
+    });
+
+    routes.get("/other", (context) => {
+        const { videos, pages } = loadPage(
+            getWatchableVideosWithoutTopic,
+            requestedPage(context.req.query("page")),
+            kidPageSize,
+            listLink("/other", ""),
+        );
+        return context.html(<TopicPage topic={null} videos={videos} pages={pages} />);
     });
 
     // Opening a page only reads state: the page's script asks for the video to be prepared and reports plays.

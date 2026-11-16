@@ -8,6 +8,28 @@ export type Rule = "allow" | "block" | "inherit";
 /** The database row number of an allowed channel, as used in admin URLs. */
 export type ChannelId = number & { readonly brand: "ChannelId" };
 
+/** The database row number of a topic, as used in admin URLs. */
+export type TopicId = number & { readonly brand: "TopicId" };
+
+/** A subject the admin sorts channels and videos under, such as Nature or Music. */
+export type Topic = {
+    id: TopicId;
+    /** The topic's address on the child's pages. */
+    slug: string;
+    name: string;
+    emoji: string;
+    /** A Bootstrap theme colour name. */
+    color: string;
+};
+
+/** A topic with some of the videos under it, for a row on the child's home page. */
+export type Shelf = {
+    topic: Topic;
+    videos: Video[];
+    /** All the watchable videos under the topic, not only those shown. */
+    total: number;
+};
+
 export type Channel = {
     id: ChannelId;
     youtubeId: string;

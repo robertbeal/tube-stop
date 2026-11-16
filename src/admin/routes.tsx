@@ -2,6 +2,19 @@ import { Hono } from "hono";
 import { config } from "../shared/config.ts";
 import { deleteChannel, getChannels, insertChannel, parseChannelId } from "../shared/db/channels.ts";
 import { pinVideo, unpinVideo } from "../shared/db/queue.ts";
+import {
+    createTopic,
+    deleteTopic,
+    getChannelTopicIds,
+    getTopics,
+    getVideoTopicIds,
+    moveTopic,
+    parseTopicId,
+    setChannelTopics,
+    setVideoTopics,
+    updateTopic,
+} from "../shared/db/topics.ts";
+import type { TopicId } from "../shared/db/types.ts";
 import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../shared/db/videos.ts";
 import { shutdown } from "../shared/shutdown.ts";
 import { directorySize, removeMedia } from "../shared/storage.ts";
@@ -13,7 +26,14 @@ import { isVideo } from "../shared/ytdlp/types.ts";
 import { syncChannels } from "../sync/sync.ts";
 import { adminPageSize, listLink, loadPage, requestedPage } from "../web/paging.ts";
 import type { Services } from "../web/services.ts";
-import { type AuthEnv, changePassword, formFields, type MessageKind, redirectWithMessage } from "./auth-routes.tsx";
+import {
+    type AuthEnv,
+    changePassword,
+    formFields,
+    formValues,
+    type MessageKind,
+    redirectWithMessage,
+} from "./auth-routes.tsx";
 import { AdminPage } from "./views.tsx";
 
 const resolveTimeoutMs = 90 * 1000;
@@ -49,6 +69,9 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
                 message={context.req.query("msg") ?? ""}
                 messageKind={context.req.query("kind") ?? ""}
                 channels={getChannels()}
+                topics={getTopics()}
+                channelTopics={getChannelTopicIds()}
+                videoTopics={getVideoTopicIds(videos.map((video) => video.youtubeId))}
                 videos={videos}
                 current={channel}
                 pages={pages}
@@ -122,6 +145,66 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
 
     routes.post("/password", changePassword(services));
 
+    routes.post("/topics", async (context) => {
+        const field = await formFields(context);
+        const created = messageFrom(() => createTopic(field("name"), field("emoji"), field("color")));
+        return created.ok
+            ? redirectWithMessage(context, `Added topic ${created.value.name}`, "success")
+            : redirectWithMessage(context, created.message, "error");
+    });
+
+    routes.post("/topics/:id/:action", async (context) => {
+        const id = parseTopicId(context.req.param("id"));
+        const action = context.req.param("action");
+        if (id === undefined || !["update", "delete", "up", "down"].includes(action)) {
+            return context.notFound();
+        }
+        const field = await formFields(context);
+        const changed = messageFrom(() => {
+            switch (action) {
+                case "update":
+                    return updateTopic(id, field("name"), field("emoji"), field("color"));
+                case "delete":
+                    return deleteTopic(id);
+                default:
+                    return moveTopic(id, action as "up" | "down");
+            }
+        });
+        return redirectWithMessage(
+            context,
+            changed.ok ? (action === "delete" ? "Topic deleted" : "Done") : changed.message,
+            changed.ok ? "success" : "error",
+        );
+    });
+
+    routes.post("/channels/:id/topics", async (context) => {
+        const id = parseChannelId(context.req.param("id"));
+        if (id === undefined) {
+            return context.notFound();
+        }
+        const topicIds = parseTopicIds(await formValues(context, "topic"));
+        return redirectWithMessage(
+            context,
+            ...(topicIds === undefined
+                ? (["Unknown topic", "error"] as const)
+                : outcomeOf(messageFrom(() => setChannelTopics(id, topicIds)))),
+        );
+    });
+
+    routes.post("/videos/:id/topics", async (context) => {
+        const id = parseVideoId(context.req.param("id"));
+        if (id === undefined) {
+            return context.notFound();
+        }
+        const topicIds = parseTopicIds(await formValues(context, "topic"));
+        return redirectWithMessage(
+            context,
+            ...(topicIds === undefined
+                ? (["Unknown topic", "error"] as const)
+                : outcomeOf(messageFrom(() => setVideoTopics(id, topicIds)))),
+        );
+    });
+
     routes.post("/videos/:id/:action", async (context) => {
         const id = parseVideoId(context.req.param("id"));
         if (id === undefined) {
@@ -134,6 +217,16 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
     });
 
     return routes;
+}
+
+/** The topics named by ticked boxes, or undefined if any of them is not a topic number. */
+function parseTopicIds(values: string[]): TopicId[] | undefined {
+    const ids = values.map(parseTopicId);
+    return ids.every((id) => id !== undefined) ? ids : undefined;
+}
+
+function outcomeOf(change: { ok: true } | { ok: false; message: string }): readonly [string, MessageKind] {
+    return change.ok ? ["Topics saved", "success"] : [change.message, "error"];
 }
 
 type Notice = { message: string; kind: MessageKind };

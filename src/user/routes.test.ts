@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { allow, buildEnvironment, logIn, send } from "../../tests/harness.ts";
 import { testVideoId } from "../../tests/helpers.ts";
 import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
+import { createTopic, setVideoTopics } from "../shared/db/topics.ts";
 import * as videoQueries from "../shared/db/videos.ts";
 import { blockVideo } from "../shared/db/videos.ts";
 import type { VideoId } from "../shared/ytdlp/types.ts";
@@ -476,5 +477,58 @@ describe("database failures", () => {
             expect(await response.text()).toBe("something went wrong");
         }
         expect(environment.logs.length).toBeGreaterThan(0);
+    });
+});
+
+describe("topics", () => {
+    test("the index shows a row for each topic that has videos, and the rest under more videos", async () => {
+        const environment = await buildEnvironment();
+        const [nature] = [createTopic("Nature", "🌿", "success"), createTopic("Empty", "", "primary")];
+        allowPianoVideo(videoId, "Song");
+        const other = numberedId(2);
+        allowPianoVideo(other, "Loose");
+        setVideoTopics(videoId, [nature.id]);
+
+        const html = await (await send(environment, "/")).text();
+        expect(html).toContain("Nature");
+        expect(html).not.toContain("Empty");
+        expect(html).toContain("More videos");
+        expect(html).toContain(`href="/watch/${videoId}"`);
+        expect(html).toContain(`href="/watch/${other}"`);
+    });
+
+    test("without topics the index is the plain list", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+        const html = await (await send(environment, "/")).text();
+        expect(html).not.toContain("shelf");
+        expect(cardCount(html)).toBe(1);
+    });
+
+    test("a topic page lists its videos only", async () => {
+        const environment = await buildEnvironment();
+        const topic = createTopic("Music", "🎵", "danger");
+        allowPianoVideo(videoId, "Song");
+        allowPianoVideo(numberedId(2), "Loose");
+        setVideoTopics(videoId, [topic.id]);
+
+        const response = await send(environment, "/topic/music");
+        const html = await response.text();
+        expect(response.status).toBe(200);
+        expect(cardCount(html)).toBe(1);
+        expect(html).toContain("Song");
+        expect((await send(environment, "/topic/unknown")).status).toBe(404);
+    });
+
+    test("the page for videos without a topic lists them", async () => {
+        const environment = await buildEnvironment();
+        const topic = createTopic("Music", "🎵", "danger");
+        allowPianoVideo(videoId, "Song");
+        allowPianoVideo(numberedId(2), "Loose");
+        setVideoTopics(videoId, [topic.id]);
+
+        const html = await (await send(environment, "/other")).text();
+        expect(cardCount(html)).toBe(1);
+        expect(html).toContain("Loose");
     });
 });

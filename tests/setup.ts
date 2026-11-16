@@ -14,7 +14,7 @@ const originalConfig = { ...config };
 // Every test starts with empty tables and folders, the same settings, and the same fake time,
 // which does not move on its own.
 beforeEach(async () => {
-    for (const table of ["videos", "channels", "users", "sqlite_sequence"]) {
+    for (const table of ["videos", "channels", "topics", "users", "sqlite_sequence"]) {
         database.run(`DELETE FROM ${table}`);
     }
     await Promise.all(

@@ -15,7 +15,7 @@ function userVersion(path: string): number {
 
 describe("schema versioning", () => {
     test("a new database is stamped with the schema version", () => {
-        expect(userVersion(join(config.dataDir, "tubestop.db"))).toBe(1);
+        expect(userVersion(join(config.dataDir, "tubestop.db"))).toBe(3);
     });
 
     test("reopening keeps data and version", async () => {
@@ -26,7 +26,7 @@ describe("schema versioning", () => {
 
         const reopened = openDatabase(path);
         expect(reopened.query<{ title: string }, []>("SELECT title FROM videos").get()?.title).toBe("Kept");
-        expect(userVersion(path)).toBe(1);
+        expect(userVersion(path)).toBe(3);
         reopened.close();
     });
 

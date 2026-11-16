@@ -5,6 +5,8 @@ import { allow, buildEnvironment, type Environment, logIn, send } from "../../te
 import { advanceTime, testVideoId } from "../../tests/helpers.ts";
 import { getChannels, insertChannel, markChannelSynced } from "../shared/db/channels.ts";
 import { claimDownload, failDownload, pinVideo } from "../shared/db/queue.ts";
+import { createTopic, getChannelTopicIds, getTopics, getVideoTopicIds } from "../shared/db/topics.ts";
+import type { ChannelId } from "../shared/db/types.ts";
 import * as videoQueries from "../shared/db/videos.ts";
 import { allowVideo, getVideo, getWatchableVideos, insertVideo } from "../shared/db/videos.ts";
 import * as storage from "../shared/storage.ts";
@@ -514,5 +516,54 @@ describe("channels", () => {
 
         expect(message).toBe("Sync started");
         expect(environment.triggers.sync).toBe(1);
+    });
+});
+
+describe("topics", () => {
+    test("an admin can add, rename, move and delete topics", async () => {
+        const environment = await buildEnvironment();
+        await adminPost(environment, "/admin/topics", { name: "Nature", emoji: "🌿", color: "success" });
+        await adminPost(environment, "/admin/topics", { name: "Music", emoji: "🎵", color: "danger" });
+        const [nature, music] = getTopics();
+        await adminPost(environment, `/admin/topics/${music?.id}/up`);
+        await adminPost(environment, `/admin/topics/${nature?.id}/update`, {
+            name: "Wild",
+            emoji: "🦊",
+            color: "info",
+        });
+        expect(getTopics().map((topic) => topic.name)).toEqual(["Music", "Wild"]);
+        await adminPost(environment, `/admin/topics/${music?.id}/delete`);
+        expect(getTopics().map((topic) => topic.name)).toEqual(["Wild"]);
+        expect((await adminPost(environment, `/admin/topics/${nature?.id}/explode`)).status).toBe(404);
+    });
+
+    test("an admin can tag a channel and a video with several topics", async () => {
+        const environment = await environmentWithSong();
+        const [a, b] = [createTopic("A", "", "primary"), createTopic("B", "", "primary")];
+        const cookie = await logIn(environment);
+        insertChannel("UC1", "Piano Guy");
+        const channel = getChannels()[0];
+        const form = new URLSearchParams([
+            ["topic", String(a.id)],
+            ["topic", String(b.id)],
+        ]);
+        const response = await send(environment, `/admin/channels/${channel?.id}/topics`, { cookie, form });
+        expect(response.status).toBe(303);
+        expect(getChannelTopicIds().get(channel?.id as ChannelId)).toEqual([a.id, b.id]);
+
+        await send(environment, `/admin/videos/${videoId}/topics`, {
+            cookie,
+            form: new URLSearchParams([["topic", String(b.id)]]),
+        });
+        expect(getVideoTopicIds([videoId]).get(videoId)).toEqual([b.id]);
+
+        await send(environment, `/admin/videos/${videoId}/topics`, { cookie, form: new URLSearchParams() });
+        expect(getVideoTopicIds([videoId]).size).toBe(0);
+    });
+
+    test("something that is not a topic is refused", async () => {
+        const environment = await environmentWithSong();
+        const response = await adminPost(environment, `/admin/videos/${videoId}/topics`, { topic: "abc" });
+        expect(redirectKind(response)).toBe("error");
     });
 });
