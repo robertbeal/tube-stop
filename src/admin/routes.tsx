@@ -15,7 +15,15 @@ import {
     updateTopic,
 } from "../shared/db/topics.ts";
 import type { TopicId } from "../shared/db/types.ts";
-import { allowVideo, blockVideo, deleteVideo, getAdminVideos, unblockVideo } from "../shared/db/videos.ts";
+import {
+    allowVideo,
+    blockVideo,
+    deleteVideo,
+    getAdminVideos,
+    markWatched,
+    unblockVideo,
+    unmarkWatched,
+} from "../shared/db/videos.ts";
 import { shutdown } from "../shared/shutdown.ts";
 import { directorySize, removeMedia } from "../shared/storage.ts";
 import { removeThumbnail } from "../shared/thumbnails.ts";
@@ -258,6 +266,10 @@ async function videoAction(action: string, id: VideoId): Promise<ActionOutcome> 
             const unpinned = messageFrom(() => unpinVideo(id));
             return unpinned.ok ? withFileFailures("Done", await removeMedia(mediaDir, unpinned.value)) : done(unpinned);
         }
+        case "watched":
+            return done(messageFrom(() => markWatched(id)));
+        case "unwatched":
+            return done(messageFrom(() => unmarkWatched(id)));
         case "block":
             return done(messageFrom(() => blockVideo(id)));
         case "unblock":

@@ -11,12 +11,20 @@ const VideoCard: FC<{ video: Video }> = ({ video }) => (
     <a class="card video-card h-100 text-decoration-none" href={`/watch/${encodeURIComponent(video.youtubeId)}`}>
         <div class="position-relative">
             <div class="ratio ratio-16x9">
-                <img class="card-img-top" src={thumbnailUrl(video.youtubeId)} alt="" loading="lazy" />
+                <img
+                    class={`card-img-top ${video.watchedAt > 0 ? "watched-thumb" : ""}`}
+                    src={thumbnailUrl(video.youtubeId)}
+                    alt=""
+                    loading="lazy"
+                />
             </div>
             {video.duration > 0 && (
                 <span class="badge text-bg-dark position-absolute bottom-0 end-0 m-2">
                     {formatDuration(video.duration)}
                 </span>
+            )}
+            {video.watchedAt > 0 && (
+                <span class="badge text-bg-success position-absolute top-0 end-0 m-2">✓ Watched</span>
             )}
             {video.downloadStatus === "ready" && (
                 <span class="badge text-bg-warning position-absolute top-0 start-0 m-2" title="Saved">

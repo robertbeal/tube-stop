@@ -71,8 +71,12 @@ INSERT INTO topics (slug, name, emoji, color, position) VALUES
   ('art-and-making', 'Art & Making', '🎨', 'secondary', 6);
 `;
 
+const watched = `
+ALTER TABLE videos ADD COLUMN watched_at INTEGER NOT NULL DEFAULT 0;
+`;
+
 /**
  * Applied in order; the number applied is kept in PRAGMA user_version. Never edit an existing
  * entry: append a new one instead.
  */
-export const migrations: readonly string[] = [schema, topics, starterTopics];
+export const migrations: readonly string[] = [schema, topics, starterTopics, watched];

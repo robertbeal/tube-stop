@@ -343,6 +343,43 @@
   // Count a play once per page visit, when the video actually starts.
   v.addEventListener("play", () => post(`/api/videos/${id}/played`).catch(() => {}), { once: true });
 
+  // "Watched" means the child got most of the way through by actually playing it, not by seeking
+  // ahead: past 90% of the video or into its last 30 seconds, with at least half of it played.
+  const watchedFraction = 0.9;
+  const creditsSeconds = 30;
+  const playedFraction = 0.5;
+  const maxStepSeconds = 2; // a bigger jump between updates is a seek, not playing
+  let playedSeconds = 0;
+  let lastTime = null;
+  let reportedWatched = false;
+
+  const reportWatchedWhenDone = () => {
+    const total = length();
+    if (reportedWatched || total <= 0) {
+      return;
+    }
+    const nearEnd = v.currentTime >= Math.min(total * watchedFraction, total - creditsSeconds) || v.ended;
+    if (nearEnd && playedSeconds >= total * playedFraction) {
+      reportedWatched = true;
+      post(`/api/videos/${id}/watched`).catch(() => {
+        reportedWatched = false;
+      });
+    }
+  };
+
+  v.addEventListener("timeupdate", () => {
+    const step = lastTime === null ? 0 : v.currentTime - lastTime;
+    lastTime = v.currentTime;
+    if (!v.paused && step > 0 && step <= maxStepSeconds) {
+      playedSeconds += step;
+    }
+    reportWatchedWhenDone();
+  });
+  v.addEventListener("seeking", () => {
+    lastTime = null;
+  });
+  v.addEventListener("ended", reportWatchedWhenDone);
+
   // Not downloaded yet: ask the server to fetch it, then poll until it is ready.
   if (v.dataset.ready !== "true") {
     const wait = byId("wait");

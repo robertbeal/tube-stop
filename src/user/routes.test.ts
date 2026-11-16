@@ -11,6 +11,7 @@ import {
     addPublished,
     allowPianoVideo,
     cardCount,
+    countOccurrences,
     loadVideo,
     makeCacheReady,
     makePinnedFile,
@@ -184,6 +185,18 @@ describe("prepare and played", () => {
         const video = loadVideo(videoId);
         expect(video.cacheStatus).toBe("none");
         expect(video.playCount).toBe(0);
+    });
+
+    test("watched is recorded once, and refused for blocked and unknown videos", async () => {
+        const environment = await environmentWithSong();
+        const watched = (id: VideoId) => `/api/videos/${id}/watched`;
+
+        expect((await send(environment, watched(videoId), { method: "POST" })).status).toBe(204);
+        expect(loadVideo(videoId).watchedAt).toBeGreaterThan(0);
+        expect((await send(environment, watched(unknownVideoId), { method: "POST" })).status).toBe(404);
+
+        blockVideo(videoId);
+        expect((await send(environment, watched(videoId), { method: "POST" })).status).toBe(404);
     });
 
     test("played counts each reported play", async () => {
@@ -530,5 +543,18 @@ describe("topics", () => {
         const html = await (await send(environment, "/other")).text();
         expect(cardCount(html)).toBe(1);
         expect(html).toContain("Loose");
+    });
+});
+
+describe("watched badge", () => {
+    test("only watched videos get the badge", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song");
+        allowPianoVideo(numberedId(2), "Other");
+        expect(await (await send(environment, "/")).text()).not.toContain("Watched");
+
+        await send(environment, `/api/videos/${videoId}/watched`, { method: "POST" });
+        const html = await (await send(environment, "/")).text();
+        expect(countOccurrences(html, "✓ Watched")).toBe(1);
     });
 });

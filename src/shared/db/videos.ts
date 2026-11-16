@@ -19,6 +19,7 @@ export type VideoRow = {
     cache_error: string;
     last_played_at: number;
     play_count: number;
+    watched_at: number;
     published_at: number;
     channel_allowed: number;
     watchable: number;
@@ -41,6 +42,7 @@ export function toVideo(row: VideoRow): Video {
         cacheError: row.cache_error,
         lastPlayedAt: row.last_played_at,
         playCount: row.play_count,
+        watchedAt: row.watched_at,
         publishedAt: row.published_at,
         channelAllowed: row.channel_allowed === 1,
         watchable: row.watchable === 1,
@@ -63,7 +65,7 @@ export const watchableExpression = watchableFor("v");
 
 export const videoColumns = `v.youtube_id, v.channel_yt_id, v.channel_name, v.title, v.duration, v.rule, v.pinned,
   v.file_path, v.download_status, v.download_error, v.cache_status, v.cache_path, v.cache_error,
-  v.last_played_at, v.play_count, v.published_at,
+  v.last_played_at, v.play_count, v.watched_at, v.published_at,
   ${channelAllowedExpression} AS channel_allowed, ${watchableExpression} AS watchable`;
 
 // Videos with a known publish date come first, newest first; the rest follow in the order they were added.
@@ -152,6 +154,25 @@ export function recordPlay(youtubeId: VideoId): void {
         Math.floor(Date.now() / 1000),
         youtubeId,
     ]);
+}
+
+/** Records that the child watched most of a video. The first time is kept: later reports change nothing. */
+export function markWatched(youtubeId: VideoId): void {
+    const found = database.query("SELECT 1 FROM videos WHERE youtube_id = ?").get(youtubeId) !== null;
+    if (!found) {
+        throw new NotFoundError();
+    }
+    database.run("UPDATE videos SET watched_at = ? WHERE youtube_id = ? AND watched_at = 0", [
+        Math.floor(Date.now() / 1000),
+        youtubeId,
+    ]);
+}
+
+/** Clears the watched mark, so the video looks new again. */
+export function unmarkWatched(youtubeId: VideoId): void {
+    if (database.run("UPDATE videos SET watched_at = 0 WHERE youtube_id = ?", [youtubeId]).changes === 0) {
+        throw new NotFoundError();
+    }
 }
 
 /**

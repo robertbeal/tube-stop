@@ -12,7 +12,7 @@ import {
     getWatchableVideosWithoutTopic,
 } from "../shared/db/topics.ts";
 import type { Video } from "../shared/db/types.ts";
-import { getVideo, getWatchableVideos, recordPlay } from "../shared/db/videos.ts";
+import { getVideo, getWatchableVideos, markWatched, recordPlay } from "../shared/db/videos.ts";
 import { logger } from "../shared/logger.ts";
 import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
@@ -143,6 +143,15 @@ export function userRoutes(): Hono {
             return context.notFound();
         }
         recordPlay(video.youtubeId);
+        return context.body(null, 204);
+    });
+
+    routes.post("/api/videos/:id/watched", (context) => {
+        const video = watchableVideo(context);
+        if (video === null) {
+            return context.notFound();
+        }
+        markWatched(video.youtubeId);
         return context.body(null, 204);
     });
 

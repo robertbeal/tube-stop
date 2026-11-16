@@ -58,6 +58,8 @@ export type Video = {
     cacheError: string;
     lastPlayedAt: number;
     playCount: number;
+    /** Unix seconds when the child was first seen to watch most of it, 0 if not yet. */
+    watchedAt: number;
     /** Unix seconds, 0 if unknown. */
     publishedAt: number;
     /** The video's channel is currently allowed. */

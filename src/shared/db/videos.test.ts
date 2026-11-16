@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { randomVideoId, testStartSeconds } from "../../../tests/helpers.ts";
+import { advanceTime, randomVideoId, testStartSeconds } from "../../../tests/helpers.ts";
 import type { VideoId } from "../ytdlp/types.ts";
 import { deleteChannel, getWatchableChannels, insertChannel } from "./channels.ts";
 import { claimDownload, finishDownload, pinVideo } from "./queue.ts";
@@ -13,8 +13,10 @@ import {
     getVideo,
     getWatchableVideos,
     insertVideo,
+    markWatched,
     recordPlay,
     unblockVideo,
+    unmarkWatched,
 } from "./videos.ts";
 
 describe("what the child may watch", () => {
@@ -119,6 +121,28 @@ describe("what the child may watch", () => {
 
     test("an unknown video is null", async () => {
         expect(getVideo(randomVideoId())).toBeNull();
+    });
+});
+
+describe("watched", () => {
+    test("the first report is kept and later ones change nothing", async () => {
+        const video = newVideo(randomVideoId());
+        allowVideo(video);
+        expect(videoOf(video.youtubeId).watchedAt).toBe(0);
+        markWatched(video.youtubeId);
+        advanceTime(60_000);
+        markWatched(video.youtubeId);
+        expect(videoOf(video.youtubeId).watchedAt).toBe(testStartSeconds);
+    });
+
+    test("unmarking clears it, and unknown videos are refused", async () => {
+        const video = newVideo(randomVideoId());
+        allowVideo(video);
+        markWatched(video.youtubeId);
+        unmarkWatched(video.youtubeId);
+        expect(videoOf(video.youtubeId).watchedAt).toBe(0);
+        expect(() => markWatched(randomVideoId())).toThrow(NotFoundError);
+        expect(() => unmarkWatched(randomVideoId())).toThrow(NotFoundError);
     });
 });
 

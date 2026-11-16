@@ -90,3 +90,8 @@
 .topic-emoji {
   width: 4rem;
 }
+
+/* Videos the child has watched are slightly muted, but still easy to pick. */
+.watched-thumb {
+  opacity: 0.75;
+}

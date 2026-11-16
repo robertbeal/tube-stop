@@ -567,3 +567,18 @@ describe("topics", () => {
         expect(redirectKind(response)).toBe("error");
     });
 });
+
+describe("watched marks", () => {
+    test("an admin can mark a video watched and clear it again", async () => {
+        const environment = await environmentWithSong();
+        const cookie = await logIn(environment);
+
+        await send(environment, `/admin/videos/${videoId}/watched`, { cookie, method: "POST" });
+        expect(loadVideo(videoId).watchedAt).toBeGreaterThan(0);
+        expect(await adminPage(environment)).toContain("Unwatch");
+
+        await send(environment, `/admin/videos/${videoId}/unwatched`, { cookie, method: "POST" });
+        expect(loadVideo(videoId).watchedAt).toBe(0);
+        expect(await adminPage(environment)).toContain("Mark watched");
+    });
+});

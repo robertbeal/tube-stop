@@ -214,6 +214,7 @@ const VideoStatus: FC<{ video: Video }> = ({ video }) => (
         ) : (
             <span class="badge text-bg-secondary">hidden</span>
         )}{" "}
+        {video.watchedAt > 0 && <span class="badge text-bg-success">watched</span>}{" "}
         {video.pinned && <span class="badge text-bg-info">pinned ({video.downloadStatus})</span>}
         {video.downloadError !== "" && <div class="small text-danger mt-1">{video.downloadError}</div>}
     </>
@@ -242,6 +243,21 @@ const VideoActions: FC<{ video: Video }> = ({ video }) => {
                 </>
             ) : (
                 <PostButton action={`${base}/pin`} buttonClass="btn-outline-primary" label="Pin" busyLabel="Pinning…" />
+            )}{" "}
+            {video.watchedAt > 0 ? (
+                <PostButton
+                    action={`${base}/unwatched`}
+                    buttonClass="btn-outline-secondary"
+                    label="Unwatch"
+                    busyLabel="Unmarking…"
+                />
+            ) : (
+                <PostButton
+                    action={`${base}/watched`}
+                    buttonClass="btn-outline-secondary"
+                    label="Mark watched"
+                    busyLabel="Marking…"
+                />
             )}{" "}
             {video.rule === "block" ? (
                 <PostButton
