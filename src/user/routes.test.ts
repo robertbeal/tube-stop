@@ -1,11 +1,13 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { allow, buildEnvironment, logIn, send } from "../../tests/harness.ts";
 import { testVideoId } from "../../tests/helpers.ts";
+import { config } from "../shared/config.ts";
 import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
 import { createTopic, setVideoTopics } from "../shared/db/topics.ts";
 import * as videoQueries from "../shared/db/videos.ts";
-import { blockVideo } from "../shared/db/videos.ts";
+import { blockVideo, markWatched } from "../shared/db/videos.ts";
 import type { VideoId } from "../shared/ytdlp/types.ts";
 import {
     addPublished,
@@ -637,5 +639,58 @@ describe("recently watched and hiding watched", () => {
             const response = await send(environment, "/hide-watched", { form: { hide: "1", next } });
             expect(response.headers.get("location")).toBe("/");
         }
+    });
+});
+
+describe("videos a device can keep", () => {
+    test("lists pinned videos with the size of their files, and the limit", async () => {
+        const environment = await environmentWithSong();
+        await makePinnedFile(videoId, join(environment.mediaDir, "song.mp4"), "12345");
+
+        const response = await send(environment, "/api/offline");
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ maxBytes: config.offlineMaxBytes, videos: [{ id: videoId, size: 5 }] });
+    });
+
+    test("leaves out videos that are only cached, blocked, or whose file has gone", async () => {
+        const environment = await buildEnvironment();
+        const [cached, blocked, missing, kept] = [numberedId(1), numberedId(2), numberedId(3), numberedId(4)];
+        for (const id of [cached, blocked, missing, kept]) {
+            allowPianoVideo(id, "Song");
+        }
+        await makeCacheReady(environment, cached, "cache");
+        await makePinnedFile(blocked, join(environment.mediaDir, "blocked.mp4"), "blocked");
+        blockVideo(blocked);
+        await makePinnedFile(missing, join(environment.mediaDir, "missing.mp4"), "missing");
+        await rm(join(environment.mediaDir, "missing.mp4"));
+        await makePinnedFile(kept, join(environment.mediaDir, "kept.mp4"), "kept");
+
+        const body = (await (await send(environment, "/api/offline")).json()) as { videos: { id: string }[] };
+
+        expect(body.videos.map((entry) => entry.id)).toEqual([kept]);
+    });
+
+    test("puts unwatched videos first, then the newest", async () => {
+        const environment = await buildEnvironment();
+        const [oldest, newest, watched] = [numberedId(1), numberedId(2), numberedId(3)];
+        for (const [index, id] of [oldest, newest, watched].entries()) {
+            allow({ youtubeId: id, publishedAt: 1000 + index * (id === watched ? 100 : 1) });
+            await makePinnedFile(id, join(environment.mediaDir, `${id}.mp4`), "x");
+        }
+        markWatched(watched);
+
+        const body = (await (await send(environment, "/api/offline")).json()) as { videos: { id: string }[] };
+
+        expect(body.videos.map((entry) => entry.id)).toEqual([newest, oldest, watched]);
+    });
+
+    test("is empty when nothing is pinned", async () => {
+        const environment = await buildEnvironment();
+        expect(await (await send(environment, "/api/offline")).json()).toEqual({
+            maxBytes: config.offlineMaxBytes,
+            videos: [],
+        });
     });
 });

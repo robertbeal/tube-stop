@@ -44,6 +44,25 @@ browser never contacts YouTube. They are deleted when a standalone video is remo
 Opening a page never changes anything; the page's script asks for the download
 (`POST /api/videos/{id}/prepare`) and reports plays (`POST /api/videos/{id}/played`).
 
+**Without a connection.** The child's pages are an installable web app that keeps working away from the
+server. Open it once at home, then use the browser's *Install app* / *Add to Home screen*. After that:
+
+- The app's own files, the pages the child has browsed and their thumbnails are kept on the device. With the
+  server out of reach (or slow to answer, over 3 seconds) the kept copies are shown.
+- **Pinned videos are saved to the device** each time the app is opened while the server is reachable, newest
+  unwatched first, up to `OFFLINE_MAX_GB` (and no more than 90% of the room the browser says is free). A video
+  that is unpinned, removed or blocked is deleted from the device the next time. Saved videos play from the
+  device even at home, so they start at once, and seeking, speed and A-B loop work as usual.
+  Videos that are not pinned are not saved: pin the ones to take on a trip.
+- Offline, the pages show only the saved videos (marked "On device"); the parts that need the server are
+  hidden, including the hide-watched button.
+- Plays and "watched" marks made offline are sent to the server the next time it is reachable.
+
+This needs a secure address: `https://`, or `localhost`. Browsers do not offer service workers on plain
+`http://` to other machines. Saved videos use the browser's own storage, which it may clear if the device runs
+short of space; the app asks the browser to keep it, and installing the app makes that more likely. Downloads
+happen while the app is open and carry on if the child moves between pages.
+
 ## Run
 
 Once it is running, the child's view is at http://localhost:8080/ and the admin area at
@@ -136,6 +155,7 @@ the app prints a fresh setup code. In the container: `docker exec <container> tu
 | `KEEP_MAX_HEIGHT` | `1080` |
 | `ADMIN_SESSION_DAYS` | `30` (1 to 400) |
 | `CACHE_TTL_DAYS` / `CACHE_MAX_GB` | `7` / `20` |
+| `OFFLINE_MAX_GB` | `10` (the most a device keeps for use offline) |
 | `SYNC_INTERVAL` | `1h` (durations like `30m`, `1h30m`, `500ms`) |
 
 Empty values mean the default. Invalid values stop the app at startup with a message naming each

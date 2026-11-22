@@ -3,6 +3,7 @@ import { extname, join } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { config } from "../shared/config.ts";
 import { getWatchableChannels } from "../shared/db/channels.ts";
 import { requestCache } from "../shared/db/queue.ts";
 import {
@@ -13,7 +14,14 @@ import {
     getWatchableVideosWithoutTopic,
 } from "../shared/db/topics.ts";
 import type { Video } from "../shared/db/types.ts";
-import { getRecentlyWatched, getVideo, getWatchableVideos, markWatched, recordPlay } from "../shared/db/videos.ts";
+import {
+    getRecentlyWatched,
+    getSavedVideos,
+    getVideo,
+    getWatchableVideos,
+    markWatched,
+    recordPlay,
+} from "../shared/db/videos.ts";
 import { logger } from "../shared/logger.ts";
 import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
@@ -227,6 +235,21 @@ export function userRoutes(): Hono {
         }
         markWatched(video.youtubeId);
         return context.body(null, 204);
+    });
+
+    // The pinned videos a device may keep for use without a connection, and how much room it may give them.
+    routes.get("/api/offline", async (context) => {
+        const sizes = await Promise.all(
+            getSavedVideos().map(async (video) => ({
+                id: video.youtubeId,
+                size: (await stat(video.filePath).catch(() => undefined))?.size ?? 0,
+            })),
+        );
+        return context.json(
+            { maxBytes: config.offlineMaxBytes, videos: sizes.filter((entry) => entry.size > 0) },
+            200,
+            { "Cache-Control": "no-store" },
+        );
     });
 
     routes.get("/status/:id", async (context) => {

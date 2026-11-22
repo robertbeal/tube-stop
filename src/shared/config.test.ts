@@ -15,6 +15,7 @@ describe("loadConfig", () => {
             keepMaxHeight: 1080,
             cacheTtlMs: 7 * day,
             cacheMaxBytes: 20 * 2 ** 30,
+            offlineMaxBytes: 10 * 2 ** 30,
             syncIntervalMs: 60 * 60 * 1000,
             sessionLifetimeMs: 30 * day,
         });
@@ -32,6 +33,7 @@ describe("loadConfig", () => {
                 KEEP_MAX_HEIGHT: "720",
                 CACHE_TTL_DAYS: "2",
                 CACHE_MAX_GB: "1.5",
+                OFFLINE_MAX_GB: "5",
                 SYNC_INTERVAL: "30m",
                 ADMIN_SESSION_DAYS: "7",
             }),
@@ -45,6 +47,7 @@ describe("loadConfig", () => {
             keepMaxHeight: 720,
             cacheTtlMs: 2 * day,
             cacheMaxBytes: 1.5 * 2 ** 30,
+            offlineMaxBytes: 5 * 2 ** 30,
             syncIntervalMs: 30 * 60 * 1000,
             sessionLifetimeMs: 7 * day,
         });
@@ -80,6 +83,8 @@ describe("loadConfig", () => {
         ["CACHE_MAX_GB", "NaN"],
         ["CACHE_MAX_GB", "Infinity"],
         ["CACHE_MAX_GB", " "],
+        ["OFFLINE_MAX_GB", "10GB"],
+        ["OFFLINE_MAX_GB", "0"],
         ["KEEP_MAX_HEIGHT", "1080p"],
         ["KEEP_MAX_HEIGHT", "0"],
         ["KEEP_MAX_HEIGHT", "720.5"],

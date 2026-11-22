@@ -10,6 +10,7 @@ export type Config = {
     keepMaxHeight: number;
     cacheTtlMs: number;
     cacheMaxBytes: number;
+    offlineMaxBytes: number;
     syncIntervalMs: number;
     sessionLifetimeMs: number;
 };
@@ -96,6 +97,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     );
     const cacheTtlDays = setting(env, "CACHE_TTL_DAYS", "7", "a positive whole number of days", positiveInteger);
     const cacheMaxGigabytes = setting(env, "CACHE_MAX_GB", "20", "a positive number of gigabytes", positiveNumber);
+    const offlineMaxGigabytes = setting(env, "OFFLINE_MAX_GB", "10", "a positive number of gigabytes", positiveNumber);
     const syncIntervalMs = setting(env, "SYNC_INTERVAL", "1h", "a positive duration such as 30m or 1h", parseDuration);
 
     const problems = [
@@ -104,6 +106,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
         sessionLifetimeDays,
         cacheTtlDays,
         cacheMaxGigabytes,
+        offlineMaxGigabytes,
         syncIntervalMs,
     ].flatMap((parsed) => (parsed.ok ? [] : [parsed.problem]));
     if (problems.length > 0) {
@@ -120,6 +123,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
         keepMaxHeight: unwrap(keepMaxHeight),
         cacheTtlMs: unwrap(cacheTtlDays) * millisecondsPerDay,
         cacheMaxBytes: Math.floor(unwrap(cacheMaxGigabytes) * bytesPerGigabyte),
+        offlineMaxBytes: Math.floor(unwrap(offlineMaxGigabytes) * bytesPerGigabyte),
         syncIntervalMs: unwrap(syncIntervalMs),
         sessionLifetimeMs: unwrap(sessionLifetimeDays) * millisecondsPerDay,
     };

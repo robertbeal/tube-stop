@@ -8,7 +8,11 @@ import { Player } from "./video-player.tsx";
 const thumbnailUrl = (id: string) => `/thumb/${encodeURIComponent(id)}`;
 
 const VideoCard: FC<{ video: Video }> = ({ video }) => (
-    <a class="card video-card h-100 text-decoration-none" href={`/watch/${encodeURIComponent(video.youtubeId)}`}>
+    <a
+        class="card video-card h-100 text-decoration-none"
+        href={`/watch/${encodeURIComponent(video.youtubeId)}`}
+        data-video-id={video.youtubeId}
+    >
         <div class="position-relative">
             <div class="ratio ratio-16x9">
                 <img
@@ -136,7 +140,7 @@ const hiddenIcon =
 
 /** The button shows what pressing it does: the eye is crossed out to hide watched videos, and open to show them again. */
 const HideWatchedToggle: FC<{ hidden: boolean; here: string }> = ({ hidden, here }) => (
-    <form method="post" action="/hide-watched" class="d-flex justify-content-end mb-3">
+    <form method="post" action="/hide-watched" class="hide-watched-form d-flex justify-content-end mb-3">
         <input type="hidden" name="next" value={here} />
         <input type="hidden" name="hide" value={hidden ? "0" : "1"} />
         <button
@@ -167,7 +171,7 @@ export type IndexProps = {
 };
 
 export const IndexPage: FC<IndexProps> = ({ videos, channels, current, pages, shelves, recent, hideWatched, here }) => (
-    <Layout title="Tube Stop">
+    <Layout title="Tube Stop" offline>
         <h1 class="visually-hidden">Videos</h1>
         <ChannelBar channels={channels} current={current} />
         <HideWatchedToggle hidden={hideWatched} here={here} />
@@ -231,7 +235,7 @@ export const TopicPage: FC<{
     /** The hide-watched button, left out when not given. */
     toggle?: { hidden: boolean; here: string };
 }> = ({ heading, emoji, videos, pages, toggle }) => (
-    <Layout title={`${heading} · Tube Stop`} back={{ href: "/", label: "Home" }}>
+    <Layout title={`${heading} · Tube Stop`} back={{ href: "/", label: "Home" }} offline>
         <h1 class="h3 mb-3">
             {emoji !== "" && <span aria-hidden="true">{emoji} </span>}
             {heading}
@@ -246,6 +250,7 @@ export const WatchPage: FC<{ video: Video; ready: boolean }> = ({ video, ready }
         title={`${video.title} · Tube Stop`}
         back={{ href: "/", label: "Videos" }}
         head={<link rel="stylesheet" href="/player.css" />}
+        offline
     >
         <div class="player-frame">
             <Player

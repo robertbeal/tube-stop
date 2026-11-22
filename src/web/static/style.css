@@ -102,3 +102,13 @@
   padding-inline: 1.1rem;
   font-size: 1.1rem;
 }
+
+/* Shown while videos are being saved for use without a connection. */
+.offline-status {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 10;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+}

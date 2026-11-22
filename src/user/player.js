@@ -380,6 +380,14 @@
   });
   v.addEventListener("ended", reportWatchedWhenDone);
 
+  // Without a connection, only the videos saved on the device can play.
+  v.addEventListener("error", () => {
+    if (document.documentElement.classList.contains("offline") || !navigator.onLine) {
+      byId("offline-fail").hidden = false;
+      byId("wait").hidden = true;
+    }
+  });
+
   // Not downloaded yet: ask the server to fetch it, then poll until it is ready.
   if (v.dataset.ready !== "true") {
     const wait = byId("wait");

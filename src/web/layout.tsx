@@ -8,9 +8,18 @@ type LayoutProps = {
     head?: Child;
     /** A button to go back, shown in place of the app's name. */
     back?: { href: string; label: string };
+    /** Make the page installable and usable without the server: for the child's pages, not the admin's. */
+    offline?: boolean;
 };
 
-export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, navbar, head, back, children }) => (
+export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
+    title,
+    navbar,
+    head,
+    back,
+    offline = false,
+    children,
+}) => (
     <>
         {raw("<!doctype html>")}
         <html lang="en">
@@ -23,6 +32,15 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({ title, navbar, head
                 <link rel="stylesheet" href="/static/bootstrap.min.css" />
                 <link rel="stylesheet" href="/static/style.css" />
                 <script src="/static/forms.js" defer />
+                {offline && (
+                    <>
+                        <link rel="manifest" href="/manifest.webmanifest" />
+                        <link rel="icon" href="/static/icons/icon-192.png" />
+                        <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+                        <meta name="theme-color" content="#1c2434" />
+                        <script src="/static/offline.js" defer />
+                    </>
+                )}
                 {head}
             </head>
             <body>

@@ -8,21 +8,9 @@ import { countUsers } from "../admin/users.ts";
 import { config } from "../shared/config.ts";
 import { logger } from "../shared/logger.ts";
 import { userRoutes } from "../user/routes.tsx";
+import { staticFiles } from "./assets.ts";
+import { pwaRoutes } from "./pwa.ts";
 import type { AppOptions, Services } from "./services.ts";
-import bootstrapStyles from "./static/bootstrap.min.css" with { type: "file" };
-import bootstrapLicense from "./static/bootstrap-LICENSE.txt" with { type: "file" };
-import formsScript from "./static/forms.js" with { type: "file" };
-import siteStyles from "./static/style.css" with { type: "file" };
-import themeScript from "./static/theme.js" with { type: "file" };
-
-/** The files the pages load. Importing them embeds them, so they are also inside a compiled binary. */
-const staticFiles = {
-    "/static/bootstrap-LICENSE.txt": bootstrapLicense,
-    "/static/bootstrap.min.css": bootstrapStyles,
-    "/static/forms.js": formsScript,
-    "/static/style.css": siteStyles,
-    "/static/theme.js": themeScript,
-};
 
 /**
  * Rejects cross-site requests that change something. Browsers say where a request came from:
@@ -67,6 +55,7 @@ export function createApp(options: AppOptions = {}): Hono {
 
     const app = new Hono();
     app.use(crossOriginProtection);
+    app.route("/", pwaRoutes());
     app.route("/", userRoutes());
     app.route("/", signInRoutes);
     app.route("/admin", admin);
