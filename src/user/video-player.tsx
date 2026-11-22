@@ -49,7 +49,6 @@ export const Player: FC<{ video: Video; ready: boolean; posterUrl: string; sourc
             id="v"
             poster={posterUrl}
             src={ready ? sourceUrl : undefined}
-            autoplay={ready}
             data-id={video.youtubeId}
             data-ready={String(ready)}
             controls

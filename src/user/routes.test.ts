@@ -120,8 +120,18 @@ describe("watching", () => {
         const body = await (await send(environment, `/watch/${videoId}`)).text();
 
         expect(body).toContain(`src="/video/${videoId}"`);
-        expect(body).toContain("autoplay");
+        expect(body).toContain('data-ready="true"');
         expect(body).toContain("hidden");
+    });
+
+    test("the player has no autoplay attribute: its script starts the video where the browser allows it", async () => {
+        const environment = await environmentWithSong();
+        await makeCacheReady(environment, videoId, "data");
+
+        const body = await (await send(environment, `/watch/${videoId}`)).text();
+
+        // Where the browser refuses autoplay, Firefox for Android draws a second play button over ours.
+        expect(body).not.toContain("autoplay");
     });
 
     test("safe requests never change state", async () => {

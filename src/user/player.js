@@ -158,6 +158,22 @@
   });
 
   // ---- playing, skipping and seeking
+
+  // Start playing without a tap, but only where the browser allows it. Asking where it will refuse makes Firefox
+  // for Android draw its own "click to play" button over ours, so there would be two. Browsers that cannot say
+  // (no getAutoplayPolicy) are simply asked, as they never draw one.
+  function startIfAllowed() {
+    let allowed = true;
+    try {
+      allowed = typeof navigator.getAutoplayPolicy !== "function" || navigator.getAutoplayPolicy(v) === "allowed";
+    } catch (e) {
+      /* cannot tell: ask */
+    }
+    if (allowed) {
+      v.play().catch(() => {});
+    }
+  }
+
   function togglePlay() {
     if (v.ended) {
       v.currentTime = 0;
@@ -430,7 +446,7 @@
           wait.hidden = true;
           transport.inert = false;
           say("The video is ready");
-          v.play().catch(() => {});
+          startIfAllowed();
           return;
         }
         if (s.failed) {
@@ -466,10 +482,12 @@
         v.src = `/video/${id}`;
         wait.hidden = true;
         transport.inert = false;
-        v.play().catch(() => {});
+        startIfAllowed();
       } else {
         prepare();
       }
     });
+  } else {
+    startIfAllowed(); // the page has the video already: it has no autoplay attribute, as the browser would act on it first
   }
 })();
