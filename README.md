@@ -58,10 +58,11 @@ admin area, which keeps a copy on the server.
   combined with *Hide watched*. It is remembered on the device. Because pins belong to the device, the browser
   draws that list itself, from details it refreshes from the server (title, topics, channel, whether watched)
   each time a page opens. Pinned cards carry a "📌 Pinned" badge.
-- **Without a connection the pages stay as they were.** The child can browse everything they could a moment
-  ago, and open any video. Only playing fails: a video that is not pinned shows "No connection. Pin videos at
-  home to watch them anywhere." in the player, and the page tries again by itself when the connection returns.
-  Pinned videos play as normal. The hide-watched button is disabled, as it changes a setting on the server.
+- **Without a connection the pages stay as they were.** A blue bar slides down across the top of every page to
+  say there is no connection, and goes away by itself when the server can be reached again. Everything the child
+  could browse a moment ago is still there, and any video opens. Only playing fails: a video that is not pinned
+  shows "This video isn't pinned. Pin it at home to watch it anywhere." in the player. Pinned videos play as
+  normal. The hide-watched button is disabled, as it changes a setting on the server.
 - To make that work, the device keeps the pages the child has browsed and their thumbnails (with the server out
   of reach, or slow to answer for over 3 seconds, the kept copy is shown), and each time the home page opens it
   also keeps the first page of every topic, *More videos* and *Recently watched*. It remembers the name and

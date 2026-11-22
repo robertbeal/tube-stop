@@ -380,20 +380,18 @@
   });
   v.addEventListener("ended", reportWatchedWhenDone);
 
-  // Without a connection, only the videos pinned on this device can play. Say so, and try again by itself
-  // when the connection comes back.
-  const showNoConnection = () => {
+  // Without a connection, only the videos pinned on this device can play. The bar across the top says there is no
+  // connection; this says what that means for this video, and the page loads again by itself when it is back.
+  const showNotPinned = () => {
     byId("wait").hidden = true;
     byId("fail").hidden = true;
     byId("offline-fail").hidden = false;
     transport.inert = true;
-    say("No connection");
-    window.addEventListener("online", () => location.reload(), { once: true });
+    say("This video isn't pinned, so it can't play without a connection");
+    for (const name of ["online", "tubestop:reachable"]) {
+      window.addEventListener(name, () => location.reload(), { once: true });
+    }
   };
-  byId("offlineRetry").addEventListener("click", (e) => {
-    e.preventDefault();
-    location.reload();
-  });
 
   // A video that will not load might be missing, or the server might be out of reach: ask.
   v.addEventListener("error", async () => {
@@ -403,10 +401,10 @@
     try {
       const response = await fetch("/api/offline", { cache: "no-store", signal: AbortSignal.timeout(5000) });
       if (response.status >= 500) {
-        showNoConnection();
+        showNotPinned();
       }
     } catch (e) {
-      showNoConnection();
+      showNotPinned();
     }
   });
 
@@ -441,7 +439,7 @@
           return;
         }
       } catch (e) {
-        showNoConnection();
+        showNotPinned();
         return;
       }
       setTimeout(poll, 2000);
@@ -453,7 +451,7 @@
       try {
         await post(`/api/videos/${id}/prepare`);
       } catch (e) {
-        showNoConnection();
+        showNotPinned();
         return;
       }
       poll();

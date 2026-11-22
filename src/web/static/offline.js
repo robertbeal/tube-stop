@@ -34,6 +34,7 @@
   const listsKey = "tubestop-lists-fetched";
   const defaultLimit = 10 * 2 ** 30;
   const listsEveryMs = 10 * 60 * 1000;
+  const recheckMs = 15 * 1000;
 
   let worker = null;
   let ready = false; // the worker has said what is pinned
@@ -42,6 +43,9 @@
   let offline = false;
   let pinnedOnly = read(filterKey) === "1";
   let viewKey = "";
+
+  // Only the pages that list videos have the button, and so a pinned-only view.
+  const filterButton = document.getElementById("pinnedToggle");
 
   const make = (tag, className, text) => {
     const element = document.createElement(tag);
@@ -72,11 +76,15 @@
   statusBadge.hidden = true;
   document.body.append(statusBadge);
 
-  const notice = make("div", "alert alert-secondary py-2");
-  notice.setAttribute("role", "status");
-  notice.textContent = "No connection. You can look around, but only pinned videos will play.";
-  notice.hidden = true;
-  main?.prepend(notice);
+  // The bar across the top that says there is no connection. It is the only place that says so.
+  const bar = make("div", "connection-bar text-bg-primary");
+  bar.setAttribute("role", "status");
+  const barInner = make("div", "connection-bar-inner");
+  const barText = make("div", "connection-bar-text");
+  barInner.append(barText);
+  bar.append(barInner);
+  document.body.prepend(bar);
+  new ResizeObserver(() => root.style.setProperty("--connection-bar-height", `${bar.offsetHeight}px`)).observe(bar);
 
   // ---- the "Pinned only" view: drawn here, because each device has its own pins
 
@@ -151,7 +159,7 @@
   // The page's own lists are left where they are, hidden by the stylesheet; this stands in for them, built from
   // the same sections but with only the pinned videos.
   function renderPinnedView() {
-    if (!pinnedOnly) {
+    if (!pinnedOnly || !filterButton) {
       root.classList.remove("pinned-only");
       document.getElementById("pinned-view")?.remove();
       viewKey = "";
@@ -195,8 +203,6 @@
     main.append(view);
   }
 
-  const filterButton = document.getElementById("pinnedToggle");
-
   function renderFilterButton() {
     if (!filterButton) {
       return;
@@ -238,7 +244,10 @@
 
   // The hide-watched button changes a setting on the server.
   function renderServerButtons() {
-    notice.hidden = !offline;
+    if (offline && !bar.classList.contains("is-visible")) {
+      barText.textContent = "📡 No connection. Only pinned videos will play.";
+    }
+    bar.classList.toggle("is-visible", offline);
     for (const button of document.querySelectorAll(".hide-watched-form button")) {
       button.disabled = offline;
       button.title = offline ? "Needs a connection" : "";
@@ -385,9 +394,13 @@
   }
 
   async function sync() {
+    const wasOffline = offline;
     const reachable = await checkServer();
     offline = !reachable;
     render();
+    if (wasOffline && reachable) {
+      window.dispatchEvent(new Event("tubestop:reachable"));
+    }
     // Downloading while a video plays would slow it down: the watch page only sends reports and checks the pins.
     post({ type: "sync", reachable, downloads: !onWatchPage });
     remember(document);
@@ -417,6 +430,8 @@
       worker = registration.active;
       window.addEventListener("online", sync);
       window.addEventListener("offline", sync);
+      // A connection can come back without the browser noticing, when only the server was out of reach.
+      setInterval(() => offline && sync(), recheckMs);
       return sync();
     })
     .catch(() => root.classList.remove("pinned-only"));

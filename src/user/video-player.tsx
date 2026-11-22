@@ -183,11 +183,8 @@ export const Player: FC<{ video: Video; ready: boolean; posterUrl: string; sourc
                 Try again
             </a>
         </div>
-        <div id="offline-fail" class="alert alert-warning player-message" role="alert" hidden>
-            No connection. Pin videos at home to watch them anywhere.{" "}
-            <a href="#" id="offlineRetry" class="alert-link">
-                Try again
-            </a>
+        <div id="offline-fail" class="alert alert-secondary player-message" role="alert" hidden>
+            📌 This video isn't pinned. Pin it at home to watch it anywhere.
         </div>
         <div id="announce" class="visually-hidden" role="status" aria-live="polite" />
     </div>

@@ -93,27 +93,34 @@ async function page(event) {
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-// A page in the app's own look, for pages the device never kept. It reloads itself when the connection returns.
+// A page in the app's own look, for pages the device never kept, with the bar that says there is no connection.
+// It loads the real page again by itself when the server can be reached.
 function shellPage(title, body) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark"><title>${escapeHtml(title)}</title>
 <script src="/static/theme.js"></script><link rel="stylesheet" href="/static/bootstrap.min.css">
 <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/player.css"></head><body>
+<div class="connection-bar text-bg-primary is-visible" role="status"><div class="connection-bar-inner">
+<div class="connection-bar-text">📡 No connection. Only pinned videos will play.</div></div></div>
 <nav class="navbar bg-body-tertiary border-bottom mb-3"><div class="container-xxl">
 <a class="btn btn-primary btn-lg back-button" href="/">← Home</a></div></nav>
 <main class="container-xxl pb-4">${body}</main>
-<script>addEventListener("online", () => location.reload());</script></body></html>`;
+<script>
+const check = () => fetch("/api/offline", { cache: "no-store" }).then((r) => r.ok && location.reload(), () => {});
+addEventListener("online", check);
+setInterval(check, 5000);
+</script></body></html>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
-// What a video page shows when it was never kept: the video's picture and name, and why it cannot play.
+// What a video page shows when it was never kept: the video's picture and name, and that it cannot play.
 async function unkeptPage(url) {
   const watch = /^\/watch\/([\w-]+)$/.exec(url.pathname);
   if (watch === null) {
     return shellPage(
       "Tube Stop",
-      `<div class="alert alert-secondary" role="alert">This page isn't saved on this device, and there is no connection.</div>`,
+      `<div class="alert alert-secondary" role="alert">This page isn't saved on this device.</div>`,
     );
   }
   const id = watch[1];
@@ -123,7 +130,7 @@ async function unkeptPage(url) {
     `<div class="player-frame"><div class="ratio ratio-16x9 rounded overflow-hidden bg-black">
 <img src="/thumb/${escapeHtml(id)}" alt="" style="object-fit:cover;opacity:.35">
 <div class="d-flex align-items-center justify-content-center text-center text-white p-3 fs-5" role="alert">
-<div>No connection.<br>Pin videos at home to watch them anywhere.</div></div></div>
+<div>📌 This video isn't pinned.<br>Pin it at home to watch it anywhere.</div></div></div>
 <div class="watch-details mt-3"><h1 class="h4">${escapeHtml(known.title ?? "")}</h1>
 <p class="text-body-secondary">${escapeHtml(known.channel ?? "")}</p></div></div>`,
   );

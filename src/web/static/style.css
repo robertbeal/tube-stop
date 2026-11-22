@@ -21,7 +21,7 @@
 /* Channel filter: big targets for a finger, and it stays in view while scrolling. */
 .channel-bar {
   position: sticky;
-  top: 0;
+  top: var(--connection-bar-height, 0px);
   z-index: 5;
   padding-top: 0.5rem;
   background: var(--bs-body-bg);
@@ -119,4 +119,45 @@ html.pinned-only main > .shelf,
 html.pinned-only main > .row,
 html.pinned-only main > nav[aria-label="Pages"] {
   display: none !important;
+}
+
+/* The bar across the top of every page while the server cannot be reached. It slides down, and the page moves
+   with it; it stays in view while scrolling. The page's script sets --connection-bar-height so that anything else
+   that sticks to the top sits below it. */
+.connection-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.25s ease,
+    visibility 0s 0.25s;
+}
+.connection-bar.is-visible {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.connection-bar-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.connection-bar-text {
+  padding: 0.6rem 1rem;
+  padding-top: calc(0.6rem + env(safe-area-inset-top));
+  text-align: center;
+  font-weight: 500;
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-bar {
+    transition: none;
+  }
+}
+/* A touch device held sideways gives the whole screen to the video. */
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  body:has(.player) .connection-bar {
+    display: none;
+  }
 }
