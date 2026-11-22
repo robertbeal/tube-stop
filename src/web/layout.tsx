@@ -38,6 +38,11 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
                         <link rel="icon" href="/static/icons/icon-192.png" />
                         <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
                         <meta name="theme-color" content="#1c2434" />
+                        <script>
+                            {raw(
+                                'try{if(localStorage.getItem("tubestop-pinned-only")==="1")document.documentElement.classList.add("pinned-only")}catch(e){}',
+                            )}
+                        </script>
                         <script src="/static/offline.js" defer />
                     </>
                 )}

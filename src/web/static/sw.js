@@ -1,7 +1,8 @@
 // Tube Stop's service worker. The server puts two values in front of this file: BUILD, a fingerprint
 // of the files below, and ASSETS, the list of files to keep. It does four things:
 //   - keeps the app's own files, so pages draw without a connection
-//   - keeps pages and thumbnails as they are browsed, and uses them when the server cannot be reached
+//   - keeps pages and thumbnails as they are browsed, and uses them when the server cannot be reached; a video's
+//     page that was never kept is drawn from what the device knows of the video, with a "no connection" player
 //   - keeps the videos the child has pinned on this device, and plays them from the device, with seeking
 //   - holds back "played" and "watched" reports made without a connection, and sends them later
 /* global BUILD, ASSETS */
@@ -12,10 +13,13 @@ const THUMBS = "tubestop-thumbs";
 const VIDEOS = "tubestop-videos";
 
 const pageTimeoutMs = 3000; // how long to wait for the server before showing a kept copy of a page
+const unkeptTimeoutMs = 8000; // ... and before saying a page that was never kept cannot be shown
+const videoTimeoutMs = 8000; // how long a video that is not on the device may take to start
 const reportTimeoutMs = 5000;
 const spareSpace = 0.9; // use at most this much of the room the browser says is free
 const pollMs = 2000; // how often to ask whether the server has finished getting a video ready
 const readyWaitMs = 4 * 60 * 1000; // after this, try again the next time the app is opened
+const maxThumbnails = 100; // pictures to fetch ahead for one page of videos
 
 const pagePath = /^\/(?:(?:topic|watch)\/[^/]+|other|watched)?$/;
 const reportPath = /^\/api\/videos\/[\w-]{11}\/(?:played|watched)$/;
@@ -73,24 +77,56 @@ async function page(event) {
   const cache = await caches.open(PAGES);
   const kept = await cache.match(request.url);
   try {
-    const response = await (kept ? Promise.race([fetch(request), timeout(pageTimeoutMs)]) : fetch(request));
+    const response = await Promise.race([fetch(request), timeout(kept ? pageTimeoutMs : unkeptTimeoutMs)]);
     if (response === null || (response.status >= 500 && kept)) {
-      return kept;
+      return kept ?? (await unkeptPage(new URL(request.url)));
     }
     if (response.ok) {
       event.waitUntil(cache.put(request.url, response.clone()));
     }
     return response;
   } catch (error) {
-    return kept ?? (await cache.match("/")) ?? offlinePage();
+    return kept ?? (await unkeptPage(new URL(request.url)));
   }
 }
 
-function offlinePage() {
-  const body = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tube Stop</title><body style="font-family:system-ui,sans-serif;text-align:center;padding:3rem 1rem">
-<h1>No connection</h1><p>Tube Stop can't be reached, and nothing has been saved on this device yet.</p>`;
-  return new Response(body, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } });
+const escapeHtml = (text) =>
+  String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// A page in the app's own look, for pages the device never kept. It reloads itself when the connection returns.
+function shellPage(title, body) {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark"><title>${escapeHtml(title)}</title>
+<script src="/static/theme.js"></script><link rel="stylesheet" href="/static/bootstrap.min.css">
+<link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/player.css"></head><body>
+<nav class="navbar bg-body-tertiary border-bottom mb-3"><div class="container-xxl">
+<a class="btn btn-primary btn-lg back-button" href="/">← Home</a></div></nav>
+<main class="container-xxl pb-4">${body}</main>
+<script>addEventListener("online", () => location.reload());</script></body></html>`;
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+// What a video page shows when it was never kept: the video's picture and name, and why it cannot play.
+async function unkeptPage(url) {
+  const watch = /^\/watch\/([\w-]+)$/.exec(url.pathname);
+  if (watch === null) {
+    return shellPage(
+      "Tube Stop",
+      `<div class="alert alert-secondary" role="alert">This page isn't saved on this device, and there is no connection.</div>`,
+    );
+  }
+  const id = watch[1];
+  const known = (await getPin(id).catch(() => undefined)) ?? (await getKnown(id).catch(() => undefined)) ?? {};
+  return shellPage(
+    `${known.title ?? "Video"} · Tube Stop`,
+    `<div class="player-frame"><div class="ratio ratio-16x9 rounded overflow-hidden bg-black">
+<img src="/thumb/${escapeHtml(id)}" alt="" style="object-fit:cover;opacity:.35">
+<div class="d-flex align-items-center justify-content-center text-center text-white p-3 fs-5" role="alert">
+<div>No connection.<br>Pin videos at home to watch them anywhere.</div></div></div>
+<div class="watch-details mt-3"><h1 class="h4">${escapeHtml(known.title ?? "")}</h1>
+<p class="text-body-secondary">${escapeHtml(known.channel ?? "")}</p></div></div>`,
+  );
 }
 
 // A thumbnail never changes, so the kept copy is used first.
@@ -110,7 +146,18 @@ async function thumbnail(request) {
 // A saved video is played from the device whether or not the server is there.
 async function video(request, url) {
   const kept = await (await caches.open(VIDEOS)).match(url.pathname);
-  return kept ? part(request, kept) : fetch(request);
+  return kept ? part(request, kept) : fromServer(request);
+}
+
+// A video that is not on the device comes from the server; if that is out of reach, it fails soon, not eventually.
+async function fromServer(request) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), videoTimeoutMs);
+  try {
+    return await fetch(request, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // The cache only holds whole files, so the piece a player asks for (to start part way, or to seek) is cut out here.
@@ -137,7 +184,7 @@ async function part(request, kept) {
 
 const openDb = () =>
   new Promise((resolve, reject) => {
-    const opening = indexedDB.open("tubestop", 2);
+    const opening = indexedDB.open("tubestop", 3);
     opening.onupgradeneeded = () => {
       const db = opening.result;
       if (!db.objectStoreNames.contains("reports")) {
@@ -145,6 +192,9 @@ const openDb = () =>
       }
       if (!db.objectStoreNames.contains("pins")) {
         db.createObjectStore("pins", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("videos")) {
+        db.createObjectStore("videos", { keyPath: "id" });
       }
     };
     opening.onsuccess = () => resolve(opening.result);
@@ -171,16 +221,31 @@ async function store(name, mode, work) {
 
 // Passed on to the server; if that cannot be done, kept until the next time it can.
 async function report(request) {
+  const { pathname } = new URL(request.url);
   try {
     const response = await Promise.race([fetch(request), timeout(reportTimeoutMs)]);
     if (response !== null) {
+      if (response.ok) {
+        markWatchedHere(pathname).catch(() => {});
+      }
       return response;
     }
   } catch (error) {
     /* no connection: kept below */
   }
-  await store("reports", "readwrite", (reports) => reports.add(new URL(request.url).pathname));
+  await store("reports", "readwrite", (reports) => reports.add(pathname));
+  await markWatchedHere(pathname);
   return new Response(null, { status: 202 });
+}
+
+// Until the server hears of it, a pinned video that was watched is only known to be watched here.
+async function markWatchedHere(pathname) {
+  const [, , , id, kind] = pathname.split("/");
+  const pin = kind === "watched" ? await getPin(id) : undefined;
+  if (pin && !pin.watchedAt) {
+    await putPin({ ...pin, watchedAt: Math.floor(Date.now() / 1000) });
+    broadcast().catch(() => {});
+  }
 }
 
 async function sendKeptReports() {
@@ -209,6 +274,7 @@ const allPins = () => store("pins", "readonly", (pins) => pins.getAll());
 const getPin = (id) => store("pins", "readonly", (pins) => pins.get(id));
 const putPin = (pin) => store("pins", "readwrite", (pins) => pins.put(pin));
 const deletePin = (id) => store("pins", "readwrite", (pins) => pins.delete(id));
+const getKnown = (id) => store("videos", "readonly", (videos) => videos.get(id));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class Gone extends Error {}
@@ -390,31 +456,60 @@ function work() {
   return running;
 }
 
-// Anything the server no longer allows is removed, and so is any saved video nobody has pinned.
+// Fresh details of the pins from the server, and the removal of any it no longer allows. The details are what the
+// pages draw the pinned videos from (their topics, for one), so they are kept for use without the server.
+async function refreshPins(pins) {
+  if (pins.length === 0) {
+    return;
+  }
+  const response = await fetch(`/api/offline?ids=${pins.map((pin) => pin.id).join(",")}`, { cache: "no-store" });
+  if (!response.ok) {
+    return;
+  }
+  const fresh = new Map((await response.json()).videos.map((video) => [video.id, video]));
+  for (const pin of pins) {
+    if (!fresh.has(pin.id)) {
+      await removePin(pin.id);
+    } else if (await getPin(pin.id)) {
+      await putPin({ ...(await getPin(pin.id)), ...fresh.get(pin.id) });
+    }
+  }
+}
+
+// Pins are brought up to date, and any saved video nobody has pinned is removed.
 async function tidy(reachable) {
   held = null;
   if (reachable) {
-    const pins = await allPins();
-    if (pins.length > 0) {
-      try {
-        const response = await fetch(`/api/offline?ids=${pins.map((pin) => pin.id).join(",")}`, { cache: "no-store" });
-        if (response.ok) {
-          const { allowed } = await response.json();
-          for (const pin of pins) {
-            if (!allowed.includes(pin.id)) {
-              await removePin(pin.id);
-            }
-          }
-        }
-      } catch (error) {
-        /* no connection after all: checked next time */
-      }
-    }
+    await refreshPins(await allPins()).catch(() => {
+      /* no connection after all: checked next time */
+    });
   }
   const wanted = new Set((await allPins()).map((pin) => pin.id));
   for (const id of [...(await heldVideos()).keys()]) {
     if (!wanted.has(id)) {
       await removePin(id);
+    }
+  }
+}
+
+// The names and pictures of videos the pages showed, so that any of them can be opened without the server.
+async function remember(videos) {
+  await store("videos", "readwrite", (known) => {
+    for (const { id, title, channel, duration } of videos) {
+      known.put({ id, title, channel, duration });
+    }
+    return {};
+  });
+  const thumbs = await caches.open(THUMBS);
+  for (const { id } of videos.slice(0, maxThumbnails)) {
+    if (!(await thumbs.match(`/thumb/${id}`))) {
+      try {
+        await thumbs.add(`/thumb/${id}`);
+      } catch (error) {
+        if (error instanceof TypeError) {
+          return; // no connection: the rest would fail too
+        }
+      }
     }
   }
 }
@@ -439,9 +534,15 @@ self.addEventListener("message", (event) => {
       } else if (message?.type === "pin") {
         const { id, title, channel, duration } = message;
         full.delete(id);
-        await putPin({ id, title, channel, duration, pinnedAt: Date.now() });
+        await putPin({ id, title, channel, duration, topics: [], watchedAt: 0, pinnedAt: Date.now() });
+        await broadcast();
+        await refreshPins([{ id }]).catch(() => {
+          /* the details are brought up to date the next time the server can be reached */
+        });
         await broadcast();
         await work();
+      } else if (message?.type === "remember") {
+        await remember(message.videos);
       } else if (message?.type === "unpin") {
         await removePin(message.id);
         full.delete(message.id);

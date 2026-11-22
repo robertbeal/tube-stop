@@ -380,11 +380,33 @@
   });
   v.addEventListener("ended", reportWatchedWhenDone);
 
-  // Without a connection, only the videos saved on the device can play.
-  v.addEventListener("error", () => {
-    if (document.documentElement.classList.contains("offline") || !navigator.onLine) {
-      byId("offline-fail").hidden = false;
-      byId("wait").hidden = true;
+  // Without a connection, only the videos pinned on this device can play. Say so, and try again by itself
+  // when the connection comes back.
+  const showNoConnection = () => {
+    byId("wait").hidden = true;
+    byId("fail").hidden = true;
+    byId("offline-fail").hidden = false;
+    transport.inert = true;
+    say("No connection");
+    window.addEventListener("online", () => location.reload(), { once: true });
+  };
+  byId("offlineRetry").addEventListener("click", (e) => {
+    e.preventDefault();
+    location.reload();
+  });
+
+  // A video that will not load might be missing, or the server might be out of reach: ask.
+  v.addEventListener("error", async () => {
+    if (!byId("offline-fail").hidden) {
+      return;
+    }
+    try {
+      const response = await fetch("/api/offline", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (response.status >= 500) {
+        showNoConnection();
+      }
+    } catch (e) {
+      showNoConnection();
     }
   });
 
@@ -419,7 +441,8 @@
           return;
         }
       } catch (e) {
-        /* keep polling */
+        showNoConnection();
+        return;
       }
       setTimeout(poll, 2000);
     };
@@ -430,7 +453,8 @@
       try {
         await post(`/api/videos/${id}/prepare`);
       } catch (e) {
-        /* the poll will show the outcome */
+        showNoConnection();
+        return;
       }
       poll();
     };

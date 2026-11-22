@@ -9,6 +9,7 @@ import { requestCache } from "../shared/db/queue.ts";
 import {
     getShelves,
     getTopicBySlug,
+    getTopicSlugsOf,
     getTopics,
     getWatchableVideosInTopic,
     getWatchableVideosWithoutTopic,
@@ -233,15 +234,34 @@ export function userRoutes(): Hono {
         return context.body(null, 204);
     });
 
-    // Tells a device which of the videos it has pinned may still be watched, and how much room it may give them.
-    // Asking also shows the device that the server can be reached.
+    // Tells a device which of the videos it has pinned may still be watched, what they are now (so that a
+    // device can list them without the server), and how much room it may give them. Asking also shows the
+    // device that the server can be reached.
     routes.get("/api/offline", (context) => {
-        const ids = (context.req.query("ids") ?? "").split(",").slice(0, maxCheckedIds);
-        const allowed = ids.filter((raw) => {
+        const asked = (context.req.query("ids") ?? "").split(",").slice(0, maxCheckedIds);
+        const videos = [...new Set(asked)].flatMap((raw) => {
             const id = parseVideoId(raw);
-            return id !== undefined && getVideo(id)?.watchable === true;
+            const video = id === undefined ? null : getVideo(id);
+            return video?.watchable ? [video] : [];
         });
-        return context.json({ maxBytes: config.offlineMaxBytes, allowed }, 200, { "Cache-Control": "no-store" });
+        const topics = getTopicSlugsOf(videos.map((video) => video.youtubeId));
+        return context.json(
+            {
+                maxBytes: config.offlineMaxBytes,
+                videos: videos.map((video) => ({
+                    id: video.youtubeId,
+                    title: video.title,
+                    channel: video.channelName,
+                    channelId: video.channelYoutubeId,
+                    duration: video.duration,
+                    publishedAt: video.publishedAt,
+                    watchedAt: video.watchedAt,
+                    topics: topics.get(video.youtubeId) ?? [],
+                })),
+            },
+            200,
+            { "Cache-Control": "no-store" },
+        );
     });
 
     routes.get("/status/:id", async (context) => {

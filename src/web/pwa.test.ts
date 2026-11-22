@@ -93,4 +93,25 @@ describe("pages that work without the server", () => {
         expect(button).toContain("hidden");
         expect(await (await send(environment, "/")).text()).not.toContain("pinButton");
     });
+
+    test("the pages that list videos have a hidden pinned-only button, and each card carries its details", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song & Dance");
+        for (const path of ["/", "/watched", "/other"]) {
+            const body = await (await send(environment, path)).text();
+            expect(body).toMatch(/<button id="pinnedToggle"[^>]* hidden/);
+            expect(body).toContain("Pinned only");
+        }
+        const body = await (await send(environment, "/")).text();
+        expect(body).toContain('data-title="Song &amp; Dance"');
+        expect(body).toContain('data-channel="Piano Guy"');
+        expect(body).toContain('data-duration="0"');
+    });
+
+    test("a page remembers the pinned-only choice before it is drawn, so the whole list does not flash", async () => {
+        const environment = await buildEnvironment();
+        const body = await (await send(environment, "/")).text();
+        expect(body).toContain("tubestop-pinned-only");
+        expect(body.indexOf("tubestop-pinned-only")).toBeLessThan(body.indexOf("<body"));
+    });
 });

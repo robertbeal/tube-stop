@@ -12,6 +12,9 @@ const VideoCard: FC<{ video: Video }> = ({ video }) => (
         class="card video-card h-100 text-decoration-none"
         href={`/watch/${encodeURIComponent(video.youtubeId)}`}
         data-video-id={video.youtubeId}
+        data-title={video.title}
+        data-channel={video.channelName}
+        data-duration={String(video.duration)}
     >
         <div class="position-relative">
             <div class="ratio ratio-16x9">
@@ -140,7 +143,7 @@ const hiddenIcon =
 
 /** The button shows what pressing it does: the eye is crossed out to hide watched videos, and open to show them again. */
 const HideWatchedToggle: FC<{ hidden: boolean; here: string }> = ({ hidden, here }) => (
-    <form method="post" action="/hide-watched" class="hide-watched-form d-flex justify-content-end mb-3">
+    <form method="post" action="/hide-watched" class="hide-watched-form">
         <input type="hidden" name="next" value={here} />
         <input type="hidden" name="hide" value={hidden ? "0" : "1"} />
         <button
@@ -153,6 +156,31 @@ const HideWatchedToggle: FC<{ hidden: boolean; here: string }> = ({ hidden, here
             {hidden ? "Show watched" : "Hide watched"}
         </button>
     </form>
+);
+
+/**
+ * Shows only the videos pinned on this device. Pins are kept by the browser, so the server cannot draw the
+ * list: the page's script does, and shows this button once it can.
+ */
+const PinnedToggle: FC = () => (
+    <button
+        id="pinnedToggle"
+        type="button"
+        class="btn toggle-button btn-outline-secondary d-inline-flex align-items-center gap-2"
+        aria-pressed="false"
+        hidden
+    >
+        <span aria-hidden="true">📌</span>
+        <span id="pinnedToggleLabel">Pinned only</span>
+    </button>
+);
+
+/** The buttons that narrow a list of videos. */
+const FilterBar: FC<{ watched?: { hidden: boolean; here: string } }> = ({ watched }) => (
+    <div class="filter-bar d-flex justify-content-end flex-wrap gap-2 mb-3">
+        <PinnedToggle />
+        {watched !== undefined && <HideWatchedToggle hidden={watched.hidden} here={watched.here} />}
+    </div>
 );
 
 export type IndexProps = {
@@ -174,7 +202,7 @@ export const IndexPage: FC<IndexProps> = ({ videos, channels, current, pages, sh
     <Layout title="Tube Stop" offline>
         <h1 class="visually-hidden">Videos</h1>
         <ChannelBar channels={channels} current={current} />
-        <HideWatchedToggle hidden={hideWatched} here={here} />
+        <FilterBar watched={{ hidden: hideWatched, here }} />
         {shelves === undefined ? (
             <>
                 <VideoGrid videos={videos} pages={pages} />
@@ -240,7 +268,7 @@ export const TopicPage: FC<{
             {emoji !== "" && <span aria-hidden="true">{emoji} </span>}
             {heading}
         </h1>
-        {toggle !== undefined && <HideWatchedToggle hidden={toggle.hidden} here={toggle.here} />}
+        <FilterBar watched={toggle} />
         <VideoGrid videos={videos} pages={pages} />
     </Layout>
 );

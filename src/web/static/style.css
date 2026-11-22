@@ -112,3 +112,11 @@
   padding: 0.6rem 0.9rem;
   font-size: 0.9rem;
 }
+
+/* "Pinned only": the page's own lists give way to the one the page's script draws from the pins on this device.
+   The page sets the class before it is drawn, so the whole list does not flash first. */
+html.pinned-only main > .shelf,
+html.pinned-only main > .row,
+html.pinned-only main > nav[aria-label="Pages"] {
+  display: none !important;
+}

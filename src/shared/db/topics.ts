@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from "bun:sqlite";
 import type { VideoId } from "../ytdlp/types.ts";
 import { database } from "./database.ts";
 import {
@@ -229,6 +230,25 @@ const hasNoTopic = `(NOT EXISTS (SELECT 1 FROM video_topics vt WHERE vt.video_yo
 
 const visible = (hideWatched: boolean) =>
     hideWatched ? `${watchableExpression} AND ${unwatched}` : watchableExpression;
+
+/** The slugs of the topics each of the given videos is under, with the video's own topics and its channel's. */
+export function getTopicSlugsOf(youtubeIds: readonly VideoId[]): Map<VideoId, string[]> {
+    const slugsOf = new Map<VideoId, string[]>();
+    if (youtubeIds.length === 0) {
+        return slugsOf;
+    }
+    const marks = youtubeIds.map(() => "?").join(", ");
+    for (const topic of getTopics()) {
+        for (const row of database
+            .query<{ youtube_id: VideoId }, SQLQueryBindings[]>(
+                `SELECT v.youtube_id FROM videos v WHERE v.youtube_id IN (${marks}) AND ${inTopic}`,
+            )
+            .all(...youtubeIds, topic.id, topic.id)) {
+            slugsOf.set(row.youtube_id, [...(slugsOf.get(row.youtube_id) ?? []), topic.slug]);
+        }
+    }
+    return slugsOf;
+}
 
 /** One page of the videos the child may watch under a topic, newest published first. */
 export function getWatchableVideosInTopic(topicId: TopicId, page: Page, hideWatched = false): VideoPage {

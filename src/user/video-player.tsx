@@ -184,7 +184,10 @@ export const Player: FC<{ video: Video; ready: boolean; posterUrl: string; sourc
             </a>
         </div>
         <div id="offline-fail" class="alert alert-warning player-message" role="alert" hidden>
-            This video isn't saved on this device, so it can't play without a connection.
+            No connection. Pin videos at home to watch them anywhere.{" "}
+            <a href="#" id="offlineRetry" class="alert-link">
+                Try again
+            </a>
         </div>
         <div id="announce" class="visually-hidden" role="status" aria-live="polite" />
     </div>

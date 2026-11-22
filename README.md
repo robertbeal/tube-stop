@@ -54,11 +54,19 @@ admin area, which keeps a copy on the server.
   first (the same wait as pressing play on a new video). It carries on if the child leaves the page.
 - Pinned videos play from the device even at home, so they start at once, and seeking, speed and A-B loop work
   as usual. They also play when the server cannot be reached.
-- The home page gets a **Pinned** row, newest first. Without a connection it is all the home page shows, and
-  other pages show only pinned videos. The parts that need the server (paging, the hide-watched button, the
-  channel bar) are hidden.
-- The pages the child has browsed, and their thumbnails, are kept too. With the server out of reach (or slow to
-  answer, over 3 seconds) the kept copies are shown.
+- **📌 Pinned only** (beside *Hide watched*) narrows any list to the pinned videos, topic by topic, and can be
+  combined with *Hide watched*. It is remembered on the device. Because pins belong to the device, the browser
+  draws that list itself, from details it refreshes from the server (title, topics, channel, whether watched)
+  each time a page opens. Pinned cards carry a "📌 Pinned" badge.
+- **Without a connection the pages stay as they were.** The child can browse everything they could a moment
+  ago, and open any video. Only playing fails: a video that is not pinned shows "No connection. Pin videos at
+  home to watch them anywhere." in the player, and the page tries again by itself when the connection returns.
+  Pinned videos play as normal. The hide-watched button is disabled, as it changes a setting on the server.
+- To make that work, the device keeps the pages the child has browsed and their thumbnails (with the server out
+  of reach, or slow to answer for over 3 seconds, the kept copy is shown), and each time the home page opens it
+  also keeps the first page of every topic, *More videos* and *Recently watched*. It remembers the name and
+  picture of every video it has been shown, so a video's page opens even if it never was. A page that was never
+  kept (a channel, or page 2 of a list) says so instead of failing.
 - Plays and "watched" marks made offline are sent to the server the next time it is reachable.
 - Each time a page opens and the server answers, the device asks which of its pins are still allowed: a video
   the parent has blocked or removed is deleted from the device.

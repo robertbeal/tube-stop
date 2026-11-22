@@ -6,6 +6,7 @@ import {
     deleteTopic,
     getChannelTopicIds,
     getShelves,
+    getTopicSlugsOf,
     getTopics,
     getVideoTopicIds,
     getWatchableVideosInTopic,
@@ -122,6 +123,31 @@ describe("videos under a topic", () => {
         );
         expect(idsOf(getWatchableVideosInTopic(music.id, everything).videos)).toEqual([own.youtubeId]);
         expect(idsOf(getWatchableVideosWithoutTopic(everything).videos)).toEqual([untagged.youtubeId]);
+    });
+
+    test("names a video's topics by slug: those of its channel plus any it was given itself", () => {
+        const [nature, music] = [createTopic("Nature", "", "primary"), createTopic("Music", "", "primary")];
+        insertChannel("UC1", "Chan");
+        const channelOnly = newVideo("UC1");
+        const channelAndOwn = newVideo("UC1");
+        insertVideo(channelOnly);
+        insertVideo(channelAndOwn);
+        setChannelTopics(channelRowId("UC1"), [nature.id]);
+        setVideoTopics(channelAndOwn.youtubeId, [music.id]);
+
+        const slugs = getTopicSlugsOf([channelOnly.youtubeId, channelAndOwn.youtubeId]);
+
+        expect(slugs.get(channelOnly.youtubeId)).toEqual([nature.slug]);
+        expect(slugs.get(channelAndOwn.youtubeId)).toEqual([nature.slug, music.slug]);
+    });
+
+    test("a video with no topic has no slugs, and asking about no videos gives nothing", () => {
+        createTopic("Nature", "", "primary");
+        const untagged = newVideo("loose");
+        allowVideo(untagged);
+
+        expect(getTopicSlugsOf([untagged.youtubeId]).has(untagged.youtubeId)).toBe(false);
+        expect(getTopicSlugsOf([]).size).toBe(0);
     });
 
     test("a blocked video is in no topic", () => {
