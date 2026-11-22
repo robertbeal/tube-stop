@@ -152,18 +152,6 @@ export function getRecentlyWatched(page: Page): VideoPage {
     return queryPage(`${watchableExpression} AND v.watched_at > 0`, [], page, "ORDER BY v.watched_at DESC, v.id DESC");
 }
 
-/** The pinned videos the child may watch whose files are ready, unwatched ones first and then newest first. */
-export function getSavedVideos(): Video[] {
-    return database
-        .query<VideoRow, []>(
-            `SELECT ${videoColumns} FROM videos v
-       WHERE ${watchableExpression} AND v.pinned = 1 AND v.download_status = 'ready' AND v.file_path != ''
-       ORDER BY (v.watched_at > 0), v.published_at DESC, v.id DESC`,
-        )
-        .all()
-        .map(toVideo);
-}
-
 /**
  * One page of the videos an admin needs to see. Without a channel filter these are videos
  * that are explicitly allowed, blocked, pinned or downloading; with one, every video of that channel.

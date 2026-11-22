@@ -24,7 +24,7 @@ ordering; videos with no known date follow the dated ones.
 **Removing.** In the admin list, *Remove* on a video from an allowed channel blocks it
 (and deletes its files) so the next sync cannot bring it back; the button is labelled
 "Remove (stays hidden)". Any other video is deleted outright. Removing a *channel* hides its
-videos and deletes their watch-once cache files, but keeps pinned files (unpin those by hand).
+videos and deletes their watch-once cache files, but keeps kept files (use *Stop keeping* on those by hand).
 
 **Lists are paged:** 24 videos per page for the child ("More videos"), 100 per page in the admin.
 
@@ -33,35 +33,45 @@ videos and deletes their watch-once cache files, but keeps pinned files (unpin t
 - **Watch once.** The first time a video is opened, a 720p copy is downloaded to `CACHE_DIR`
   and the page shows "getting ready" until it can play. Copies not played for
   `CACHE_TTL_DAYS`, or beyond `CACHE_MAX_GB` (least recently played first), are deleted hourly.
-- **Pinned.** A parent can pin a video: it is downloaded at up to `KEEP_MAX_HEIGHT` into
-  `MEDIA_DIR/<channel>/<date> - <title> [id].mp4` with a `.jpg` thumbnail, and kept until unpinned.
-  Point Jellyfin at `MEDIA_DIR` (read-only) to watch pinned videos there too. Unpinning deletes the files.
+- **Kept.** A parent can press *Keep* on a video in the admin list: it is downloaded at up to `KEEP_MAX_HEIGHT` into
+  `MEDIA_DIR/<channel>/<date> - <title> [id].mp4` with a `.jpg` thumbnail, and kept until *Stop keeping*.
+  Point Jellyfin at `MEDIA_DIR` (read-only) to watch kept videos there too. Stopping deletes the files.
 
-**Thumbnails** are served from this app (`/thumb/{id}`): a pinned video's own picture if it
+**Thumbnails** are served from this app (`/thumb/{id}`): a kept video's own picture if it
 has one, otherwise a copy fetched from YouTube once and saved in `DATA_DIR/thumbs`, so the child's
 browser never contacts YouTube. They are deleted when a standalone video is removed.
 
 Opening a page never changes anything; the page's script asks for the download
 (`POST /api/videos/{id}/prepare`) and reports plays (`POST /api/videos/{id}/played`).
 
-**Without a connection.** The child's pages are an installable web app that keeps working away from the
-server. Open it once at home, then use the browser's *Install app* / *Add to Home screen*. After that:
+**Pinning to a device.** The child's pages are an installable web app that can work away from the server.
+Open it once at home, then use the browser's *Install app* / *Add to Home screen*. On a video's page, the
+child presses **📌 Pin** to keep that video on *this* device, and **Unpin** to free the room again. Each device
+has its own pins, so a tablet and a laptop can hold different videos. This is separate from *Keep* in the
+admin area, which keeps a copy on the server.
 
-- The app's own files, the pages the child has browsed and their thumbnails are kept on the device. With the
-  server out of reach (or slow to answer, over 3 seconds) the kept copies are shown.
-- **Pinned videos are saved to the device** each time the app is opened while the server is reachable, newest
-  unwatched first, up to `OFFLINE_MAX_GB` (and no more than 90% of the room the browser says is free). A video
-  that is unpinned, removed or blocked is deleted from the device the next time. Saved videos play from the
-  device even at home, so they start at once, and seeking, speed and A-B loop work as usual.
-  Videos that are not pinned are not saved: pin the ones to take on a trip.
-- Offline, the pages show only the saved videos (marked "On device"); the parts that need the server are
-  hidden, including the hide-watched button.
+- A pinned video is downloaded to the browser's storage. If the server has no file for it yet, it fetches one
+  first (the same wait as pressing play on a new video). It carries on if the child leaves the page.
+- Pinned videos play from the device even at home, so they start at once, and seeking, speed and A-B loop work
+  as usual. They also play when the server cannot be reached.
+- The home page gets a **Pinned** row, newest first. Without a connection it is all the home page shows, and
+  other pages show only pinned videos. The parts that need the server (paging, the hide-watched button, the
+  channel bar) are hidden.
+- The pages the child has browsed, and their thumbnails, are kept too. With the server out of reach (or slow to
+  answer, over 3 seconds) the kept copies are shown.
 - Plays and "watched" marks made offline are sent to the server the next time it is reachable.
+- Each time a page opens and the server answers, the device asks which of its pins are still allowed: a video
+  the parent has blocked or removed is deleted from the device.
+- A device keeps at most `OFFLINE_MAX_GB` of pinned videos (and no more than 90% of the room the browser says is
+  free). When it is full, pinning says so and nothing is deleted by itself: unpin a video first.
+- On a touch device held sideways, the video fills the screen and the pin button is out of the way: turn it
+  upright to pin.
 
 This needs a secure address: `https://`, or `localhost`. Browsers do not offer service workers on plain
-`http://` to other machines. Saved videos use the browser's own storage, which it may clear if the device runs
-short of space; the app asks the browser to keep it, and installing the app makes that more likely. Downloads
-happen while the app is open and carry on if the child moves between pages.
+`http://` to other machines. Pins live in the browser's own storage, which it may clear if the device runs short
+of space; pinning asks the browser to keep it, and installing the app makes that more likely. Do not use a
+private window, and do not let the browser clear site data when it closes (Firefox-based browsers such as
+LibreWolf and IronFox can do this: add an exception for the site).
 
 ## Run
 
@@ -83,7 +93,7 @@ http://localhost:8080/admin. Settings are environment variables, listed under [S
           CACHE_MAX_GB: 20
           KEEP_MAX_HEIGHT: 1080
 
-Everything is kept under `/app`: `data/` (the database and thumbnails), `media/` (pinned videos, one
+Everything is kept under `/app`: `data/` (the database and thumbnails), `media/` (kept videos, one
 folder per channel: point Jellyfin here, read-only) and `cache/` (watch-once copies, deleted automatically).
 To put one somewhere else, mount it over its folder, for example `./videos:/app/media`. Keeping them under one
 mount is the simplest, and lets files move between the folders instantly.
@@ -155,7 +165,7 @@ the app prints a fresh setup code. In the container: `docker exec <container> tu
 | `KEEP_MAX_HEIGHT` | `1080` |
 | `ADMIN_SESSION_DAYS` | `30` (1 to 400) |
 | `CACHE_TTL_DAYS` / `CACHE_MAX_GB` | `7` / `20` |
-| `OFFLINE_MAX_GB` | `10` (the most a device keeps for use offline) |
+| `OFFLINE_MAX_GB` | `10` (the most a device keeps pinned) |
 | `SYNC_INTERVAL` | `1h` (durations like `30m`, `1h30m`, `500ms`) |
 
 Empty values mean the default. Invalid values stop the app at startup with a message naming each

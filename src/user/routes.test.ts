@@ -1,5 +1,4 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { allow, buildEnvironment, logIn, send } from "../../tests/harness.ts";
 import { testVideoId } from "../../tests/helpers.ts";
@@ -7,7 +6,7 @@ import { config } from "../shared/config.ts";
 import { claimCache, claimDownload, failCache, finishDownload, pinVideo, requestCache } from "../shared/db/queue.ts";
 import { createTopic, setVideoTopics } from "../shared/db/topics.ts";
 import * as videoQueries from "../shared/db/videos.ts";
-import { blockVideo, markWatched } from "../shared/db/videos.ts";
+import { blockVideo } from "../shared/db/videos.ts";
 import type { VideoId } from "../shared/ytdlp/types.ts";
 import {
     addPublished,
@@ -642,55 +641,50 @@ describe("recently watched and hiding watched", () => {
     });
 });
 
-describe("videos a device can keep", () => {
-    test("lists pinned videos with the size of their files, and the limit", async () => {
-        const environment = await environmentWithSong();
-        await makePinnedFile(videoId, join(environment.mediaDir, "song.mp4"), "12345");
+describe("videos a device has pinned", () => {
+    const check = async (environment: Awaited<ReturnType<typeof buildEnvironment>>, ids: string[]) =>
+        (await (await send(environment, `/api/offline?ids=${ids.join(",")}`)).json()) as {
+            maxBytes: number;
+            allowed: string[];
+        };
 
-        const response = await send(environment, "/api/offline");
+    test("says which may still be watched, and the limit", async () => {
+        const environment = await buildEnvironment();
+        const [allowed, blocked, unknown] = [numberedId(1), numberedId(2), numberedId(3)];
+        allowPianoVideo(allowed, "Song");
+        allowPianoVideo(blocked, "Scary");
+        blockVideo(blocked);
+
+        const response = await send(environment, `/api/offline?ids=${allowed},${blocked},${unknown}`);
 
         expect(response.status).toBe(200);
         expect(response.headers.get("cache-control")).toBe("no-store");
-        expect(await response.json()).toEqual({ maxBytes: config.offlineMaxBytes, videos: [{ id: videoId, size: 5 }] });
+        expect(await response.json()).toEqual({ maxBytes: config.offlineMaxBytes, allowed: [allowed] });
     });
 
-    test("leaves out videos that are only cached, blocked, or whose file has gone", async () => {
+    test("allows a video from an allowed channel", async () => {
         const environment = await buildEnvironment();
-        const [cached, blocked, missing, kept] = [numberedId(1), numberedId(2), numberedId(3), numberedId(4)];
-        for (const id of [cached, blocked, missing, kept]) {
-            allowPianoVideo(id, "Song");
-        }
-        await makeCacheReady(environment, cached, "cache");
-        await makePinnedFile(blocked, join(environment.mediaDir, "blocked.mp4"), "blocked");
-        blockVideo(blocked);
-        await makePinnedFile(missing, join(environment.mediaDir, "missing.mp4"), "missing");
-        await rm(join(environment.mediaDir, "missing.mp4"));
-        await makePinnedFile(kept, join(environment.mediaDir, "kept.mp4"), "kept");
-
-        const body = (await (await send(environment, "/api/offline")).json()) as { videos: { id: string }[] };
-
-        expect(body.videos.map((entry) => entry.id)).toEqual([kept]);
+        addPublished(1);
+        expect((await check(environment, [numberedId(1)])).allowed).toEqual([numberedId(1)]);
     });
 
-    test("puts unwatched videos first, then the newest", async () => {
-        const environment = await buildEnvironment();
-        const [oldest, newest, watched] = [numberedId(1), numberedId(2), numberedId(3)];
-        for (const [index, id] of [oldest, newest, watched].entries()) {
-            allow({ youtubeId: id, publishedAt: 1000 + index * (id === watched ? 100 : 1) });
-            await makePinnedFile(id, join(environment.mediaDir, `${id}.mp4`), "x");
-        }
-        markWatched(watched);
-
-        const body = (await (await send(environment, "/api/offline")).json()) as { videos: { id: string }[] };
-
-        expect(body.videos.map((entry) => entry.id)).toEqual([newest, oldest, watched]);
+    test("ignores anything that is not a video id", async () => {
+        const environment = await environmentWithSong();
+        const body = await check(environment, ["short", "..%2Fetc", `${videoId}`, ""]);
+        expect(body.allowed).toEqual([videoId]);
     });
 
-    test("is empty when nothing is pinned", async () => {
+    test("answers with only the limit when asked about nothing", async () => {
         const environment = await buildEnvironment();
         expect(await (await send(environment, "/api/offline")).json()).toEqual({
             maxBytes: config.offlineMaxBytes,
-            videos: [],
+            allowed: [],
         });
+    });
+
+    test("checks at most a thousand at a time", async () => {
+        const environment = await environmentWithSong();
+        const ids = [...Array.from({ length: 1000 }, () => "short"), videoId];
+        expect((await check(environment, ids)).allowed).toEqual([]);
     });
 });

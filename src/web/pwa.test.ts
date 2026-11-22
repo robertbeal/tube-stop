@@ -79,4 +79,18 @@ describe("pages that work without the server", () => {
 
         expect(await (await send(environment, "/")).text()).toContain(`data-video-id="${videoId}"`);
     });
+
+    test("the watch page has a pin button that carries what the device needs to show the video offline", async () => {
+        const environment = await buildEnvironment();
+        allowPianoVideo(videoId, "Song & Dance");
+
+        const body = await (await send(environment, `/watch/${videoId}`)).text();
+        const button = /<button id="pinButton"[^>]*>/.exec(body)?.[0] ?? "";
+
+        expect(button).toContain(`data-id="${videoId}"`);
+        expect(button).toContain('data-title="Song &amp; Dance"');
+        expect(button).toContain('data-channel="Piano Guy"');
+        expect(button).toContain("hidden");
+        expect(await (await send(environment, "/")).text()).not.toContain("pinButton");
+    });
 });

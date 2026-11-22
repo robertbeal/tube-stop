@@ -143,7 +143,7 @@ export function adminRoutes(services: Services): Hono<AuthEnv> {
                   `Channel removed, but some cached files could not be deleted: ${failures.map((failure) => failure.message).join("; ")}`,
                   "warning",
               )
-            : redirectWithMessage(context, "Channel removed. Pinned videos from it were kept.", "success");
+            : redirectWithMessage(context, "Channel removed. Kept videos from it were kept.", "success");
     });
 
     routes.post("/sync", (context) => {

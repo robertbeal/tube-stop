@@ -2,7 +2,7 @@
 // of the files below, and ASSETS, the list of files to keep. It does four things:
 //   - keeps the app's own files, so pages draw without a connection
 //   - keeps pages and thumbnails as they are browsed, and uses them when the server cannot be reached
-//   - keeps the videos the server says are pinned (see sync), and plays them from the device, with seeking
+//   - keeps the videos the child has pinned on this device, and plays them from the device, with seeking
 //   - holds back "played" and "watched" reports made without a connection, and sends them later
 /* global BUILD, ASSETS */
 
@@ -14,6 +14,8 @@ const VIDEOS = "tubestop-videos";
 const pageTimeoutMs = 3000; // how long to wait for the server before showing a kept copy of a page
 const reportTimeoutMs = 5000;
 const spareSpace = 0.9; // use at most this much of the room the browser says is free
+const pollMs = 2000; // how often to ask whether the server has finished getting a video ready
+const readyWaitMs = 4 * 60 * 1000; // after this, try again the next time the app is opened
 
 const pagePath = /^\/(?:(?:topic|watch)\/[^/]+|other|watched)?$/;
 const reportPath = /^\/api\/videos\/[\w-]{11}\/(?:played|watched)$/;
@@ -131,21 +133,29 @@ async function part(request, kept) {
   });
 }
 
-// ---- reports made without a connection
+// ---- what the device keeps
 
-const openQueue = () =>
+const openDb = () =>
   new Promise((resolve, reject) => {
-    const opening = indexedDB.open("tubestop", 1);
-    opening.onupgradeneeded = () => opening.result.createObjectStore("reports", { autoIncrement: true });
+    const opening = indexedDB.open("tubestop", 2);
+    opening.onupgradeneeded = () => {
+      const db = opening.result;
+      if (!db.objectStoreNames.contains("reports")) {
+        db.createObjectStore("reports", { autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains("pins")) {
+        db.createObjectStore("pins", { keyPath: "id" });
+      }
+    };
     opening.onsuccess = () => resolve(opening.result);
     opening.onerror = () => reject(opening.error);
   });
 
-async function queue(mode, work) {
-  const db = await openQueue();
+async function store(name, mode, work) {
+  const db = await openDb();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction("reports", mode);
-    const result = work(transaction.objectStore("reports"));
+    const transaction = db.transaction(name, mode);
+    const result = work(transaction.objectStore(name));
     transaction.oncomplete = () => {
       db.close();
       resolve(result.result);
@@ -157,6 +167,8 @@ async function queue(mode, work) {
   });
 }
 
+// ---- reports made without a connection
+
 // Passed on to the server; if that cannot be done, kept until the next time it can.
 async function report(request) {
   try {
@@ -167,13 +179,13 @@ async function report(request) {
   } catch (error) {
     /* no connection: kept below */
   }
-  await queue("readwrite", (store) => store.add(new URL(request.url).pathname));
+  await store("reports", "readwrite", (reports) => reports.add(new URL(request.url).pathname));
   return new Response(null, { status: 202 });
 }
 
 async function sendKeptReports() {
-  const keys = await queue("readonly", (store) => store.getAllKeys());
-  const paths = await queue("readonly", (store) => store.getAll());
+  const keys = await store("reports", "readonly", (reports) => reports.getAllKeys());
+  const paths = await store("reports", "readonly", (reports) => reports.getAll());
   for (const [index, key] of keys.entries()) {
     try {
       const response = await fetch(paths[index], { method: "POST" });
@@ -183,13 +195,42 @@ async function sendKeptReports() {
     } catch (error) {
       return;
     }
-    await queue("readwrite", (store) => store.delete(key));
+    await store("reports", "readwrite", (reports) => reports.delete(key));
   }
 }
 
-// ---- saving videos
+// ---- pinned videos
+//
+// A pin is the child's wish to have a video on this device. It is kept in IndexedDB (with enough about the
+// video to show it without the server); the video itself is kept in the cache once it has been downloaded.
 
 const idOf = (request) => new URL(request.url).pathname.split("/").pop();
+const allPins = () => store("pins", "readonly", (pins) => pins.getAll());
+const getPin = (id) => store("pins", "readonly", (pins) => pins.get(id));
+const putPin = (pin) => store("pins", "readwrite", (pins) => pins.put(pin));
+const deletePin = (id) => store("pins", "readwrite", (pins) => pins.delete(id));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+class Gone extends Error {}
+class Unfinished extends Error {}
+
+let limit = 10 * 2 ** 30; // the most to keep, as last told by a page
+let held = null; // id -> size of each video in the cache; null until read
+let running = null; // the download loop, while it is going
+const progress = new Map(); // id -> what is happening to a pin that is not in the cache yet
+const controllers = new Map(); // id -> how to stop its download
+const full = new Set(); // ids that could not be pinned for lack of room
+
+async function heldVideos() {
+  if (held === null) {
+    held = new Map();
+    const cache = await caches.open(VIDEOS);
+    for (const request of await cache.keys()) {
+      held.set(idOf(request), Number((await cache.match(request)).headers.get("Content-Length")) || 1);
+    }
+  }
+  return held;
+}
 
 async function tell(message) {
   for (const client of await self.clients.matchAll({ type: "window" })) {
@@ -197,84 +238,214 @@ async function tell(message) {
   }
 }
 
-async function savedVideos(cache) {
-  const saved = new Map();
-  for (const request of await cache.keys()) {
-    saved.set(idOf(request), Number((await cache.match(request)).headers.get("Content-Length")) || 0);
-  }
-  return saved;
+// What every open page needs to draw the pin buttons, the Pinned row and the badges.
+async function broadcast() {
+  const kept = await heldVideos();
+  const pins = (await allPins())
+    .sort((a, b) => b.pinnedAt - a.pinnedAt)
+    .map((pin) => ({
+      ...pin,
+      ...(kept.has(pin.id) ? { state: "saved" } : (progress.get(pin.id) ?? { state: "waiting" })),
+    }));
+  await tell({ type: "state", pins, full: [...full] });
 }
 
-// The videos to keep: in the order the server listed them, as many as fit in the limit and the room left.
-async function chooseVideos({ maxBytes, videos }, held) {
-  let budget = maxBytes;
+function setProgress(id, value) {
+  progress.set(id, value);
+  broadcast().catch(() => {});
+}
+
+// Takes a pin away, and its video with it.
+async function removePin(id) {
+  controllers.get(id)?.abort();
+  await deletePin(id);
+  await (await caches.open(VIDEOS)).delete(`/video/${id}`);
+  (await heldVideos()).delete(id);
+  progress.delete(id);
+}
+
+// How many more bytes of video fit: within the limit, and within the room the browser has left.
+async function roomLeft() {
+  const used = [...(await heldVideos()).values()].reduce((sum, size) => sum + size, 0);
+  let budget = limit;
   const estimate = (await navigator.storage?.estimate?.()) ?? {};
   if (estimate.quota) {
-    const heldBytes = [...held.values()].reduce((sum, size) => sum + size, 0);
-    budget = Math.min(budget, Math.floor((estimate.quota - estimate.usage + heldBytes) * spareSpace));
+    budget = Math.min(budget, Math.floor((estimate.quota - estimate.usage + used) * spareSpace));
   }
-  const chosen = [];
-  let used = 0;
-  for (const entry of videos) {
-    if (used + entry.size <= budget) {
-      chosen.push(entry);
-      used += entry.size;
-    }
-  }
-  return chosen;
+  return budget - used;
 }
 
-async function keepVideo(id, { videos, pages, thumbs }) {
-  // The page and picture are small; the video is the point, so they may fail without stopping it.
-  await Promise.allSettled([pages.add(`/watch/${id}`), thumbs.add(`/thumb/${id}`)]);
-  const response = await fetch(`/video/${id}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`the server answered ${response.status}`);
-  }
-  await videos.put(`/video/${id}`, response);
-}
-
-let saving = false;
-
-async function saveVideos(list) {
-  const [videos, pages, thumbs] = await Promise.all([VIDEOS, PAGES, THUMBS].map((name) => caches.open(name)));
-  const held = await savedVideos(videos);
-  const chosen = await chooseVideos(list, held);
-  const wanted = new Set(chosen.map((entry) => entry.id));
-  for (const id of held.keys()) {
-    if (!wanted.has(id)) {
-      await videos.delete(`/video/${id}`);
+// The server only has a file once it has fetched it, which is the same wait as pressing play on a new video.
+async function untilReady(id, signal) {
+  const status = async () => {
+    const response = await fetch(`/status/${id}`, { signal });
+    if (response.status === 404) {
+      throw new Gone();
     }
-  }
-  // A copy of the wrong size is replaced; the old one keeps playing until the new one is complete.
-  const todo = chosen.filter((entry) => held.get(entry.id) !== entry.size);
-  for (const [index, entry] of todo.entries()) {
-    await tell({ type: "progress", done: index, total: todo.length });
-    try {
-      await keepVideo(entry.id, { videos, pages, thumbs });
-    } catch (error) {
-      /* tried again the next time the app is opened */
-    }
-  }
-  await tell({ type: "saved", ids: [...(await savedVideos(videos)).keys()] });
-}
-
-// The pages ask for this each time they open and the server can be reached; `list` is null when only reports are to be sent.
-self.addEventListener("message", (event) => {
-  if (event.data?.type !== "sync") {
+    return response.json();
+  };
+  if ((await status()).ready) {
     return;
+  }
+  await fetch(`/api/videos/${id}/prepare`, { method: "POST", signal });
+  for (let waited = 0; waited < readyWaitMs; waited += pollMs) {
+    await sleep(pollMs);
+    const now = await status();
+    if (now.ready) {
+      return;
+    }
+    if (now.failed) {
+      throw new Error("the server could not get the video");
+    }
+  }
+  throw new Unfinished();
+}
+
+async function download(id) {
+  const controller = new AbortController();
+  controllers.set(id, controller);
+  try {
+    setProgress(id, { state: "preparing" });
+    await untilReady(id, controller.signal);
+    const [videos, pages, thumbs] = await Promise.all([VIDEOS, PAGES, THUMBS].map((name) => caches.open(name)));
+    // The page and picture are small; the video is the point, so they may fail without stopping it.
+    await Promise.allSettled([pages.add(`/watch/${id}`), thumbs.add(`/thumb/${id}`)]);
+    const response = await fetch(`/video/${id}`, { cache: "no-store", signal: controller.signal });
+    if (response.status === 404) {
+      throw new Gone();
+    }
+    if (!response.ok || !response.body) {
+      throw new Error(`the server answered ${response.status}`);
+    }
+    const total = Number(response.headers.get("Content-Length")) || 0;
+    if (total > (await roomLeft())) {
+      await response.body.cancel();
+      await deletePin(id);
+      full.add(id);
+      return;
+    }
+    let done = 0;
+    let lastTold = 0;
+    setProgress(id, { state: "downloading", done, total });
+    const counted = response.body.pipeThrough(
+      new TransformStream({
+        transform(chunk, output) {
+          done += chunk.byteLength;
+          if (Date.now() - lastTold > 500) {
+            lastTold = Date.now();
+            setProgress(id, { state: "downloading", done, total });
+          }
+          output.enqueue(chunk);
+        },
+      }),
+    );
+    // The copy only appears in the cache once it is whole.
+    await videos.put(`/video/${id}`, new Response(counted, { status: 200, headers: response.headers }));
+    (await heldVideos()).set(id, total || done || 1);
+    if (!(await getPin(id))) {
+      await removePin(id); // unpinned while it downloaded
+    }
+  } finally {
+    controllers.delete(id);
+    progress.delete(id);
+  }
+}
+
+// Downloads the pinned videos that are not here yet, one at a time. Each is tried once per run.
+function work() {
+  running ??= (async () => {
+    const tried = new Set();
+    try {
+      for (;;) {
+        const kept = await heldVideos();
+        const next = (await allPins()).find((pin) => !kept.has(pin.id) && !tried.has(pin.id));
+        if (!next) {
+          return;
+        }
+        tried.add(next.id);
+        try {
+          await download(next.id);
+        } catch (error) {
+          if (error instanceof Gone) {
+            await removePin(next.id);
+          } else if (error instanceof Unfinished) {
+            /* still waiting: tried again next time */
+          } else if (error.name === "QuotaExceededError") {
+            await removePin(next.id);
+            full.add(next.id);
+          } else if (error.name !== "AbortError") {
+            if (error instanceof TypeError) {
+              return; // no connection: the rest would fail too
+            }
+            progress.set(next.id, { state: "failed" });
+          }
+        }
+        await broadcast();
+      }
+    } finally {
+      running = null;
+      await broadcast().catch(() => {});
+    }
+  })();
+  return running;
+}
+
+// Anything the server no longer allows is removed, and so is any saved video nobody has pinned.
+async function tidy(reachable) {
+  held = null;
+  if (reachable) {
+    const pins = await allPins();
+    if (pins.length > 0) {
+      try {
+        const response = await fetch(`/api/offline?ids=${pins.map((pin) => pin.id).join(",")}`, { cache: "no-store" });
+        if (response.ok) {
+          const { allowed } = await response.json();
+          for (const pin of pins) {
+            if (!allowed.includes(pin.id)) {
+              await removePin(pin.id);
+            }
+          }
+        }
+      } catch (error) {
+        /* no connection after all: checked next time */
+      }
+    }
+  }
+  const wanted = new Set((await allPins()).map((pin) => pin.id));
+  for (const id of [...(await heldVideos()).keys()]) {
+    if (!wanted.has(id)) {
+      await removePin(id);
+    }
+  }
+}
+
+// What the pages ask for. Every page says how much room the server allows each device.
+self.addEventListener("message", (event) => {
+  const message = event.data;
+  if (message?.maxBytes > 0) {
+    limit = message.maxBytes;
   }
   event.waitUntil(
     (async () => {
-      await sendKeptReports();
-      if (event.data.list === null || saving) {
-        return;
-      }
-      saving = true;
-      try {
-        await saveVideos(event.data.list);
-      } finally {
-        saving = false;
+      if (message?.type === "sync") {
+        if (message.reachable) {
+          await sendKeptReports();
+        }
+        await tidy(message.reachable);
+        await broadcast();
+        if (message.reachable && message.downloads) {
+          await work();
+        }
+      } else if (message?.type === "pin") {
+        const { id, title, channel, duration } = message;
+        full.delete(id);
+        await putPin({ id, title, channel, duration, pinnedAt: Date.now() });
+        await broadcast();
+        await work();
+      } else if (message?.type === "unpin") {
+        await removePin(message.id);
+        full.delete(message.id);
+        await broadcast();
       }
     })(),
   );

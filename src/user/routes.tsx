@@ -14,14 +14,7 @@ import {
     getWatchableVideosWithoutTopic,
 } from "../shared/db/topics.ts";
 import type { Video } from "../shared/db/types.ts";
-import {
-    getRecentlyWatched,
-    getSavedVideos,
-    getVideo,
-    getWatchableVideos,
-    markWatched,
-    recordPlay,
-} from "../shared/db/videos.ts";
+import { getRecentlyWatched, getVideo, getWatchableVideos, markWatched, recordPlay } from "../shared/db/videos.ts";
 import { logger } from "../shared/logger.ts";
 import { downloadThumbnail, thumbnailDir } from "../shared/thumbnails.ts";
 import { parseVideoId } from "../shared/ytdlp/info.ts";
@@ -45,6 +38,9 @@ const currentPath = (context: Context): string => {
 
 /** How many videos each row on the home page shows before "See all". */
 const shelfSize = 8;
+
+/** The most pinned videos a device can have checked at once. */
+const maxCheckedIds = 1000;
 
 async function exists(path: string): Promise<boolean> {
     return stat(path).then(
@@ -237,19 +233,15 @@ export function userRoutes(): Hono {
         return context.body(null, 204);
     });
 
-    // The pinned videos a device may keep for use without a connection, and how much room it may give them.
-    routes.get("/api/offline", async (context) => {
-        const sizes = await Promise.all(
-            getSavedVideos().map(async (video) => ({
-                id: video.youtubeId,
-                size: (await stat(video.filePath).catch(() => undefined))?.size ?? 0,
-            })),
-        );
-        return context.json(
-            { maxBytes: config.offlineMaxBytes, videos: sizes.filter((entry) => entry.size > 0) },
-            200,
-            { "Cache-Control": "no-store" },
-        );
+    // Tells a device which of the videos it has pinned may still be watched, and how much room it may give them.
+    // Asking also shows the device that the server can be reached.
+    routes.get("/api/offline", (context) => {
+        const ids = (context.req.query("ids") ?? "").split(",").slice(0, maxCheckedIds);
+        const allowed = ids.filter((raw) => {
+            const id = parseVideoId(raw);
+            return id !== undefined && getVideo(id)?.watchable === true;
+        });
+        return context.json({ maxBytes: config.offlineMaxBytes, allowed }, 200, { "Cache-Control": "no-store" });
     });
 
     routes.get("/status/:id", async (context) => {

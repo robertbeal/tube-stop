@@ -215,7 +215,7 @@ const VideoStatus: FC<{ video: Video }> = ({ video }) => (
             <span class="badge text-bg-secondary">hidden</span>
         )}{" "}
         {video.watchedAt > 0 && <span class="badge text-bg-success">watched</span>}{" "}
-        {video.pinned && <span class="badge text-bg-info">pinned ({video.downloadStatus})</span>}
+        {video.pinned && <span class="badge text-bg-info">kept ({video.downloadStatus})</span>}
         {video.downloadError !== "" && <div class="small text-danger mt-1">{video.downloadError}</div>}
     </>
 );
@@ -229,8 +229,8 @@ const VideoActions: FC<{ video: Video }> = ({ video }) => {
                     <PostButton
                         action={`${base}/unpin`}
                         buttonClass="btn-outline-secondary"
-                        label="Unpin"
-                        busyLabel="Unpinning…"
+                        label="Stop keeping"
+                        busyLabel="Stopping…"
                     />{" "}
                     {video.downloadStatus === "failed" && (
                         <PostButton
@@ -242,7 +242,12 @@ const VideoActions: FC<{ video: Video }> = ({ video }) => {
                     )}
                 </>
             ) : (
-                <PostButton action={`${base}/pin`} buttonClass="btn-outline-primary" label="Pin" busyLabel="Pinning…" />
+                <PostButton
+                    action={`${base}/pin`}
+                    buttonClass="btn-outline-primary"
+                    label="Keep"
+                    busyLabel="Keeping…"
+                />
             )}{" "}
             {video.watchedAt > 0 ? (
                 <PostButton
@@ -314,7 +319,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
             </div>
         )}
         <p class="text-body-secondary">
-            Pinned downloads: <strong>{humanBytes(props.mediaBytes)}</strong> · Watch-once cache:{" "}
+            Kept downloads: <strong>{humanBytes(props.mediaBytes)}</strong> · Watch-once cache:{" "}
             <strong>{humanBytes(props.cacheBytes)}</strong>
         </p>
 
@@ -452,7 +457,7 @@ export const AdminPage: FC<AdminProps> = (props) => (
             Videos{" "}
             <small class="text-body-secondary">
                 {props.current === "" ? (
-                    "(individual, blocked, pinned)"
+                    "(individual, blocked, kept)"
                 ) : (
                     <>
                         (channel filter · <a href="/admin">clear</a>)

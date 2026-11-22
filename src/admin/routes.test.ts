@@ -495,7 +495,7 @@ describe("channels", () => {
         expect(await exists(inheritedCache)).toBe(false);
         expect(await exists(individualCache)).toBe(true);
         expect(await exists(pinnedFile)).toBe(true);
-        expect(message).toBe("Channel removed. Pinned videos from it were kept.");
+        expect(message).toBe("Channel removed. Kept videos from it were kept.");
     });
 
     test("removing an unknown channel explains it was not found", async () => {

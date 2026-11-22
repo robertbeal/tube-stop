@@ -262,6 +262,22 @@ export const WatchPage: FC<{ video: Video; ready: boolean }> = ({ video, ready }
             <div class="watch-details">
                 <h1 class="h4">{video.title}</h1>
                 <p class="text-body-secondary">{video.channelName}</p>
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                    <button
+                        id="pinButton"
+                        type="button"
+                        class="btn btn-outline-primary btn-lg pin-button"
+                        data-id={video.youtubeId}
+                        data-title={video.title}
+                        data-channel={video.channelName}
+                        data-duration={String(video.duration)}
+                        aria-pressed="false"
+                        hidden
+                    >
+                        📌 Pin
+                    </button>
+                    <span id="pinMessage" class="text-body-secondary" role="status" />
+                </div>
             </div>
         </div>
         <script src="/player.js" />

@@ -388,6 +388,15 @@
     }
   });
 
+  // A video pinned on this device plays from it, whether or not the server has a file or can be reached.
+  const pinnedHere = async () => {
+    try {
+      return Boolean(await (await caches.open("tubestop-videos")).match(`/video/${id}`));
+    } catch (e) {
+      return false; // no cache here (an insecure address, or a browser without one)
+    }
+  };
+
   // Not downloaded yet: ask the server to fetch it, then poll until it is ready.
   if (v.dataset.ready !== "true") {
     const wait = byId("wait");
@@ -430,6 +439,15 @@
       e.preventDefault();
       prepare();
     });
-    prepare();
+    pinnedHere().then((here) => {
+      if (here) {
+        v.src = `/video/${id}`;
+        wait.hidden = true;
+        transport.inert = false;
+        v.play().catch(() => {});
+      } else {
+        prepare();
+      }
+    });
   }
 })();
