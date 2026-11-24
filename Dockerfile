@@ -1,5 +1,5 @@
 # The yt-dlp release in the image. A scheduled workflow keeps this up to date.
-ARG YTDLP_VERSION=2026.10.26
+ARG YTDLP_VERSION=2026.11.23
 
 # yt-dlp's standalone build, checked against the checksums published with the release.
 FROM docker.io/alpine:3.23 AS ytdlp
